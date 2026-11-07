@@ -25,5 +25,10 @@ for the histories that were generated. It is not a proof.
   as a record with exactly those two fields. Such objects always decode as variants.
   `#unserializable` values can never match an observation.
 
+- **Generated drivers.** The fingerprint that marks a generated base stale covers the
+  main model file and the manifest's step mapping, not modules the model imports.
+  Generated record types are `TypedDict`s, which are unhashable, so a `Set` of records
+  cannot be returned as a Python set.
+
 pytest-quint-connect does not use or require any proof tool. It complements, and does
 not replace, ordinary unit and integration tests.

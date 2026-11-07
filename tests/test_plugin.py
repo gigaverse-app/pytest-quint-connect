@@ -15,7 +15,15 @@ from lru_support import EXAMPLE
 
 @pytest.fixture
 def example(pytester: pytest.Pytester) -> Path:
-    for name in ("lru.qnt", "quint-connect.json", "lru_cache.py", "conftest.py", "test_lru_contract.py", "pytest.ini"):
+    for name in (
+        "lru.qnt",
+        "quint-connect.json",
+        "lru_cache.py",
+        "lru_cache_driver.py",
+        "conftest.py",
+        "test_lru_contract.py",
+        "pytest.ini",
+    ):
         shutil.copyfile(EXAMPLE / name, pytester.path / name)
     return pytester.path
 

@@ -10,6 +10,17 @@
 | `--quint-replay TRACE` | Replay one saved `.itf.json` through exactly one selected contract test instead of generating. Never complete coverage. |
 | `--quint-mutant NAME` | With `--quint-replay`: replay through that mutant. |
 
+## `pytest-quint-connect codegen`
+
+```text
+pytest-quint-connect codegen MANIFEST [-o OUTPUT] [--class-name NAME] [--quint PATH] [--check]
+```
+
+Writes a typed driver base for the contract (default output: `MODULE_driver.py` beside
+the manifest). `--check` writes nothing and exits 1 with a diff if the file differs
+from what would be generated. Exit 2 means the manifest, model or Quint could not be
+used. See [drivers](drivers.md#generated-typed-drivers).
+
 ## ini options
 
 | Option | Meaning |

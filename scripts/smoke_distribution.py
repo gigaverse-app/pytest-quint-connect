@@ -20,7 +20,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples" / "lru_cache"
-EXAMPLE_FILES = ("lru.qnt", "quint-connect.json", "lru_cache.py", "conftest.py", "test_lru_contract.py", "pytest.ini")
+EXAMPLE_FILES = (
+    "lru.qnt",
+    "quint-connect.json",
+    "lru_cache.py",
+    "lru_cache_driver.py",
+    "conftest.py",
+    "test_lru_contract.py",
+    "pytest.ini",
+)
 
 
 def run(arguments: list[str], cwd: Path, env: dict[str, str], *, expect: int = 0) -> subprocess.CompletedProcess[str]:
@@ -63,6 +71,9 @@ def main() -> None:
         ]
         if not registered:
             raise SystemExit("pytest did not load pytest_quint_connect from the installed distribution")
+        # The installed console script regenerates exactly the committed typed driver base.
+        script = environment / ("Scripts/pytest-quint-connect.exe" if os.name == "nt" else "bin/pytest-quint-connect")
+        run([str(script), "codegen", "quint-connect.json", "-o", "lru_cache_driver.py", "--check"], project, env)
         run([str(python), "-m", "pytest", "-q", "-p", "no:cacheprovider", "--quint-require-complete"], project, env)
         receipt = json.loads((project / ".artifacts/quint-connect/results.json").read_text(encoding="utf-8"))
         (contract,) = receipt["contracts"]

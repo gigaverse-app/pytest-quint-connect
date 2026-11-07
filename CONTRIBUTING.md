@@ -24,6 +24,7 @@ The first test run installs the plugin's locked Quint into your user cache with
 | `tests/test_contract.py` | manifest validation, historical hash | no |
 | `tests/test_replay.py` | engine: mismatches, malformed traces, fresh drivers, cleanup, attestation | no |
 | `tests/test_plugin.py` | pytest sessions on the LRU example: cases, JUnit, replay, filtering, receipts, mutants, teardown | yes |
+| `tests/test_codegen.py` | typed driver generation from real `quint compile` IR, argument binding, staleness, mypy drift checks | yes |
 | `tests/test_release.py` | version agreement across pyproject, package, manifest and lock | no |
 | `scripts/smoke_distribution.py` | built wheel in a fresh environment, run from outside the checkout | yes |
 

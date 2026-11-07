@@ -23,6 +23,44 @@ any other fixture, and its teardown runs after the case, pass or fail.
 empty directory, deleted after the history) and `mutant` (`None`, or the mutant name
 to build).
 
+## Generated typed drivers
+
+```bash
+pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
+```
+
+`codegen` runs `quint compile --target json` on the model and writes a module with:
+
+- a `TypedDict` for each record type and for each variant of each sum type (unit
+  variants may omit `value`), and a union alias for each sum type;
+- `<Contract>Driver`, an abstract subclass of `pytest_quint_connect.typed.ActionDriver`
+  with one abstract method per manifest action, using the Quint action's own
+  parameter names and types, plus `observe()` returning the observed state's type.
+
+Subclass it and implement each method against the real code. The base's `step()`
+calls the method for each model step, taking each argument from the event field the
+Quint action assigns it to. In report-merge, `reject(kind, location)` writes
+`mismatch: kind`, so `kind` is read from `mismatch`. An event label can also differ
+from the Quint action's name, as when `inspection` emits `op: "inspect"`. Under the
+mbt convention, arguments come from the nondeterministic picks of the same name.
+
+Generation stops with an error when a parameter is not carried by any event field,
+or one label is emitted by two actions with different arguments.
+
+What this catches, and where:
+
+| Drift | Caught by |
+| --- | --- |
+| An action added or renamed in the model | the regenerated base has a new abstract method; instantiating an incomplete driver raises `TypeError` |
+| A parameter's or an observed field's type changes | mypy or pyright on the driver |
+| The model or the manifest's actions/observe edited without regenerating | every history fails: the base records a fingerprint of both, and names the command to rerun |
+| A committed generated module is out of date | `pytest-quint-connect codegen … --check` exits 1 with a diff |
+
+The generated module is deterministic and `ruff format`-stable; commit it, and run
+`--check` in CI. It contains no behavior. Which real API each action calls, and how
+state is read back, stay in your subclass. That code is the trusted part of the
+contract, and mutants are what check it.
+
 ## Step
 
 | Attribute | Meaning |
