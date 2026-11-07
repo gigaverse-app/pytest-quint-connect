@@ -1,5 +1,6 @@
-# CI-esta's report for each completed CI run: gate latency, critical path, step timings and runner usage, as a
-# sticky comment on the pull request. It runs from the default branch and reads the run as data, with no checkout.
+# CI-esta's report for each completed CI run: gate latency, critical path, step timings and runner usage,
+# as a sticky comment on the pull request. It runs from the default branch and reads the run as data, with no
+# checkout of the pull request's code.
 name: CI report
 on:
   workflow_run:
@@ -10,29 +11,16 @@ permissions:
   contents: read
   actions: read
   checks: read
-  pull-requests: write
+  pull-requests: write # Posts the CI-esta sticky.
 
 jobs:
   report:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: gigaverse-app/ci-esta/actions/ci-observability@v1
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ github.event.workflow_run.id }}
-          run-attempt: ${{ github.event.workflow_run.run_attempt }}
-          commit-sha: ${{ github.event.workflow_run.head_sha }}
-          pull-request-number: ${{ format('{0}', github.event.workflow_run.pull_requests[0].number || '') }}
-          required-gates-json: '[{"kind":"actions_job","job_name":"CI gate"}]'
-          analyze-critical-path: "true"
-          post-sticky: "true"
-          sticky-workflow: CI
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: ci-report-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
-          path: |
-            ci-observability.json
-            ci-observability.md
-            ci-observability.prom
-          if-no-files-found: error
+    uses: gigaverse-app/ci-esta/.github/workflows/report.yml@v1
+    with:
+      run-id: ${{ github.event.workflow_run.id }}
+      run-attempt: ${{ github.event.workflow_run.run_attempt }}
+      head-sha: ${{ github.event.workflow_run.head_sha }}
+      pull-request-number: ${{ format('{0}', github.event.workflow_run.pull_requests[0].number || '') }}
+      post-sticky: true
+      required-gates-json: '[{"kind":"actions_job","job_name":"Validation gate"}]'
+      analyze-critical-path: true
