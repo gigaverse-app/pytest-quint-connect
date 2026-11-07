@@ -14,6 +14,7 @@ def main() -> int:
         *ROOT.glob("docs/**/*.md"),
         *ROOT.glob("examples/**/*.md"),
         *ROOT.glob("skills/**/*.md"),
+        *ROOT.glob("dogfood/*.md"),
     ]
     for document in documents:
         for target in re.findall(r"\]\(([^\s)]+)(?:\s+[^)]*)?\)", document.read_text(encoding="utf-8")):

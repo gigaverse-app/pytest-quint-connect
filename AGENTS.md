@@ -15,12 +15,16 @@ working on pytest-quint-connect itself.
   running a mutant fail its case (`tests/test_plugin.py::test_mutant_setup_error_is_not_detection`).
 - **Filtered is not complete.** Keep `partial`, `replay-only` and `running` receipts
   distinct from `passed` (`tests/test_plugin.py` filtered/replay/stale-receipt tests).
+- **The plugin checks itself.** `dogfood/` is a contract on the plugin's own receipts and
+  exit codes, with four mutants of that logic. Run `uv run pytest dogfood
+  --quint-require-complete` after changing session, completeness or receipt behavior,
+  and extend `dogfood/session.qnt` rather than weakening it when that behavior changes.
 - **ITF types stay distinct.** Map keys keep their type; lists, tuples and records
   never compare equal (`tests/test_itf.py`). Add a collision test with any decoder change.
 - **Generated code carries types, never behavior.** `codegen` output must stay
   deterministic, `ruff format`-stable and fingerprinted; regenerate
-  `examples/lru_cache/lru_cache_driver.py` whenever the generator changes
-  (`tests/test_codegen.py::test_committed_example_driver_is_current` fails otherwise).
+  `examples/lru_cache/lru_cache_driver.py` and `dogfood/session_driver.py` whenever the generator changes
+  (`tests/test_codegen.py::test_committed_generated_drivers_are_current` fails otherwise).
 - Reproduce plugin bugs with `pytester` on a copy of `examples/lru_cache` and real
   Quint, as `tests/test_plugin.py` does. Store new ITF fixtures only as real Quint output.
 - Keep [docs/limits.md](docs/limits.md) honest when behavior changes: bounded

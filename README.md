@@ -149,6 +149,7 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 | --- | --- | --- | --- | --- |
 | [LRU cache example](examples/lru_cache) | 15 (3 witnesses, 12 samples) | 17 per implementation | 1/1 | list and `OrderedDict` implementations pass; the stale-read cache fails 4 of 15 histories |
 | pytest-obligation `merge_reports` | 21 (5 witnesses, 16 samples) | 28 | 6/6 | same 21 histories, state for state, as the runner it replaced |
+| [This plugin's own receipts](dogfood) | 8 (4 witnesses, 4 samples) | 13 | 4/4 | each step is a real pytest session; the mutants break the plugin's completeness and receipt logic |
 
 Quint 0.33.1, TypeScript backend. See [PROVENANCE.md](PROVENANCE.md) for where the
 engine came from and how the baseline was reproduced.

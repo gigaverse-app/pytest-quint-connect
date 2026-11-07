@@ -20,6 +20,7 @@ from pytest_quint_connect.quint import resolve_quint
 from pytest_quint_connect.typed import ActionDriver
 
 DATA = Path(__file__).parent / "data"
+DOGFOOD = Path(__file__).resolve().parents[1] / "dogfood"
 
 
 @pytest.fixture(scope="module")
@@ -44,8 +45,18 @@ def load_module(path: Path) -> ModuleType:
     return module
 
 
-def test_committed_example_driver_is_current(quint, capsys: pytest.CaptureFixture[str]) -> None:
-    arguments = [str(MANIFEST), "-o", str(EXAMPLE / "lru_cache_driver.py"), "--quint", str(quint.executable)]
+@pytest.mark.parametrize(
+    ("manifest", "generated"),
+    [
+        (MANIFEST, EXAMPLE / "lru_cache_driver.py"),
+        (DOGFOOD / "quint-connect.json", DOGFOOD / "session_driver.py"),
+    ],
+    ids=["example", "dogfood"],
+)
+def test_committed_generated_drivers_are_current(
+    quint, capsys: pytest.CaptureFixture[str], manifest: Path, generated: Path
+) -> None:
+    arguments = [str(manifest), "-o", str(generated), "--quint", str(quint.executable)]
     assert main(["codegen", *arguments, "--check"]) == 0, capsys.readouterr().out
 
 

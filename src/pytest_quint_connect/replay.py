@@ -199,7 +199,10 @@ def steps(trace: Trace, contract: Contract) -> Iterator[tuple[Step, Any]]:
             args: Mapping[str, Any] = event.without(contract.action_field)
             if has_mbt:
                 taken = state[MBT_ACTION]
-                if taken != action and not (state.index == 0 and taken == contract.init):
+                # Quint records the action chosen inside `any { ... }`. A step that calls one action
+                # directly is recorded under the init or step action's own name, which names no event.
+                unbranched = taken == (contract.init if state.index == 0 else contract.step)
+                if taken != action and not unbranched:
                     raise TraceError(
                         f"state {state.index}: event says {action!r} but Quint took action {taken!r}; "
                         "the model labels this step with the wrong event"

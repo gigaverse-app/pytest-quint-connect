@@ -120,6 +120,33 @@ jobs:
       - shell: bash
         run: uv run --no-project python scripts/smoke_distribution.py dist/pytest_quint_connect-*.whl
 
+  dogfood:
+    name: Dogfood (the plugin checks its own receipts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
+        with:
+          python-version: '3.13'
+          cache-environment: "false"
+      # Quint generates histories of pytest sessions; each step runs a real pytest session of the LRU
+      # example with this checkout's plugin, and four mutants of the plugin's own receipt logic must be caught.
+      - name: Session-receipts contract
+        env:
+          PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
+        run: uv run --no-sync pytest dogfood --quint-require-complete --junitxml=dogfood/.artifacts/junit.xml
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dogfood-quint-connect
+          path: dogfood/.artifacts
+          # upload-artifact skips dot-directories unless told otherwise.
+          include-hidden-files: true
+          if-no-files-found: error
+
   lint-ci:
     name: Lint workflows
     runs-on: ubuntu-latest
@@ -138,7 +165,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [quality, test, minimum-pytest, build, consumer-install, lint-ci]
+    needs: [quality, test, minimum-pytest, build, consumer-install, dogfood, lint-ci]
     runs-on: ubuntu-latest
     steps:
       # The one check to require: fails on any missing, failed, cancelled or unexpectedly skipped prerequisite.
@@ -146,4 +173,4 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           required: >-
-            {"quality": true, "test": true, "minimum-pytest": true, "build": true, "consumer-install": true, "lint-ci": true}
+            {"quality": true, "test": true, "minimum-pytest": true, "build": true, "consumer-install": true, "dogfood": true, "lint-ci": true}
