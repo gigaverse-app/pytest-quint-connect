@@ -27,6 +27,26 @@ The first test run installs the plugin's locked Quint into your user cache with
 | `tests/test_codegen.py` | typed driver generation from real `quint compile` IR, argument binding, staleness, mypy drift checks | yes |
 | `tests/test_release.py` | version agreement across pyproject, package, manifest and lock | no |
 | `scripts/smoke_distribution.py` | built wheel in a fresh environment, run from outside the checkout | yes |
+| `dogfood/` | the plugin's own receipts and exit codes, through real pytest sessions | yes |
+| `ci_tests/test_routing.py` | which CI lanes and test files a change selects, on real Git snapshots | no |
+
+### Declare what tests read
+
+CI runs only the test files a change can affect ([how CI runs here](docs/ci-toolkit.md)).
+A test that reads a file it does not import (an ITF fixture, the example project, a
+manifest) must declare it in [tests/.gv-dependencies.yaml](tests/.gv-dependencies.yaml),
+or a change to that file will not select the test. Check after adding tests or fixtures:
+
+```bash
+SEL="pytest-selective[audit] @ git+https://github.com/gigaverse-app/pytest-selective.git@v1"
+uv run --with "$SEL" pytest tests --no-selective -p pytest_selective.impact_audit_plugin --impact-audit-dir .impact-audit
+uv run --no-project --with "$SEL" python scripts/ci_file_config.py .impact-audit/config.json
+uv run --with "$SEL" pytest-selective audit --config .impact-audit/config.json --records .impact-audit
+uv run --no-project --python 3.14 --with "$SEL" python -m unittest discover -s ci_tests -v
+```
+
+The audit must report `0 undeclared`. Add a routing case to `ci_tests/test_routing.py`
+when you add a lane input or a new kind of fixture.
 
 For a bug, first add a failing test at the boundary where it appears: a decoder
 collision in `test_itf.py`, a session behavior with `pytester` in `test_plugin.py`.

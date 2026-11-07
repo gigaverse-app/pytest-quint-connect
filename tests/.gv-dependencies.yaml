@@ -1,0 +1,34 @@
+# Inputs the tests read without importing them, so pytest-selective selects the right
+# test files when one changes. Verified with the read audit (see CONTRIBUTING.md).
+dependencies:
+  - readers: ["lru_support.py"]
+    inputs: ["//examples/lru_cache/**"]
+    kind: import
+    reason: >-
+      Loads the LRU example's cache, driver and generated base by path, and points at its
+      model and manifest; every test that imports lru_support depends on the whole example.
+  - readers: ["test_itf.py", "test_replay.py", "test_codegen.py"]
+    inputs: ["data/**"]
+    kind: content
+    reason: Real Quint 0.33.1 ITF traces and a probe model used as fixtures.
+  - readers: ["test_replay.py", "test_codegen.py"]
+    inputs: ["//dogfood/quint-connect.json", "//dogfood/session.qnt"]
+    kind: content
+    reason: The dogfood contract's manifest and model, loaded as a second real contract.
+  - readers: ["test_codegen.py"]
+    inputs: ["//dogfood/session_driver.py"]
+    kind: content
+    reason: codegen --check compares the committed generated dogfood driver.
+  - readers: ["test_plugin.py", "test_codegen.py"]
+    inputs: ["//src/pytest_quint_connect/toolchain/*.json"]
+    kind: content
+    reason: Without QUINT set (as in CI), these tests run Quint from the plugin's locked npm install.
+  - readers: ["test_release.py"]
+    inputs:
+      - "//pyproject.toml"
+      - "//uv.lock"
+      - "//.release-please-manifest.json"
+      - "//release-please-config.json"
+      - "//src/pytest_quint_connect/toolchain/*.json"
+    kind: content
+    reason: The release test checks that every recorded version and the bundled Quint lock agree.
