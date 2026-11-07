@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "session-receipts",
+  "description": "pytest-quint-connect checking itself: every real pytest session leaves a results.json status and exit code that describe that session honestly.",
+  "module": "session_receipts",
+  "model": "session.qnt",
+  "invariant": "honest",
+  "root": "..",
+  "actions": {
+    "init": "copy examples/lru_cache into a fresh project directory; no receipt yet",
+    "session": "run `python -m pytest` in the project with the installed plugin and the options for this kind; read results.json and the exit code",
+    "inspect": "read results.json and the last exit code without running anything"
+  },
+  "witnesses": [
+    "staleSuccessIsReplacedTest",
+    "filteredRunIsNeverPassedTest",
+    "replayIsNeverCompleteTest",
+    "faultAfterSuccessFailsTest"
+  ],
+  "mutants": [
+    "filtered-counts-as-complete",
+    "replay-counts-as-complete",
+    "failed-session-keeps-old-receipt",
+    "require-complete-ignored"
+  ],
+  "bounds": {"seed": 11, "max_samples": 300, "max_steps": 3, "n_traces": 4},
+  "sources": [
+    "src/pytest_quint_connect/plugin.py",
+    "src/pytest_quint_connect/quint.py",
+    "src/pytest_quint_connect/replay.py",
+    "examples/lru_cache/quint-connect.json"
+  ],
+  "attest": {"package": "pytest_quint_connect", "source": "src"},
+  "limits": [
+    "One inner project (the LRU example), five session kinds, both values of --quint-require-complete, at most three sessions per sampled history.",
+    "Interrupted sessions (a killed pytest process) are not modeled; only a session that ran to its end.",
+    "Mutants patch the installed plugin in each inner pytest process; they are not edits of the source files."
+  ]
+}

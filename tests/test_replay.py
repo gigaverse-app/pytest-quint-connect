@@ -86,6 +86,15 @@ def test_event_label_must_agree_with_the_action_quint_took(tmp_path: Path) -> No
         replay_trace(edited(tmp_path, SAMPLE, mislabel), CONTRACT, factory())
 
 
+def test_unbranched_step_is_recorded_under_the_step_name_and_still_replays() -> None:
+    # Found by the dogfood contract: session.qnt's `step` calls one action without `any`, so
+    # Quint 0.33.1 records mbt::actionTaken as "step"; the event still names the real action.
+    contract = load_contract(Path(__file__).resolve().parents[1] / "dogfood" / "quint-connect.json")
+    trace = load_trace(DATA / "session" / "sample-0.itf.json")
+    assert [state["mbt::actionTaken"] for state in trace.states][1:] == ["step"] * (len(trace.states) - 1)
+    assert [step.action for step, _ in steps(trace, contract)][1:] == ["session"] * (len(trace.states) - 1)
+
+
 def test_mbt_steps_carry_unwrapped_picks() -> None:
     planned = list(steps(load_trace(SAMPLE), CONTRACT))
     step, _ = planned[1]

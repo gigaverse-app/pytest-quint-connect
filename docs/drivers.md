@@ -101,9 +101,12 @@ read-only `inspect` action so the last step is not a silent repeat of a mutation
 **MBT metadata.** `quint run --mbt` adds `mbt::actionTaken` and `mbt::nondetPicks`
 to each state. With `"convention": "mbt"` the action name and arguments come from
 that metadata, and `observe` lists the state variables to compare. It suits contracts
-that only sample. When a sampled trace carries both an event and the metadata, the
-plugin requires them to agree, which catches a model action that labels itself with
-the wrong event.
+that only sample, and its `step` must choose actions with `any { … }`: a step that
+calls one action directly is recorded as `mbt::actionTaken = "step"`, which names no
+action. When a sampled trace carries both an event and the metadata, the plugin
+requires them to agree, which catches a model action that labels itself with the
+wrong event. A step recorded under the `init` or `step` name is accepted, because it
+carries no action of its own to compare.
 
 ## Mutants
 
