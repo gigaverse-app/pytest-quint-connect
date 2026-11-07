@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Quint runs on Node.js; the plugin installs its locked Quint 0.33.1 with npm on first use.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
@@ -107,7 +107,7 @@ jobs:
         os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: astral-sh/setup-uv@v7
