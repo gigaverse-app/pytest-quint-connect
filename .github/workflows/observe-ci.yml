@@ -24,3 +24,5 @@ jobs:
       post-sticky: true
       required-gates-json: '[{"kind":"actions_job","job_name":"Validation gate"}]'
       analyze-critical-path: true
+      # Renders why pytest-selective chose these lanes and test files beside the timings.
+      test-selection-artifact: test-impact-explanation

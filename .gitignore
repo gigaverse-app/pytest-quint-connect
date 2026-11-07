@@ -19,3 +19,4 @@ tutorial-report.json
 # Local judge credentials
 .env
 .artifacts/
+.impact-audit/

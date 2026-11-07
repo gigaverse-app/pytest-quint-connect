@@ -14,8 +14,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
+  select-tests:
+    name: Select tests
+    runs-on: ubuntu-latest
+    outputs:
+      lanes: ${{ steps.plan.outputs.lanes }}
+      mode: ${{ steps.files.outputs.mode }}
+      files: ${{ steps.files.outputs.test_roots_json }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # Whole lanes first: a change that cannot affect a lane's inputs does not start that lane's jobs.
+      - id: plan
+        uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
+        with:
+          config: .github/test-lanes.json
+      - name: Share the lane graph and execution inputs with file selection
+        run: |
+          uv run --no-project --python 3.14 --with "$(python3 scripts/ci/selector_requirement.py)" \
+            python scripts/ci_file_config.py "$RUNNER_TEMP/test-impact.json"
+      # Then files: within the tests lane, only the test files the change can reach.
+      - id: files
+        uses: gigaverse-app/pytest-selective@v1
+        with:
+          config: ${{ runner.temp }}/test-impact.json
+          full-roots: tests
+
   quality:
-    name: Lint and docs
+    name: Lint, docs and routing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -26,9 +53,24 @@ jobs:
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync python scripts/check_docs.py
+      # Routing regressions and the gate check always run: they decide what a skipped lane means.
+      - name: Prove lane and file routing on real Git snapshots
+        run: >-
+          uv run --no-project --python 3.14
+          --with "$(python3 scripts/ci/selector_requirement.py)"
+          python -m unittest discover -s ci_tests -v
+      - name: Check the aggregate gate against the execution lanes
+        run: >-
+          uv run --no-project --python 3.14
+          --with "ci-esta>=1.1.0,<2.0.0"
+          ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
 
   test:
     name: Test (Python ${{ matrix.python }}, ${{ matrix.os }})
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).tests) }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -45,11 +87,14 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache-environment: "false"
-      - name: Tests with real Quint generation
+      - name: Execute the shared affected-file plan, with real Quint generation
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
+          CI_PLANNER_RESULT: ${{ needs.select-tests.result }}
+          CI_TEST_MODE: ${{ needs.select-tests.outputs.mode }}
+          CI_TEST_FILES: ${{ needs.select-tests.outputs.files }}
         run: >-
-          uv run --no-sync pytest -q -p no:cacheprovider --durations=20
+          uv run --no-sync python scripts/run_ci_tests.py -q -p no:cacheprovider --durations=20
           --junitxml=test-timings.xml
       # CI-esta keeps per-test durations from every run, so slow tests and runner variance stay visible.
       - uses: gigaverse-app/ci-esta/actions/learn-test-timings@v1
@@ -60,6 +105,10 @@ jobs:
 
   minimum-pytest:
     name: Test with pytest 8.0 (Python 3.11)
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).tests) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -71,10 +120,17 @@ jobs:
           python-version: '3.11'
           cache-environment: "false"
       - run: uv pip install --python .venv "pytest==8.0.0"
-      - run: uv run --no-sync pytest -q -p no:cacheprovider
+      - name: Execute the shared affected-file plan on pytest 8.0
+        env:
+          CI_PLANNER_RESULT: ${{ needs.select-tests.result }}
+          CI_TEST_MODE: ${{ needs.select-tests.outputs.mode }}
+          CI_TEST_FILES: ${{ needs.select-tests.outputs.files }}
+        run: uv run --no-sync python scripts/run_ci_tests.py -q -p no:cacheprovider
 
   build:
     name: Build and smoke the installed wheel
+    needs: select-tests
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -90,6 +146,7 @@ jobs:
       - run: uv run --no-sync python -m pytest tests/test_release.py -q -p no:cacheprovider
       # A fresh environment outside the checkout: pytest discovers the plugin only through the wheel's entry point.
       - name: Installed wheel runs the example contract
+        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).tests }}
         run: uv run --no-sync python scripts/smoke_distribution.py dist/pytest_quint_connect-*.whl
       - uses: actions/upload-artifact@v7
         with:
@@ -99,7 +156,10 @@ jobs:
 
   consumer-install:
     name: Installed wheel (${{ matrix.os }})
-    needs: build
+    needs: [select-tests, build]
+    if: >-
+      ${{ always() && !cancelled() && needs.build.result == 'success' && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).tests) }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -122,6 +182,10 @@ jobs:
 
   dogfood:
     name: Dogfood (the plugin checks its own receipts)
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).dogfood) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -166,12 +230,13 @@ jobs:
     # CI-esta's observer and the branch ruleset both look for this exact name.
     name: Validation gate
     if: ${{ !cancelled() }}
-    needs: [quality, test, minimum-pytest, build, consumer-install, dogfood, lint-ci]
+    needs: [select-tests, quality, test, minimum-pytest, build, consumer-install, dogfood, lint-ci]
     runs-on: ubuntu-latest
     steps:
-      # The one check to require: fails on any missing, failed, cancelled or unexpectedly skipped prerequisite.
+      # The one check to require. A lane job may be skipped only when the planner succeeded and returned false
+      # for that lane; any other missing, failed, cancelled or skipped prerequisite fails the gate.
       - uses: gigaverse-app/ci-esta/actions/validation-gate@v1
         with:
           needs: ${{ toJSON(needs) }}
-          required: >-
-            {"quality": true, "test": true, "minimum-pytest": true, "build": true, "consumer-install": true, "dogfood": true, "lint-ci": true}
+          lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
+          lane-jobs: '{"test":["tests"],"minimum-pytest":["tests"],"consumer-install":["tests"],"dogfood":["dogfood"]}'
