@@ -1,0 +1,41 @@
+name: dry-lint
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: dry-lint-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    # A detection-only fork job must never satisfy the required judged check.
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'dry-lint detect' || 'dry-lint' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: gigaverse-app/dry-lint@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugins: anthropic==2.4.0
+          baseline: .dry-lint/baseline.json
+          require-complete: 'true'
+          comment: 'true'
+          comment-on-clean: 'true'
+
+  audit:
+    # Manual full validation also exercises the scheduled ratchet before its first merge.
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/dry-lint-audit.yml
+    secrets: inherit

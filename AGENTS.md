@@ -45,6 +45,18 @@ working on pytest-quint-connect itself.
 Use published major-version tags for established Actions (for example
 `actions/checkout@v7`). Do not replace them with commit hashes unless asked.
 
+ALWAYS use the `v1` major-version tag for dry-lint: `gigaverse-app/dry-lint@v1` for the
+Action, `@v1` for CLI installs, and `rev: v1` for pre-commit hooks. Do not use commit SHAs
+or minor/patch release pins. The same applies to `gigaverse-app/pytest-selective` and
+`gigaverse-app/ci-esta` actions (`@v1`).
+
+## Duplication
+
+dry-lint judges every pull request for functions that re-implement existing ones
+([CONTRIBUTING.md](CONTRIBUTING.md#duplication)). Reuse the existing owner when two
+functions are one concept; otherwise add a narrow `# dry-lint: distinct-from PATH::NAME`
+comment with the reason. Never widen `.dry-lint/baseline.json` or lower thresholds to pass.
+
 ## Shared agent instructions
 
 This `AGENTS.md` is the single source for Codex and Claude. `CLAUDE.md` is a tracked

@@ -1,0 +1,91 @@
+name: dry-lint audit
+# Audits the whole repository against the accepted backlog, then ratchets it: pairs that were refactored away or
+# judged separate are recorded as cleaned in .dry-lint/baseline.json, progress.json and the README block, through a
+# pull request that runs the ordinary checks. The baseline only ever shrinks; a new blocking pair fails the audit
+# and no ratchet pull request is opened. Run it by hand after merging a cleanup to record the progress at once.
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: dry-lint-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: gigaverse-app/dry-lint@v1
+        with:
+          mode: sweep
+          base: HEAD
+          python-version: '3.13'
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugins: anthropic==2.4.0
+          baseline: .dry-lint/baseline.json
+          require-complete: 'true'
+          budget-usd: '5'
+      - name: Retain the audit for human or agent review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dry-lint-audit
+          path: |
+            ${{ runner.temp }}/dry-lint/report.json
+            ${{ runner.temp }}/dry-lint/comment.md
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Require ratchet PR authentication
+        env:
+          HAS_RATCHET_TOKEN: ${{ secrets.GV_CI_CROSS_REPO_TOKEN != '' }}
+        run: |
+          if [[ "$HAS_RATCHET_TOKEN" != "true" ]]; then
+            echo "::error::Configure the adopter-owned GV_CI_CROSS_REPO_TOKEN with contents and pull-request write access."
+            exit 1
+          fi
+      # The Action's sweep mode only audits. The CLI records the ratchet, reusing the verdicts the audit just stored,
+      # and the exact CLI environment installed by the Action. No second install or judge-version drift.
+      - name: Record cleaned pairs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          dry-lint sweep --update --store "$RUNNER_TEMP/dry-lint/verdicts" --budget-usd 5 \
+            --readme README.md --repository "$GITHUB_REPOSITORY" --branch main
+      # One standing branch: a later run updates the open ratchet PR instead of stacking another. The adopter-owned
+      # credential makes the PR run ordinary CI, including the required dry-lint check that refuses any widening.
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GV_CI_CROSS_REPO_TOKEN }}
+          branch: dry-lint/ratchet
+          delete-branch: true
+          add-paths: |
+            .dry-lint/baseline.json
+            .dry-lint/progress.json
+            README.md
+          commit-message: 'chore(dry-lint): record cleaned duplicate pairs in the baseline'
+          title: 'chore(dry-lint): record cleaned duplicate pairs in the baseline'
+          body: |
+            ## TLDR
+
+            The weekly dry-lint audit found accepted duplicate pairs that no longer exist or were judged separate,
+            and shrinks `.dry-lint/baseline.json`, the progress badge and the README block to match.
+
+            The baseline can only shrink: the required `dry-lint` check rejects any pull request that widens it.
+            The full audit is in the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+            ```text
+            BEFORE: merged cleanup -> accepted baseline and README still show old debt
+            AFTER:  complete audit -> reviewed metadata PR -> baseline and README record cleanup
+            ```
+
+            | Policy | Before | After |
+            | --- | --- | --- |
+            | Accepted pairs | Previously recorded states | Removed/separate pairs marked cleaned; explicit exclusions dismissed |
+            | New debt | Rejected | Still rejected; no added allowances |
+
+            Pair-count changes appear in the baseline/progress diff and the linked audit. No application code changes.

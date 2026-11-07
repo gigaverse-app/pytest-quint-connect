@@ -154,6 +154,11 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 Quint 0.33.1, TypeScript backend. See [PROVENANCE.md](PROVENANCE.md) for where the
 engine came from and how the baseline was reproduced.
 
+### Duplicates kept out
+
+Local hooks and the required PR check prevent new copies. The weekly audit
+records progress against the accepted backlog. [Setup and cleanup workflow](CONTRIBUTING.md#duplication).
+
 ## Related projects
 
 | Project | What it does |
