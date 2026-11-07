@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "lru-cache",
+  "description": "A two-entry LRU cache: eviction order, recency refresh on read and overwrite, hit/miss results.",
+  "module": "lru_cache",
+  "model": "lru.qnt",
+  "invariant": "withinCapacity",
+  "actions": {
+    "init": "construct a fresh cache with capacity 2",
+    "store": "cache.put(key, value)",
+    "fetch": "cache.get(key), observed as Hit(value) or Miss",
+    "inspect": "read cache.items() without changing it"
+  },
+  "witnesses": ["evictsLeastRecentlyUsedTest", "overwriteRefreshesTest", "missKeepsContentsTest"],
+  "mutants": ["stale-read"],
+  "bounds": {"seed": 7, "max_samples": 200, "max_steps": 8, "n_traces": 12},
+  "sources": ["lru_cache.py"],
+  "limits": [
+    "Three keys, values 0-2, capacity 2, at most 8 steps per sampled history.",
+    "Single-threaded; the driver's projection of cache.items() is trusted."
+  ]
+}

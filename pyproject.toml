@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pytest-quint-connect"
+version = "0.0.0"
+description = "Model-based testing for Python: replay Quint-generated histories against real implementations under pytest"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{name = "Gigaverse"}]
+keywords = ["pytest", "quint", "model-based-testing", "formal-methods", "itf", "specification", "testing"]
+dependencies = ["pytest>=8"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: Pytest",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+
+[project.entry-points.pytest11]
+quint_connect = "pytest_quint_connect.plugin"
+
+[project.urls]
+Homepage = "https://github.com/gigaverse-app/pytest-quint-connect"
+Repository = "https://github.com/gigaverse-app/pytest-quint-connect"
+Issues = "https://github.com/gigaverse-app/pytest-quint-connect/issues"
+Changelog = "https://github.com/gigaverse-app/pytest-quint-connect/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-timeout>=2.3", "pytest-cov>=6", "ruff>=0.14", "build>=1.2", "twine>=6", "pre-commit>=4"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pytest_quint_connect"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "examples", "docs", "README.md", "LICENSE", "PROVENANCE.md", "CHANGELOG.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-config --strict-markers -p pytester"
+timeout = 600
+
+[tool.coverage.run]
+source = ["pytest_quint_connect"]
+branch = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]

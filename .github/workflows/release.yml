@@ -1,0 +1,40 @@
+name: Publish
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          python-version: '3.14'
+      - name: Require a version-matching tag
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          uv run --no-project python -c 'import os, pathlib, tomllib; version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]; assert os.environ["RELEASE_REF"] == f"refs/tags/v{version}", "Run publishing from the version-matching v tag"'
+  checks:
+    needs: validate-tag
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: checks
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pytest-quint-connect/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist
+      - name: Publish tested distributions with attestations
+        uses: pypa/gh-action-pypi-publish@release/v1
+

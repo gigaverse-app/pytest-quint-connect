@@ -1,0 +1,9 @@
+{
+  "name": "pytest-quint-connect-toolchain",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The Quint CLI version pytest-quint-connect installs when no executable is configured.",
+  "dependencies": {
+    "@informalsystems/quint": "0.33.1"
+  }
+}
