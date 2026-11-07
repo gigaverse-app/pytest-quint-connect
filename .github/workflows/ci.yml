@@ -10,8 +10,8 @@ permissions:
   contents: read
 concurrency:
   # Only newer revisions of the same PR supersede work; keep every main/manual run.
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.run_attempt == 1 && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
   quality:
@@ -49,14 +49,14 @@ jobs:
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
         run: >-
-          uv run --no-sync pytest -q
-          --junitxml=test-results/junit.xml -p no:cacheprovider
-      - uses: actions/upload-artifact@v7
-        if: always()
+          uv run --no-sync pytest -q -p no:cacheprovider --durations=20
+          --junitxml=test-timings.xml
+      # CI-esta keeps per-test durations from every run, so slow tests and runner variance stay visible.
+      - uses: gigaverse-app/ci-esta/actions/learn-test-timings@v1
+        if: ${{ !cancelled() && hashFiles('test-timings.xml') != '' }}
         with:
-          name: test-results-${{ matrix.os }}-${{ matrix.python }}
-          path: test-results
-          if-no-files-found: warn
+          junit-pattern: test-timings.xml
+          artifact-name: test-timings-${{ matrix.python }}-${{ matrix.os }}
 
   minimum-pytest:
     name: Test with pytest 8.0 (Python 3.11)
@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: gigaverse-app/ci-esta/actions/setup-cached-uv@v1
@@ -163,8 +163,9 @@ jobs:
           head-sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
   gate:
-    name: CI gate
-    if: always()
+    # CI-esta's observer and the branch ruleset both look for this exact name.
+    name: Validation gate
+    if: ${{ !cancelled() }}
     needs: [quality, test, minimum-pytest, build, consumer-install, dogfood, lint-ci]
     runs-on: ubuntu-latest
     steps:
