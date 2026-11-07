@@ -27,6 +27,9 @@ classifiers = [
   "Typing :: Typed",
 ]
 
+[project.scripts]
+pytest-quint-connect = "pytest_quint_connect.cli:main"
+
 [project.entry-points.pytest11]
 quint_connect = "pytest_quint_connect.plugin"
 
@@ -37,7 +40,7 @@ Issues = "https://github.com/gigaverse-app/pytest-quint-connect/issues"
 Changelog = "https://github.com/gigaverse-app/pytest-quint-connect/blob/main/CHANGELOG.md"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-timeout>=2.3", "pytest-cov>=6", "ruff>=0.14", "build>=1.2", "twine>=6", "pre-commit>=4"]
+dev = ["pytest>=8", "mypy>=1.13", "pytest-timeout>=2.3", "pytest-cov>=6", "ruff>=0.14", "build>=1.2", "twine>=6", "pre-commit>=4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pytest_quint_connect"]

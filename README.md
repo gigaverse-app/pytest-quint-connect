@@ -42,7 +42,11 @@ or set `QUINT`.
 pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"
 ```
 
-Declare a contract and give it a driver:
+Generate a typed driver base from the model, then declare the contract:
+
+```bash
+pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
+```
 
 ```python
 # test_cache_contract.py
@@ -51,24 +55,32 @@ from pytest_quint_connect import quint_contract
 test_cache = quint_contract("quint-connect.json", driver="cache_driver")
 ```
 
+Subclass the generated base. It has one typed method per model action and an
+`observe()` typed as the model's observed state, so a type checker flags a driver
+that has drifted from the spec:
+
 ```python
 # conftest.py
 import pytest
+from lru_cache_driver import LruCacheDriver, Read, View  # generated
 from my_cache import LRUCache
 
 
-class CacheDriver:
-    def __init__(self):
+class CacheDriver(LruCacheDriver):
+    def __init__(self) -> None:
         self.cache, self.last = LRUCache(2), {"tag": "NoRead"}
 
-    def step(self, step):  # apply one model action to the real code
-        if step.action == "store":
-            self.cache.put(step.args["key"], step.args["value"])
-        elif step.action == "fetch":
-            value = self.cache.get(step.args["key"])
-            self.last = {"tag": "Miss"} if value is None else {"tag": "Hit", "value": value}
+    def init(self) -> None: ...
+    def inspect(self) -> None: ...
 
-    def observe(self):  # read the real state back
+    def store(self, key: str, value: int) -> None:  # apply one model action to the real code
+        self.cache.put(key, value)
+
+    def fetch(self, key: str) -> None:
+        value = self.cache.get(key)
+        self.last: Read = {"tag": "Miss"} if value is None else {"tag": "Hit", "value": value}
+
+    def observe(self) -> View:  # read the real state back
         return {"entries": [{"key": k, "value": v} for k, v in self.cache.items()], "lastRead": self.last}
 
 
@@ -80,6 +92,9 @@ def cache_driver():
 ```bash
 pytest --quint-require-complete
 ```
+
+A hand-written driver that implements `step(step)` and `observe()` works too; see
+[drivers](docs/drivers.md).
 
 [examples/lru_cache](examples/lru_cache) is the complete version. It checks a
 list-based cache and an `OrderedDict` refactor against the same generated

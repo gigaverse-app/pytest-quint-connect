@@ -18,6 +18,7 @@ from typing import Any, Protocol, runtime_checkable
 from .compare import Difference, differences, plain
 from .contract import Contract
 from .itf import QTuple, Record, State, Trace, Variant, load_trace
+from .typed import ActionDriver
 
 __all__ = [
     "Driver",
@@ -267,6 +268,9 @@ def replay_trace(
         if not isinstance(driver, Driver):
             raise TypeError(f"driver factory returned {type(driver).__name__}, which lacks step() and observe()")
         try:
+            if isinstance(driver, ActionDriver):
+                # A generated base built from an older model or manifest must not drive this one.
+                driver.check_contract(contract)
             for step, expected in planned:
                 driver.step(step)
                 actual = driver.observe()

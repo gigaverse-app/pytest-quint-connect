@@ -17,6 +17,10 @@ working on pytest-quint-connect itself.
   distinct from `passed` (`tests/test_plugin.py` filtered/replay/stale-receipt tests).
 - **ITF types stay distinct.** Map keys keep their type; lists, tuples and records
   never compare equal (`tests/test_itf.py`). Add a collision test with any decoder change.
+- **Generated code carries types, never behavior.** `codegen` output must stay
+  deterministic, `ruff format`-stable and fingerprinted; regenerate
+  `examples/lru_cache/lru_cache_driver.py` whenever the generator changes
+  (`tests/test_codegen.py::test_committed_example_driver_is_current` fails otherwise).
 - Reproduce plugin bugs with `pytester` on a copy of `examples/lru_cache` and real
   Quint, as `tests/test_plugin.py` does. Store new ITF fixtures only as real Quint output.
 - Keep [docs/limits.md](docs/limits.md) honest when behavior changes: bounded
