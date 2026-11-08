@@ -21,6 +21,38 @@ function markerFor(stickyKey) {
   return `<!-- pytest-quint-connect:${key} -->`;
 }
 
+// The bot-owned comment that ends with this key's trailer, with that trailer's match. Only the trailer is
+// read, and only from a github-actions[bot] comment, so a person's comment can never stand in for it.
+async function findSticky({github, context}, number, stickyKey) {
+  const marker = markerFor(stickyKey);
+  const comments = await github.paginate(github.rest.issues.listComments, {...context.repo, issue_number: number, per_page: 100});
+  for (const comment of comments) {
+    const match = (comment.body || '').match(TRAILER);
+    if (comment.user?.login === 'github-actions[bot]' && comment.user?.type === 'Bot' && match?.[2] === marker) {
+      return {comment, match};
+    }
+  }
+  return null;
+}
+
+// The renderer extends the previous comment's ledger, so this run counts what earlier pushes caught.
+// Writes the previous comment's body (or nothing) to QUINT_REPORT_PREVIOUS; never fails the job.
+async function readPrevious({github, context, core}, env = process.env) {
+  const target = env.QUINT_REPORT_PREVIOUS;
+  fs.writeFileSync(target, '');
+  const pr = context.payload.pull_request;
+  if (context.eventName !== 'pull_request' || !pr) return false;
+  try {
+    const found = await findSticky({github, context}, pr.number, env.QUINT_REPORT_STICKY_KEY);
+    if (!found) return false;
+    fs.writeFileSync(target, found.comment.body);
+    return true;
+  } catch (error) {
+    core.warning(`The previous report could not be read (${error.status || error.message}); this run starts a new tally.`);
+    return false;
+  }
+}
+
 // One bot comment per pull request and key. An older run or attempt never replaces a newer one,
 // and evidence for a head the pull request has moved past never replaces the current report.
 async function publishSticky({github, context, core}, {pullRequest, headSha, runId, runAttempt, stickyKey, markdownPath}) {
@@ -36,12 +68,11 @@ async function publishSticky({github, context, core}, {pullRequest, headSha, run
       core.info('The pull request moved to a newer head; this report stays in the summary and artifact.');
       return false;
     }
-    const comments = await github.paginate(github.rest.issues.listComments, {...context.repo, issue_number: number, per_page: 100});
-    const trailer = comment => (comment.body || '').match(TRAILER);
-    const existing = comments.find(c => c.user?.login === 'github-actions[bot]' && c.user?.type === 'Bot' && trailer(c)?.[2] === marker);
-    if (existing) {
+    const found = await findSticky({github, context}, number, stickyKey);
+    const existing = found?.comment;
+    if (found) {
       let previous;
-      try { previous = JSON.parse(trailer(existing)[1]); } catch { /* Repair malformed bot-owned metadata. */ }
+      try { previous = JSON.parse(found.match[1]); } catch { /* Repair malformed bot-owned metadata. */ }
       if (previous && (previous.run > snapshot.run || (previous.run === snapshot.run && previous.attempt > snapshot.attempt))) {
         core.info('A newer run or attempt already owns this comment.');
         return false;
@@ -92,3 +123,4 @@ module.exports = publish;
 module.exports.publish = publish;
 module.exports.publishSticky = publishSticky;
 module.exports.markerFor = markerFor;
+module.exports.readPrevious = readPrevious;
