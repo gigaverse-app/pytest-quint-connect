@@ -45,6 +45,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
       - name: Initialize the accepted baseline with a complete judged sweep
         env:
           TYPESAFE_AI_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
