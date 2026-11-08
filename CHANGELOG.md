@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v0.2.0...v0.3.0) (2026-11-08)
+
+
+### Features
+
+* **report:** sticky PR comment and README block for Quint contract runs ([#14](https://github.com/gigaverse-app/pytest-quint-connect/issues/14)) ([6dd9780](https://github.com/gigaverse-app/pytest-quint-connect/commit/6dd9780f2274877bbaa1adfe130f8592c4f3ecbb))
+
+
+### Bug fixes
+
+* **codegen:** report Quint's diagnostic and keep the log when a model does not compile ([#19](https://github.com/gigaverse-app/pytest-quint-connect/issues/19)) ([63c53f0](https://github.com/gigaverse-app/pytest-quint-connect/commit/63c53f0ccf89d0ec19761f781d88d287d2d446c4))
+
 ## [0.2.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v0.1.0...v0.2.0) (2026-11-08)
 
 
