@@ -261,9 +261,7 @@ def main():
                 bytes(resvg_py.svg_to_bytes(svg_path=str(ASSETS / source), width=width, height=height))
             )
         hashes = {name: digest(ASSETS / name) for name in hashed()}
-        (ASSETS / "raster-sources.json").write_text(
-            json.dumps(hashes, indent=2) + "\n", encoding="utf-8", newline="\n"
-        )
+        (ASSETS / "raster-sources.json").write_text(json.dumps(hashes, indent=2) + "\n", encoding="utf-8", newline="\n")
     if args.check:
         hashes = json.loads((ASSETS / "raster-sources.json").read_text(encoding="utf-8"))
         for name in hashed():
