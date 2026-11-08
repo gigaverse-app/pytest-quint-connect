@@ -224,11 +224,14 @@ jobs:
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
         run: uv run --no-sync pytest dogfood --quint-require-complete --junitxml=dogfood/.artifacts/junit.xml
-      # The adoption this repository recommends: one step after pytest. It reports both sessions above in one
-      # sticky comment and fails if README.md's contract block no longer matches complete receipts.
+      # The adoption this repository recommends: one step after pytest. It reports this repository's own
+      # contract in the sticky comment and fails if README.md's contract block no longer matches its receipt.
+      # The LRU example above is a teaching example run as a smoke test, so it is not reported.
       - name: Contract report
         if: ${{ !cancelled() }}
         uses: ./report
+        with:
+          receipts: dogfood/.artifacts/quint-connect/results.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:

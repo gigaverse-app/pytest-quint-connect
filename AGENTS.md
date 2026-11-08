@@ -27,9 +27,10 @@ working on pytest-quint-connect itself.
   (`tests/test_codegen.py::test_committed_generated_drivers_are_current` fails otherwise).
 - **Reports say no more than receipts.** The PR comment and the README block are rendered
   only from `results.json` (`src/pytest_quint_connect/report.py`); keep `partial`, `not run`,
-  `replay-only` and `interrupted` distinct from `passed` there too. Refresh this README's
-  block with `pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md`
-  after running `examples/lru_cache` and `dogfood`; CI fails when it is stale.
+  `replay-only` and `interrupted` distinct from `passed` there too. This README's block and the
+  PR sticky report only this repository's real contract (`dogfood`), never the teaching example:
+  refresh the block with `pytest-quint-connect report dogfood/.artifacts/quint-connect/results.json --readme README.md`
+  after running `dogfood`; CI fails when it is stale.
 - Reproduce plugin bugs with `pytester` on a copy of `examples/lru_cache` and real
   Quint, as `tests/test_plugin.py` does. Store new ITF fixtures only as real Quint output.
 - Keep [docs/limits.md](docs/limits.md) honest when behavior changes: bounded
