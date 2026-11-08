@@ -369,6 +369,16 @@ def _headline(evidence: Evidence) -> str:
     return " · ".join([_plural(totals.contracts, "contract"), *parts])
 
 
+def _verdict(evidence: Evidence) -> str:
+    """The sticky's headline: ``every contract passed``, or contract tests per status, worst first."""
+    if not evidence.rows:
+        return "no contract ran in this run"
+    counts = [(status, count) for status in SEVERITY if (count := sum(row.status == status for row in evidence.rows))]
+    if [status for status, _ in counts] == ["passed"]:
+        return "every contract passed"
+    return ", ".join([f"{_plural(counts[0][1], 'test')} {counts[0][0]}"] + [f"{n} {s}" for s, n in counts[1:]])
+
+
 def _found_bugs(rows: list[Row]) -> list[tuple[str, dict[str, str]]]:
     """Each bug a contract's manifest says it found, once per contract, in row order."""
     return [(contract, bug) for contract, members in _by_contract(rows).items() for bug in members[0].bugs_found]
@@ -391,22 +401,20 @@ def _credit(rows: list[Row], pull: str = "") -> list[str]:
         return []
     these = "these contracts" if len(_by_contract(rows)) > 1 else "this contract"
     here = sum(1 for _, bug in found if _fixed_here(bug, pull))
-    if here == len(found):
-        title = f"🏅 This pull request fixes {_plural(here, 'real bug')} {these} found."
-    else:
-        fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
-        title = f"🏅 {these.capitalize()} found {_plural(len(found), 'real bug')}, fixed in {', '.join(fixes)}."
-    lines = ["> [!TIP]", f"> **{title}**"]
+    title = f"🏅 This pull request fixes what {these} found" if here == len(found) else f"🏅 What {these} found"
+    lines = ["> [!TIP]", f"> **{title}:**"]
     if here:
         lines += [
             ">",
-            "> A mutant puts each one back, and every run must catch it. They are not disagreements: the tally"
-            " counts only what this pull request's pushes caught.",
+            "> A mutant puts each one back, and every run must catch it. They are counted apart from"
+            " disagreements, which are what this pull request's own pushes caught.",
             ">",
         ]
     shown = found[:5]
     for _, bug in shown:
-        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')} (fixed in {_ref(bug.get('fixed_in'))})")
+        # A bug this pull request fixes needs no link back to the page the reader is on.
+        fixed = "" if _fixed_here(bug, pull) else f" (fixed in {_ref(bug.get('fixed_in'))})"
+        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')}{fixed}")
     if len(found) > len(shown):
         lines.append(f"> - …and {len(found) - len(shown)} more, in the table below")
     return [*lines, ""]
@@ -708,7 +716,7 @@ def _node(node: str) -> str:
     return f"<sub>{'<br>'.join(lines)}</sub>"
 
 
-def _bugs_table(rows: list[Row]) -> list[str]:
+def _bugs_table(rows: list[Row], *, counted: bool = True) -> list[str]:
     """Bugs the contracts found earlier, as their manifests declare them, and what this run re-checks of each."""
     contracts = _by_contract(rows)
     found = _found_bugs(rows)
@@ -733,10 +741,11 @@ def _bugs_table(rows: list[Row]) -> list[str]:
         *_capped(lines, MAX_FAILURES * 2),
         "",
     ]
-    return _collapsible(f"🐞 {_plural(len(found), 'real bug')} found by {these}", table)
+    title = f"🐞 {_plural(len(found), 'real bug')} found by {these}" if counted else "🐞 Real bugs: what each was"
+    return _collapsible(title if counted else f"{title}, and the test that pins it", table)
 
 
-def _mutants_table(rows: list[Row]) -> list[str]:
+def _mutants_table(rows: list[Row], *, counted: bool = True) -> list[str]:
     """Every mutant: what it breaks and where it was caught, one row per bug and contract.
 
     A mutant that reintroduces a found bug is listed here too, and marked: the found bug's row says
@@ -752,7 +761,7 @@ def _mutants_table(rows: list[Row]) -> list[str]:
             bugs += 1
             breaks = _text(catch.description).rstrip(".") if catch.description else "—"
             if catch.mutant in reintroducing:
-                breaks += "<br><sub>reintroduces a real bug found earlier</sub>"
+                breaks += "<br><sub>reintroduces a real bug this contract found</sub>"
             per_test = _per_test({row.test: _mutant_cells(_catch_of(row, catch.mutant) or catch) for row in members})
             target = caught if all(hit for _, (hit, _, _) in per_test) else missed
             uncaught += target is missed
@@ -769,7 +778,12 @@ def _mutants_table(rows: list[Row]) -> list[str]:
         "",
     ]
     fake = "planted fake bug" if bugs == 1 else "planted fake bugs"
-    return _collapsible(f"🧪 {_plural(bugs, 'mutant')} ({fake}), {verdict}", table, expanded=bool(missed))
+    title = (
+        f"🧪 {_plural(bugs, 'mutant')} ({fake}), {verdict}"
+        if counted
+        else "🧪 Mutants: what each planted fake bug breaks, and which history caught it"
+    )
+    return _collapsible(title, table, expanded=bool(missed))
 
 
 # A field one observation has and the other lacks; Quint records keep their fields, but receipts are data.
@@ -907,7 +921,7 @@ def _overview(
     if present and legend:
         lines.append("<br>".join(f"<sub>{ICON[state]} {state}: {MEANING[state]}.</sub>" for state in present))
         lines.append("")
-    return [*lines, *_bugs_table(evidence.rows), *_mutants_table(evidence.rows)]
+    return [*lines, *_bugs_table(evidence.rows, counted=counted), *_mutants_table(evidence.rows, counted=counted)]
 
 
 # GitHub sizes a comment's tables to their content. A wide spacer floated into each cell, which GitHub caps
@@ -1000,7 +1014,8 @@ def _scores(evidence: Evidence, ledger: "Ledger | None" = None, pull: str = "") 
             str(caught),
             "bad" if still else "good" if caught else "neutral",
             "disagreements in this PR",
-            f"histories where code and model disagreed {across}: {fixed} fixed, {still} still failing",
+            f"histories where the code reached a different state than the model, or mutants no history caught, "
+            f"{across}: {fixed} fixed, {still} still failing",
         ),
     ]
 
@@ -1077,7 +1092,7 @@ def render_comment(
     """
     status = evidence.status
     lines = _banner(assets, status) if assets else []
-    lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
+    lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_verdict(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
     lines.append("")

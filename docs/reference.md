@@ -46,9 +46,10 @@ Reads `results.json` receipts (files or quoted recursive globs, such as
 it never runs Quint or imports the project. Receipts under a plugin `_work` directory are
 skipped: they belong to sessions a driver ran inside one history.
 
-- **Comment**: ordered by what a person must do. A headline says what matters now (cases
-  passed and mutants caught, or each test's status, worst first); an alert, when the run
-  needs a person, gives the one command to run; the failures follow; then what this pull
+- **Comment**: ordered by what a person must do. A headline gives the verdict (every
+  contract passed, or each test's status, worst first); an alert, when the run needs a
+  person, gives the one command to run; a header gives the key numbers once, each with
+  what it counts; the failures follow; then what this pull
   request changed. Every other detail is folded, each under its own summary: one table row
   per contract test (histories, cases passed, mutants caught, actions covered), failing
   rows first, under a summary line of the totals; the bugs the contracts found (summary,
@@ -143,8 +144,9 @@ and folds the rest into one line and a command each. Bugs the contracts found ea
 credited as a tip, one line each, as history rather than current failures: right under the
 headline on a green run, after the failures on a red one. When a bug's `fixed_in` names
 the pull request the comment is for (`--pull`, which the action passes), the tip says this
-pull request fixes it, and that it is not a disagreement: the tally counts only what the
-pull request's pushes caught, while a found bug is pinned by its mutant. A collapsed glossary at the
+pull request fixes it, and that it is counted apart from disagreements, which are what the
+pull request's own pushes caught, while a found bug is pinned by its mutant. The tip and the
+folded sections name items; only the header counts them. A collapsed glossary at the
 bottom explains the words and statuses.
 
 The header's last number counts the pull request's **disagreements** across its pushes,
