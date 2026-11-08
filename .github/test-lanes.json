@@ -53,7 +53,8 @@
         "dogfood/*.json",
         "examples/lru_cache/*.py",
         "examples/lru_cache/*.qnt",
-        "examples/lru_cache/*.json"
+        "examples/lru_cache/*.json",
+        "report/**"
       ]
     },
     "package": {

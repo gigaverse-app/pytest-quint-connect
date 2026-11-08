@@ -22,6 +22,10 @@ jobs:
   checks:
     needs: validate-tag
     uses: ./.github/workflows/ci.yml
+    # A called workflow gets no more than this; the contracts job asks for the report comment's permission.
+    permissions:
+      contents: read
+      pull-requests: write
   publish:
     needs: checks
     runs-on: ubuntu-latest
@@ -38,3 +42,41 @@ jobs:
       - name: Publish tested distributions with attestations
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  move-major-tag:
+    # Actions are used as gigaverse-app/pytest-quint-connect/report@v1. Like pytest-obligation's, the stable v1
+    # alias also follows compatible v0.x releases. An alias only ever moves forward along history.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'$TAG' is not a release tag of the form vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          MAJOR="${TAG%%.*}"
+          TARGET=$(git rev-parse "$TAG^{commit}")
+          ALIASES=("$MAJOR")
+          if [[ "$MAJOR" == v0 ]]; then
+            ALIASES+=(v1)
+          fi
+          for ALIAS in "${ALIASES[@]}"; do
+            REF="refs/tags/$ALIAS"
+            PREVIOUS=""
+            if [[ -n "$(git ls-remote --refs origin "$REF")" ]]; then
+              git fetch origin "$REF"
+              PREVIOUS=$(git rev-parse FETCH_HEAD)
+              if ! git merge-base --is-ancestor "$PREVIOUS" "$TARGET"; then
+                echo "Keeping $ALIAS: this release does not advance its current commit."
+                continue
+              fi
+            fi
+            git push --force-with-lease="$REF:$PREVIOUS" origin "$TARGET:$REF"
+          done

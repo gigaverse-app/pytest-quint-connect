@@ -25,6 +25,8 @@ The first test run installs the plugin's locked Quint into your user cache with
 | `tests/test_replay.py` | engine: mismatches, malformed traces, fresh drivers, cleanup, attestation | no |
 | `tests/test_plugin.py` | pytest sessions on the LRU example: cases, JUnit, replay, filtering, receipts, mutants, teardown | yes |
 | `tests/test_codegen.py` | typed driver generation from real `quint compile` IR, argument binding, staleness, mypy drift checks | yes |
+| `tests/test_report.py` | PR comment and README block rendered from real receipts; the `report` CLI | no |
+| `report/publish.test.cjs` | sticky comment ownership, ordering and fork handling (`node --test`) | no |
 | `tests/test_release.py` | version agreement across pyproject, package, manifest and lock | no |
 | `scripts/smoke_distribution.py` | built wheel in a fresh environment, run from outside the checkout | yes |
 | `dogfood/` | the plugin's own receipts and exit codes, through real pytest sessions | yes |
@@ -40,8 +42,8 @@ or a change to that file will not select the test. Check after adding tests or f
 ```bash
 SEL="pytest-selective[audit] @ git+https://github.com/gigaverse-app/pytest-selective.git@v1"
 uv run --with "$SEL" pytest tests --no-selective -p pytest_selective.impact_audit_plugin --impact-audit-dir .impact-audit
-uv run --no-project --with "$SEL" python scripts/ci_file_config.py .impact-audit/config.json
-uv run --with "$SEL" pytest-selective audit --config .impact-audit/config.json --records .impact-audit
+uv run --no-project --with "$SEL" python scripts/ci_file_config.py .impact-config.json
+uv run --no-project --with "$SEL" pytest-selective --config .impact-config.json --records .impact-audit audit
 uv run --no-project --python 3.14 --with "$SEL" python -m unittest discover -s ci_tests -v
 ```
 

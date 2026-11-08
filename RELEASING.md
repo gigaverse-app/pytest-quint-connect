@@ -37,7 +37,9 @@ check out or build source with that permission.
    Release Please creates tag `v<version>` and publishes its GitHub release.
 4. `release.yml` verifies that the tag exactly matches the package version,
    reruns the reusable CI workflow on that revision, and publishes its tested
-   wheel and sdist with attestations through the `pypi` environment.
+   wheel and sdist with attestations through the `pypi` environment. Then it moves
+   the floating action tag forward to the release: `v0` and `v1` for a 0.x release,
+   `vMAJOR` after 1.0. Adopters use `gigaverse-app/pytest-quint-connect/report@v1`.
 5. Verify the package page and install the exact released version in a clean
    environment: `pip install 'pytest-quint-connect==<version>'`. Run
    `examples/lru_cache` with that installation.
@@ -68,6 +70,7 @@ No automatic publishing happens just because an ordinary feature PR merges.
 Conventional Commit -> successful main CI -> Release Please release PR
 Maintainer merges release PR -> successful main CI -> tag + GitHub release
 GitHub release -> Publish -> exact-tag full CI -> tested artifacts -> PyPI OIDC
+PyPI published -> move v1 (and v0) forward to the release commit
 ```
 
 The Python release strategy updates `pyproject.toml` and `CHANGELOG.md`; its

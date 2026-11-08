@@ -15,7 +15,9 @@ pull request
    │     every mutant is caught
    │     every contract in quint_required_contracts ran, unfiltered
    │
-   ├─ upload .artifacts/quint-connect ─► traces, mismatch reports, results.json (also on failure)
+   ├─ report@v1 (also on failure) ─► one PR comment: what ran, what failed, how to reproduce it
+   │                                ├► artifact: traces, mismatch reports, results.json
+   │                                └► README block still matches the evidence
    │
    └─ required check in the branch ruleset ─► merge blocked unless all of the above passed
 ```
@@ -44,6 +46,7 @@ on:
     branches: [main]
 permissions:
   contents: read
+  pull-requests: write  # the report's PR comment
 jobs:
   contracts:
     name: Quint contracts
@@ -71,14 +74,9 @@ jobs:
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
         run: pytest tests/contracts --quint-require-complete --junitxml=.artifacts/quint-connect/junit.xml
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: quint-contracts
-          path: .artifacts/quint-connect/
-          # upload-artifact skips dot-directories unless told otherwise.
-          include-hidden-files: true
-          if-no-files-found: warn
+      # Comments on the pull request, uploads every receipt's directory and checks the README block.
+      - uses: gigaverse-app/pytest-quint-connect/report@v1
+        if: ${{ !cancelled() }}
 ```
 
 Adjust the install step and the paths to your project. With uv, install with
@@ -93,6 +91,41 @@ check name, `Quint contracts`, to the required status checks. If your repository
 already has one aggregate gate job, add `contracts` to its `needs` instead and keep
 the gate as the only required check.
 
+## 4. Show results on the pull request and in the README
+
+The report step needs no inputs. On a same-repository pull request it keeps one
+comment up to date: a row per contract test (histories, cases passed, mutants
+caught, actions covered) and, for each failure, the state and action where the code
+diverged, the differing fields and the command that reproduces it locally:
+
+```text
+### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed
+... table ...
+lru-cache · witness-evictsLeastRecentlyUsedTest: observed state differs from the model at
+state 3, after fetch(key='a', value=0)
+- entries[0].key: values differ; expected: 'b'; actual: 'a'
+
+cd examples/lru_cache
+pytest 'test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'
+```
+
+To show the contracts in your README, add the two marker lines where the block
+belongs, fill it once from a local run, and commit it:
+
+```bash
+printf '<!-- pytest-quint-connect:start -->
+<!-- pytest-quint-connect:end -->
+' >> README.md
+pytest tests/contracts --quint-require-complete
+pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md
+```
+
+From then on the step fails when the block no longer matches the receipts, and
+prints the same command to refresh it. A run that skipped a contract the block lists
+cannot judge it, and says so instead of failing. Fork pull requests cannot be
+commented on with their own token; their report is in the job summary and the
+artifact. See [the action's inputs](reference.md#github-action).
+
 ## What fails the check
 
 | Situation | Result |
@@ -103,6 +136,7 @@ the gate as the only required check.
 | The model changed and the committed driver base was not regenerated | `codegen --check` exits 1 with a diff |
 | Quint cannot typecheck the model or generate traces | every case of that contract errors at setup |
 | A required contract was not collected, or the run was filtered with `-k` | `--quint-require-complete` fails the session; the receipt says `partial` |
+| The README contract block no longer matches complete receipts | the report step fails with a diff and the refresh command |
 
 None of these can turn into a skip or a pass. A run that crashes mid-way leaves the
 receipt at `running`, never an earlier `passed`.

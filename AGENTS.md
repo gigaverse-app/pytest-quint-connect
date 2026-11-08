@@ -25,6 +25,11 @@ working on pytest-quint-connect itself.
   deterministic, `ruff format`-stable and fingerprinted; regenerate
   `examples/lru_cache/lru_cache_driver.py` and `dogfood/session_driver.py` whenever the generator changes
   (`tests/test_codegen.py::test_committed_generated_drivers_are_current` fails otherwise).
+- **Reports say no more than receipts.** The PR comment and the README block are rendered
+  only from `results.json` (`src/pytest_quint_connect/report.py`); keep `partial`, `not run`,
+  `replay-only` and `interrupted` distinct from `passed` there too. Refresh this README's
+  block with `pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md`
+  after running `examples/lru_cache` and `dogfood`; CI fails when it is stale.
 - Reproduce plugin bugs with `pytester` on a copy of `examples/lru_cache` and real
   Quint, as `tests/test_plugin.py` does. Store new ITF fixtures only as real Quint output.
 - Keep [docs/limits.md](docs/limits.md) honest when behavior changes: bounded

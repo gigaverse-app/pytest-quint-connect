@@ -168,6 +168,10 @@ class RoutingTests(unittest.TestCase):
         # Every unit test imports the example's cache, so the whole graph is affected: every lane runs.
         self.assertEqual(self.lanes("examples/lru_cache/lru_cache.py"), set(self.config.lanes))
 
+    def test_report_action_runs_the_job_that_uses_it(self) -> None:
+        self.assertEqual(self.lanes("report/action.yml"), {"dogfood"})
+        self.assertEqual(self.lanes("report/publish.cjs"), {"dogfood"})
+
     def test_dogfood_only_changes_keep_the_dogfood_lane(self) -> None:
         self.assertEqual(self.lanes("dogfood/plugin_mutants.py"), {"dogfood"})
         self.assertEqual(self.lanes("dogfood/test_session_contract.py", delete=True), {"dogfood"})

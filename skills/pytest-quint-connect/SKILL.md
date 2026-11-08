@@ -31,7 +31,13 @@ Copy the shape of
    observation or the histories cannot see that fault: fix that, do not delete the mutant.
 5. **Declare the test** with `quint_contract(manifest, driver=…)`, list the contract
    in `quint_required_contracts`, and run `pytest --quint-require-complete` in CI with
-   Node.js 22+ available. Upload `.artifacts/quint-connect` even on failure
+   Node.js 22+ available. Add `gigaverse-app/pytest-quint-connect/report@v1` as the next
+   step (`if: ${{ !cancelled() }}`, job permission `pull-requests: write`): it posts one
+   sticky PR comment, uploads the receipts and mismatches, and keeps a README block
+   current. Add the `<!-- pytest-quint-connect:start -->` / `<!-- pytest-quint-connect:end -->`
+   lines to the README, fill them once with
+   `pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md`,
+   and commit the result
    ([CI setup](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/ci.md)).
 6. **On a mismatch**, read the reported state, action and field differences, then
    rerun the printed `--quint-replay` command. Decide whether the code or the model is

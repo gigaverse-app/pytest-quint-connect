@@ -193,12 +193,15 @@ jobs:
         run: uv run --no-project python scripts/smoke_distribution.py dist/pytest_quint_connect-*.whl
 
   dogfood:
-    name: Dogfood (the plugin checks its own receipts)
+    name: Quint contracts (example and dogfood)
     needs: select-tests
     if: >-
       ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
           fromJSON(needs.select-tests.outputs.lanes).dogfood) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # The contract report's sticky comment.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -208,12 +211,24 @@ jobs:
         with:
           python-version: '3.13'
           cache-environment: "false"
+      - name: Sticky comment publisher
+        run: node --test report/publish.test.cjs
+      - name: LRU example contract
+        env:
+          PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
+        run: uv run --no-sync pytest examples/lru_cache --quint-require-complete -p no:cacheprovider
       # Quint generates histories of pytest sessions; each step runs a real pytest session of the LRU
       # example with this checkout's plugin, and four mutants of the plugin's own receipt logic must be caught.
       - name: Session-receipts contract
+        if: ${{ !cancelled() }}
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
         run: uv run --no-sync pytest dogfood --quint-require-complete --junitxml=dogfood/.artifacts/junit.xml
+      # The adoption this repository recommends: one step after pytest. It reports both sessions above in one
+      # sticky comment and fails if README.md's contract block no longer matches complete receipts.
+      - name: Contract report
+        if: ${{ !cancelled() }}
+        uses: ./report
       - uses: actions/upload-artifact@v7
         if: always()
         with:

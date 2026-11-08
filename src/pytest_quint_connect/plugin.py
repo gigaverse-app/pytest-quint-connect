@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from .contract import Contract, ContractError, load_contract
+from .contract import Contract, ContractError, display_path, load_contract
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
 from .replay import DriverFactory, ReplayMismatch, replay_trace
 
@@ -85,6 +85,8 @@ class _TestRun:
     mutations: dict[str, Any] = field(default_factory=dict)
     imported: dict[str, str] = field(default_factory=dict)
     collected: list[str] = field(default_factory=list)
+    # Why a case failed, for reports: an observed mismatch, or a mutant that survived every history.
+    findings: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def missing(self) -> list[str]:
         return [case for case in self.contract.case_ids() if self.outcomes.get(case) != "passed"]
@@ -184,7 +186,19 @@ class _Session:
                     trace, case.contract, factory, work_base=work, reproduce=self.reproduce(case, trace, None)
                 )
             except ReplayMismatch as mismatch:
-                self.save_mismatch(case, mismatch)
+                saved = self.save_mismatch(case, mismatch)
+                run.findings[case.id] = {
+                    "state": mismatch.state,
+                    "action": mismatch.action,
+                    "arguments": mismatch.as_json()["arguments"],
+                    # "entries[0].key: values differ; expected: 'b'; actual: 'a'"
+                    "differences": [
+                        "; ".join(" ".join(line.split()) for line in difference.render().splitlines())
+                        for difference in mismatch.diff[:3]
+                    ],
+                    "difference_count": len(mismatch.diff),
+                    "mismatch": display_path(saved, self.root),
+                }
                 raise
             run.steps[case.id] = len(result.actions)
             run.imported.update(result.imported)
@@ -206,6 +220,7 @@ class _Session:
                     run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
                     item.user_properties.append(("quint_detected_by", trace_id))
                     return
+            run.findings[case.id] = {"survived": len(generation.traces)}
             pytest.fail(
                 f"mutant {case.name!r} survived all {len(generation.traces)} generated histories of "
                 f"{case.contract.name!r}: no observation differed from the model",
@@ -225,13 +240,13 @@ class _Session:
             return
         raise AssertionError(f"unknown case kind {case.kind}")
 
-    def save_mismatch(self, case: Case, mismatch: ReplayMismatch) -> None:
+    def save_mismatch(self, case: Case, mismatch: ReplayMismatch) -> Path:
         directory = self.artifacts / case.contract.name
         directory.mkdir(parents=True, exist_ok=True)
         stem = case.test.rsplit("::", 1)[-1]
-        (directory / f"mismatch-{stem}-{case.id}.json").write_text(
-            json.dumps(mismatch.as_json(), indent=2) + "\n", encoding="utf-8"
-        )
+        path = directory / f"mismatch-{stem}-{case.id}.json"
+        path.write_text(json.dumps(mismatch.as_json(), indent=2) + "\n", encoding="utf-8")
+        return path
 
     def receipt(self, status: str) -> dict[str, Any]:
         contracts = []
@@ -266,6 +281,7 @@ class _Session:
                     "steps": run.steps,
                     "mutations": run.mutations,
                     "imported_modules": run.imported,
+                    "findings": dict(sorted(run.findings.items())),
                 }
                 for run in self.runs.values()
                 if run.contract.name == name
@@ -278,6 +294,7 @@ class _Session:
             "source_trace": str(Path(self.replay_path).resolve()) if self.replay_path else None,
             "replay_mutant": self.replay_mutant,
             "head": _git_head(self.root),
+            "root": self.root.as_posix(),
             "required": self.required,
             "incomplete_required": self.incomplete,
             "contracts": contracts,

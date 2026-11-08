@@ -1,0 +1,71 @@
+{
+  "tool": "pytest-quint-connect",
+  "status": "partial",
+  "mode": "replay-only",
+  "source_trace": "/repo\\examples\\lru_cache\\.artifacts\\passed\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json",
+  "replay_mutant": null,
+  "head": "0123456789abcdef0123456789abcdef01234567",
+  "root": "/repo/examples/lru_cache",
+  "required": [
+    "lru-cache"
+  ],
+  "incomplete_required": [
+    "replay-only session: replaying one saved trace is never complete coverage"
+  ],
+  "contracts": [
+    {
+      "name": "lru-cache",
+      "manifest": "/repo/examples/lru_cache/quint-connect.json",
+      "bounds": {
+        "seed": 7,
+        "max_samples": 200,
+        "max_steps": 8,
+        "n_traces": 12
+      },
+      "convention": "event",
+      "witnesses": [
+        "evictsLeastRecentlyUsedTest",
+        "overwriteRefreshesTest",
+        "missKeepsContentsTest"
+      ],
+      "mutants": [
+        "stale-read"
+      ],
+      "limits": [
+        "Three keys, values 0-2, capacity 2, at most 8 steps per sampled history.",
+        "Single-threaded; the driver's projection of cache.items() is trusted."
+      ],
+      "sha256": {
+        "quint-connect.json": "a26895d666e131bd8f739b914c30e8f39d601daafe30f976d4f24c5de3841c2c",
+        "lru.qnt": "2bddef08f1c1da6892b6d1e0cf1e5d81f7ed3626bc213433f8e42f123ca18a10",
+        "lru_cache.py": "75bbbfdcb4d29bf6a01cce1fd5bc6262e702198b254edb6a7843b5909c794924"
+      },
+      "tests": [
+        {
+          "test": "test_lru_contract.py::test_lru_cache",
+          "complete": false,
+          "not_passed": [],
+          "outcomes": {
+            "replay-witness-evictsLeastRecentlyUsedTest-0.itf.json": "passed"
+          },
+          "steps": {
+            "replay-witness-evictsLeastRecentlyUsedTest-0.itf.json": 6
+          },
+          "mutations": {},
+          "imported_modules": {},
+          "findings": {}
+        },
+        {
+          "test": "test_lru_contract.py::test_ordered_refactor",
+          "complete": false,
+          "not_passed": [],
+          "outcomes": {},
+          "steps": {},
+          "mutations": {},
+          "imported_modules": {},
+          "findings": {}
+        }
+      ]
+    }
+  ]
+}
