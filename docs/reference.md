@@ -46,18 +46,17 @@ Reads `results.json` receipts (files or quoted recursive globs, such as
 it never runs Quint or imports the project. Receipts under a plugin `_work` directory are
 skipped: they belong to sessions a driver ran inside one history.
 
-- **Comment**: a headline that says what matters now (cases passed and mutants caught,
-  or each test's status, worst first), with bugs the contracts found earlier credited on a
-  separate line as history. Then one table row per contract test (histories, cases passed,
-  mutants caught, actions covered), failing rows first, under a summary line of the totals.
-  Then two tables, each under its own collapsed summary: the bugs the contracts found
-  (summary, how found, fix, regression test, and how many histories diverge when its mutant
-  reintroduces it), and every mutant (planted fake bug) with what it breaks and the case and
-  step that first caught it. When every contract passed every case and caught every
-  mutant, the contract table starts collapsed too; otherwise it stays open, as does the
-  mutants table when one was not caught. Tables span the comment's width. "Mutants" links
-  to an explanation that shows on hover. Then, in an open block
-  under "What `NAME` says", what each contract claims, so a reviewer can judge the model
+- **Comment**: ordered by what a person must do. A headline says what matters now (cases
+  passed and mutants caught, or each test's status, worst first); an alert, when the run
+  needs a person, gives the one command to run; the failures follow; then what this pull
+  request changed. Every other detail is folded, each under its own summary: one table row
+  per contract test (histories, cases passed, mutants caught, actions covered), failing
+  rows first, under a summary line of the totals; the bugs the contracts found (summary,
+  how found, fix, regression test, and how many histories diverge when its mutant
+  reintroduces it); every mutant (planted fake bug) with what it breaks and the case and
+  step that first caught it; and what each contract claims. Tables span the comment's
+  width. "Mutants" links to an explanation that shows on hover. Under "What `NAME` says",
+  each contract's claims let a reviewer judge the model
   itself: each declared action and the code it drives, the invariant, the witnesses, the
   bounds, and, when it declares witnesses, the first one step by step, read from its generated
   trace: the observation the model starts from, then for each action only the fields it is
@@ -70,9 +69,11 @@ skipped: they belong to sessions a driver ran inside one history.
   histories from the manifest's seed. Statuses stay distinct: `failed`, `interrupted`
   (the session never finished), `partial` (filtered), `not run` (collected, nothing
   selected), `replay-only` and `passed`.
-- **README block**: the same tables, collapsed the same way, the same claims and a badge, between the lines
+- **README block**: the same tables and claims and a badge, between the lines
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->`, which the
-  document must already contain. Text outside them is never touched. The block holds no
+  document must already contain. Here the claims stay open, and the contract table is
+  collapsed only when every contract passed every case and caught every mutant; the
+  mutants table opens when one was not caught. Text outside them is never touched. The block holds no
   commit, run or failure detail, so it changes only when the evidence changes.
   `--readme` writes it; `--readme --check` writes nothing and exits 1 with a diff and the
   command that refreshes it. When this run lacks the evidence to judge the block (a
@@ -129,11 +130,12 @@ summary and the artifact.
 A run that needs a person opens with one GitHub alert. A failed run gets a caution naming
 the clearest failure (a named witness before a sample, then the shortest path) and the
 command that reruns it; an incomplete one gets a warning saying why it is not evidence.
-Bugs the contracts found earlier follow as a tip, one line each, as history rather than
-current failures. Below the contract table, each failing contract test shows its clearest
-failure in full, with every differing field beside the model's expectation, and folds the
-rest into one line and a command each. A collapsed glossary at the bottom explains the
-words and statuses.
+Under "What failed", each failing contract test shows its clearest failure in full, with
+every differing field beside the model's expectation (the alert already gave its command),
+and folds the rest into one line and a command each. Bugs the contracts found earlier are
+credited as a tip, one line each, as history rather than current failures: right under the
+headline on a green run, after the failures on a red one. A collapsed glossary at the
+bottom explains the words and statuses.
 
 After the first push, or once anything was caught, the comment carries a full-width tally
 of the pull request's **disagreements**, and names each history it fixed: a
