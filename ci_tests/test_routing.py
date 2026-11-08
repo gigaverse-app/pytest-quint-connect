@@ -147,7 +147,13 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(self.lanes("scripts/smoke_distribution.py"), {"package"})
 
     def test_routing_inputs_run_only_the_routing_lane(self) -> None:
-        for path in ("ci_tests/test_routing.py", "scripts/ci/selector_requirement.py"):
+        # The Publish workflow calls ci.yml; its grants are checked in ci_tests/test_workflow_permissions.py.
+        for path in (
+            "ci_tests/test_routing.py",
+            "scripts/ci/selector_requirement.py",
+            "ci_tests/test_workflow_permissions.py",
+            ".github/workflows/release.yml",
+        ):
             with self.subTest(path=path):
                 self.assertEqual(self.lanes(path), {"routing"})
         # The read declarations steer both file selection and these regressions.

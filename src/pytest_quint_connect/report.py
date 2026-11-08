@@ -1028,8 +1028,6 @@ def render_comment(
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
     lines.append("")
-    if assets and evidence.rows:
-        lines += [_scoreboard(evidence, f"{assets}/score/"), ""]
     # What needs a person comes first; bugs the contracts found earlier are credited after it, as history.
     lines += _alert(evidence, repository)
     lines += _credit(evidence.rows)
