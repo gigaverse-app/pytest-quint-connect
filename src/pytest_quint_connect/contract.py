@@ -133,6 +133,9 @@ class Contract:
 
     def bug_reintroduced_by(self, mutant: str) -> Bug | None:
         """The found bug this mutant reintroduces, if any: such a mutant replays every history."""
+        # dry-lint: distinct-from src/pytest_quint_connect/report.py::_catch_of
+        # This reads the manifest's declared bugs to decide how a mutant replays; _catch_of reads one test's
+        # recorded mutant outcome from a receipt. Reports are built from receipts only and never load a Contract.
         return next((bug for bug in self.bugs_found if bug.mutant == mutant), None)
 
     @property
