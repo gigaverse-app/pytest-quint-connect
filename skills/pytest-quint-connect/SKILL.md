@@ -25,7 +25,9 @@ Reference, when a step needs more: [manifest](https://pytest-quint-connect.readt
 [CI](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/),
 [limits](https://pytest-quint-connect.readthedocs.io/en/latest/docs/limits/), and the complete
 [LRU cache example](https://github.com/gigaverse-app/pytest-quint-connect/tree/main/examples/lru_cache)
-to copy the shape from.
+to copy the shape from. These links show `main`. Once you know the version you installed (step 1),
+read the example and docs at that release instead: replace `main` with `v<version>` in GitHub links,
+and `latest` with `v<version>` in documentation links.
 
 ## 1. Preflight
 
@@ -36,8 +38,13 @@ to copy the shape from.
   pinning (tags or commit SHAs) and commit conventions.
 - **Check the tools**: Python 3.11+, Node.js 22+ with npm (`node --version`, `npm --version`).
   Add `pytest-quint-connect` to the test dependencies the way the repository manages them, or
-  `pip install pytest-quint-connect`. On first use the plugin installs its pinned Quint 0.33.1
-  with npm into a user cache; `quint` does not need to be on `PATH`.
+  `pip install pytest-quint-connect`. Note the version you installed:
+  `python -c "import importlib.metadata as m; print(m.version('pytest-quint-connect'))"`. Later
+  steps pin to it. On first use the plugin installs its pinned Quint 0.33.1 with npm into a user
+  cache and prints `installing the bundled Quint …`. Later runs print `using the bundled Quint …`.
+  `quint` does not need to be on `PATH`.
+- **Ignore the artifacts**: add `.artifacts/` to `.gitignore`. Traces, logs and receipts are written
+  to `contracts/.artifacts/quint-connect/`; they are uploaded from CI, never committed.
 - **Pick one stateful behavior** with a public API: operations that change state and a way to
   read the state back (a cache, queue, registry, state machine, session). Prefer the one whose
   rules matter most and are easiest to state. Read its code, docs and tests.
@@ -52,6 +59,9 @@ Write `<name>.qnt`, modeling the API boundary, not the implementation:
 
 - an `event` record (`op` plus the arguments) and an `observed` record holding only what the
   public API exposes. Use one event record type for every action; give unused fields a fixed value;
+- state the rules need but the API cannot show (recency order, an internal counter) in a separate
+  model-only `var`, left out of `observe`. Check it through its effects: which entry an insert
+  evicts, what `popitem()` returns. See [state the code cannot show](https://pytest-quint-connect.readthedocs.io/en/latest/docs/drivers/#state-the-code-cannot-show);
 - `init`, one action per API operation, and a read-only `inspect` action. Every action sets both
   `event'` and `observed'`;
 - a `step` action that picks arguments with `nondet x = Set(…).oneOf()` and chooses an action with
@@ -66,8 +76,12 @@ Do not use Quint built-in names as parameters or definitions. `next`, `get`, `pu
 Write `quint-connect.json` beside it: every action mapped to the API it drives, the witnesses,
 the mutants (step 4), seeded bounds, and the implementation files in `sources`. Paths in
 `sources` are relative to the manifest, or to `root` when set. If an installed copy of the
-package could shadow the checkout, add `attest`: `source` is the directory that *contains* the
-package directory (for a `src/` layout, `"src"`), relative to `root`.
+package could shadow the checkout, add `attest`. This happens whenever the runner installs the
+package non-editably (tox does by default, and so does `pip install .`): the installed copy, not
+your checkout, would be under test. `source` is the directory that *contains* the package
+directory (for a `src/` layout, `"src"`), relative to `root`. `attest` only checks where modules
+were imported from, so the contract's config must also put that directory first on the import
+path (`pythonpath = ../src` in `contracts/quint.ini`, step 3).
 
 **Check:** `pytest-quint-connect typecheck contracts/<name>/quint-connect.json` prints
 `… typechecks with Quint 0.33.1`. On an error, it shows Quint's diagnostic with the line.
@@ -86,7 +100,12 @@ exempt from your linters and formatters.
 
 In `contracts/<name>/conftest.py`, subclass the generated base. Each method calls the real API
 with its arguments; `observe()` reads the real state back as plain data shaped like `observed`.
-**Never compute an expected value in the driver**: expectations come only from the model. The
+**Never compute an expected value in the driver**: expectations come only from the model.
+**Observing must not change state**: read through accessors with no side effects, never through
+calls the code counts as uses. Check the target's docs. In cachetools, for example, `cache.items()`
+and `cache[key]` count as uses and refresh recency, so an `observe()` built on them hides exactly
+the recency bugs under test. Read the state without touching it (`len()`, `key in cache`, a
+side-effect-free view), or observe less and check the rest through effects. The
 fixture returns a factory, so every history starts from fresh state:
 
 ```python
@@ -140,6 +159,10 @@ that `-c` sets):
 
 Cases are witnesses + `n_traces` samples + mutants + one coverage case.
 
+If the summary adds `every mutant was caught only by a named witness`, the sampled histories
+caught none of the planted bugs. Your witnesses may be doing all the work. Raise `n_traces` or
+`max_steps` until samples catch the mutants too, or keep the bounds and say so in your report.
+
 - **A mismatch** prints the state, the action and the differing fields, then a `reproduce:`
   command. Run it from the same directory. Decide whether the code or the model is wrong. If it
   is the code, report it to the human rather than bending the model to fit.
@@ -150,28 +173,33 @@ Cases are witnesses + `n_traces` samples + mutants + one coverage case.
 
 ## 6. Wire it into the repository
 
-- **Keep contracts out of the main suite.** If the main pytest config has no `testpaths`, set it
-  to the existing test directories, or add `--ignore=contracts`. Run the repository's normal test
-  command and confirm it does not collect `contracts/`.
-- **Add a runner entry** if the repository uses one. For tox:
-
-  ```ini
-  [testenv:contracts]
-  pass_env = PYTEST_QUINT_CONNECT_CACHE, QUINT
-  commands =
-      pytest-quint-connect codegen --check contracts/<name>/quint-connect.json
-      pytest -c contracts/quint.ini contracts --quint-require-complete
-  ```
-
-  nox passes the environment through unless you restrict it.
+- **Keep contracts out of the main suite.** Without a pytest configuration, a bare `pytest`
+  collects everything under the rootdir, `contracts/` included, and the contract tests fail to
+  import. Give the main suite `testpaths` (its existing test directories) in the configuration
+  file the repository already uses: `[tool.pytest.ini_options]` in `pyproject.toml`, `[pytest]`
+  in `pytest.ini` or `tox.ini`, or `[tool:pytest]` in `setup.cfg`. If none has a pytest section,
+  add one to that file, rather than a new `pytest.ini`. Or add `--ignore=contracts` to its
+  options. Run the repository's normal test command and confirm it does not collect `contracts/`.
+- **Add a runner entry** if the repository uses one. For tox, copy
+  [the contracts environment](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/#run-through-tox-or-nox).
+  It holds the dependencies (with the plugin pinned), `pass_env` and the JUnit path. nox passes
+  the environment through unless a session restricts it.
+- **Type checks.** If the repository type-checks its tests and `contracts/` falls in that scope,
+  install `pytest` and `pytest-quint-connect` in the type-check environment too. The driver
+  imports both, and the generated base is typed against them.
 - **Add a CI job** from [Run contracts in CI](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/),
-  adapted to the existing workflows: the same checkout, Python and install steps, Node.js 22+,
-  `codegen --check`, the contract run, then the report step with `if: ${{ !cancelled() }}` and
-  job permission `pull-requests: write`. Write the JUnit file into the artifacts directory,
-  `contracts/.artifacts/quint-connect/junit.xml`. Pin Actions the way the repository does. If it
-  pins commit SHAs, pin the report action too:
-  `gh api repos/gigaverse-app/pytest-quint-connect/commits/v1 --jq .sha`, then
-  `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # v1`.
+  adapted to the existing workflows: the same triggers, checkout, Python and install steps,
+  Node.js 22+, `codegen --check`, the contract run, then the report step with
+  `if: ${{ !cancelled() }}`. Give the job `permissions: {contents: read, pull-requests: write}`.
+  A job-level block replaces the workflow-level one for that job, so add any other permission the
+  workflow grants that the job needs. Write the JUnit file into the artifacts directory,
+  `contracts/.artifacts/quint-connect/junit.xml`.
+- **Pin the report action to the installed version.** It renders with its own copy of the code,
+  so a different version can render the README block differently and fail the check. Use
+  `report@v<version>`, the version from step 1, and bump it together with the package. In a
+  repository that pins commit SHAs, use
+  `gh api repos/gigaverse-app/pytest-quint-connect/commits/v<version> --jq .sha`, then
+  `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # v<version>`.
 - **README block.** The report keeps a results table between
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->` in a Markdown
   file. If the README is Markdown, add those two lines where the table belongs. Otherwise (a
@@ -191,7 +219,7 @@ Contract: <name> (contracts/<name>/)
 Behavior: <the API and the rules, in two or three plain sentences>
 Review this: contracts/<name>/<name>.qnt (<N> lines). It is the specification; the rest is plumbing.
 Verified: <command> -> "<summary line>"; codegen --check -> up to date; <repository test command> -> passed
-Mutants: <name>: <the bug it simulates> (detected)
+Mutants: <name>: <the bug it simulates> (detected by <witness or sample>)
 Not covered: <behavior outside the model or the bounds>; see the limits page
 Needs a human: review the model; make "<check name>" a required check
 ```

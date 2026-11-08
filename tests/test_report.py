@@ -344,3 +344,19 @@ def test_manifest_text_cannot_inject_markup_or_mentions(tmp_path: Path) -> None:
     (line,) = section(render_comment(edited_bug_receipt(tmp_path, inject), repository=REPO), "Bugs this contract found")
     assert "&lt;img src=x&gt; pings &#64;octocat" in line and "&lt;script&gt;" in line
     assert "Fixed in `see [this](javascript:alert(1))`" in line
+
+
+def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> None:
+    receipt = json.loads((RECEIPTS / "lru-passed.json").read_text(encoding="utf-8"))
+    plain = tmp_path / "plain.json"
+    plain.write_text(json.dumps(receipt), encoding="utf-8")
+    # Receipts from before caught_by_sample existed say nothing either way.
+    assert "caught only by a named witness" not in render_comment(load([plain]), repository=REPO)
+    for test in receipt["contracts"][0]["tests"]:
+        for mutation in test["mutations"].values():
+            mutation["caught_by_sample"] = False
+    weak = tmp_path / "results.json"
+    weak.write_text(json.dumps(receipt), encoding="utf-8")
+    comment = render_comment(load([weak]), repository=REPO)
+    assert "`test_lru_contract.py::test_lru_cache`: every mutant was caught only by a named witness" in comment
+    assert "Raise bounds.n_traces or max_steps" in comment

@@ -35,7 +35,10 @@ def _quint_for(arguments: argparse.Namespace) -> Iterator[tuple[Contract, QuintT
     contract = load_contract(Path(arguments.manifest))
     # Kept when the block fails, so the log an error names still exists.
     with scratch_directory("quint-codegen-", keep_on_failure=True) as logs:
-        yield contract, resolve_quint(contract.quint_version, logs, arguments.quint or os.environ.get("QUINT")), logs
+        configured = arguments.quint or os.environ.get("QUINT")
+        # On stderr, so `codegen` output and redirected stdout stay as they were.
+        tool = resolve_quint(contract.quint_version, logs, configured, lambda line: print(line, file=sys.stderr))
+        yield contract, tool, logs
 
 
 def typecheck(arguments: argparse.Namespace) -> int:

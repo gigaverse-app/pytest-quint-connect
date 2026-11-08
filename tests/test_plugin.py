@@ -61,6 +61,9 @@ def test_complete_run_passes_and_records_evidence(pytester: pytest.Pytester, exa
     assert all(test["complete"] for test in contract["tests"])
     mutation = contract["tests"][0]["mutations"]["stale-read"]
     assert mutation["differences"] and mutation["detected_by"]
+    # The default bounds' samples catch it too, so the run carries no witnesses-only warning.
+    assert mutation["caught_by_sample"] is True
+    assert "caught only by a named witness" not in result.stdout.str()
     # An ordinary mutant stops at the first history that catches it.
     assert "diverged" not in mutation and "histories" not in mutation
     assert contract["mutants"] == ["stale-read"]
@@ -70,6 +73,16 @@ def test_complete_run_passes_and_records_evidence(pytester: pytest.Pytester, exa
     cases = ElementTree.parse(example / "junit.xml").getroot().iter("testcase")
     properties = {p.get("name") for case in cases for p in case.iter("property")}
     assert {"quint_trace", "quint_seed", "quint_detected_by"} <= properties
+
+
+def test_mutants_caught_only_by_witnesses_are_called_out(pytester: pytest.Pytester, example: Path) -> None:
+    # One-step samples cannot reach the stale-read fault (store, store, fetch, store); only a witness can.
+    edit_manifest(example, bounds={"seed": 7, "max_samples": 200, "max_steps": 1, "n_traces": 2})
+    result = pytester.runpytest("-k", "test_lru_cache")
+    result.assert_outcomes(passed=7, deselected=7)
+    assert_output(result, "test_lru_cache: every mutant was caught only by a named witness; no sampled history")
+    mutation = receipt(example)["contracts"][0]["tests"][0]["mutations"]["stale-read"]
+    assert mutation["detected_by"].startswith("witness-") and mutation["caught_by_sample"] is False
 
 
 def test_collection_lists_selectable_cases(pytester: pytest.Pytester, example: Path) -> None:

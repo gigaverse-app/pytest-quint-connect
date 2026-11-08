@@ -102,6 +102,7 @@ class Row:
     # The manifest's bugs_found, as recorded in the receipt: declared facts, shared by the contract's tests.
     bugs_found: list[dict[str, str]] = field(default_factory=list)
     passed_cases: frozenset[str] = frozenset()
+    witnesses_only: bool = False
 
     @property
     def histories(self) -> int:
@@ -151,6 +152,22 @@ def load(paths: list[Path]) -> Evidence:
         rows += _rows(receipt)
         incomplete += [str(line) for line in receipt.get("incomplete_required", [])]
     return Evidence(sorted(rows, key=lambda row: (row.contract, row.test)), len(paths), incomplete)
+
+
+def witnesses_only(mutations: dict[str, Any], samples: int) -> bool:
+    """True when sampling ran and caught none of the detected mutants: only the named witnesses did.
+
+    Receipts written before ``caught_by_sample`` existed lack it, and say nothing either way.
+    """
+    return (
+        samples > 0 and bool(mutations) and all(entry.get("caught_by_sample") is False for entry in mutations.values())
+    )
+
+
+WITNESSES_ONLY = (
+    "every mutant was caught only by a named witness; no sampled history caught one. Raise bounds.n_traces "
+    "or max_steps until samples catch them too, or accept knowingly that sampling adds no detection here"
+)
 
 
 def _rows(receipt: dict[str, Any]) -> list[Row]:
@@ -206,6 +223,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     ],
                     bugs_found=list(contract.get("bugs_found", [])),
                     passed_cases=frozenset(case for case, outcome in outcomes.items() if outcome == "passed"),
+                    witnesses_only=witnesses_only(test.get("mutations", {}), samples),
                 )
             )
     return rows
@@ -488,6 +506,9 @@ def render_comment(
         lines.append("<br>".join(f"<sub>{ICON[state]} {state}: {MEANING[state]}.</sub>" for state in present))
         lines.append("")
     lines += _catches(evidence.rows)
+    weak = [row for row in evidence.rows if row.witnesses_only]
+    if weak:
+        lines += [f"<sub>⚠️ {_code(row.test)}: {WITNESSES_ONLY}.</sub>" for row in weak] + [""]
     failures = [(row, failure) for row in evidence.rows for failure in row.failures]
     generation = [row for row in evidence.rows if row.generation_failure]
     if failures or generation:

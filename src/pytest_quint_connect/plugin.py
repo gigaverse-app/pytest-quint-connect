@@ -27,6 +27,7 @@ import pytest
 from .contract import Contract, ContractError, display_path, load_contract
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
 from .replay import DriverFactory, ReplayMismatch, replay_trace
+from .report import WITNESSES_ONLY, witnesses_only
 
 __all__ = ["quint_contract"]
 
@@ -113,6 +114,14 @@ class _Session:
         self.tool: QuintTool | None = None
         self.tool_error: Exception | None = None
         self.incomplete: list[str] = []
+        self.quint_note: str | None = None
+
+    def note(self, line: str) -> None:
+        """Which Quint this session uses, for the summary; a first install, which can take a minute, also now."""
+        self.quint_note = line
+        reporter = self.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter is not None and line.startswith("installing"):
+            reporter.write_line(f"pytest-quint-connect: {line}")
 
     @property
     def mode(self) -> str:
@@ -140,7 +149,7 @@ class _Session:
                         raise self.tool_error
                     try:
                         self.tool = resolve_quint(
-                            contract.quint_version, self.artifacts / "_toolchain", self.configured_quint()
+                            contract.quint_version, self.artifacts / "_toolchain", self.configured_quint(), self.note
                         )
                     except Exception as error:
                         self.tool_error = error
@@ -235,12 +244,16 @@ class _Session:
         """Replay histories through the mutant until one is caught, or through all if it reintroduces a found bug.
 
         Only an observed-state mismatch counts as detection. Any other exception (a setup error, a
-        crash in the mutant) propagates and fails the case.
+        crash in the mutant) propagates and fails the case. Witnesses replay first; when one catches the
+        mutant, the samples still replay until one catches it too, so the receipt can say whether sampling
+        adds detection power (``caught_by_sample``) or only the named scenarios do.
         """
         run = self.runs[case.test]
         every_history = case.contract.bug_reintroduced_by(case.name) is not None
         diverged: list[str] = []
         for trace_id, trace in generation.traces.items():
+            if diverged and not every_history and not trace_id.startswith("sample-"):
+                continue
             try:
                 replay_trace(
                     trace,
@@ -256,10 +269,13 @@ class _Session:
                     run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
                     item.user_properties.append(("quint_detected_by", trace_id))
                 diverged.append(trace_id)
-                if not every_history:
-                    return
+                if not every_history and trace_id.startswith("sample-"):
+                    break
         if diverged:
-            run.mutations[case.name].update(histories=len(generation.traces), diverged=diverged)
+            mutation = run.mutations[case.name]
+            mutation["caught_by_sample"] = any(trace_id.startswith("sample-") for trace_id in diverged)
+            if every_history:
+                mutation.update(histories=len(generation.traces), diverged=diverged)
             return
         run.findings[case.id] = {"survived": len(generation.traces)}
         pytest.fail(
@@ -503,10 +519,14 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: pyte
             f"{len(generation.traces) if generation else 0} fresh histories; "
             f"{len(run.mutations)}/{len(run.contract.mutants)} mutants detected"
         )
+        if witnesses_only(run.mutations, run.contract.bounds.n_traces):
+            terminalreporter.write_line(f"{run.test}: {WITNESSES_ONLY}", yellow=True)
     if state.replay_path:
         terminalreporter.write_line("replay-only: one saved trace was checked; this is not complete coverage")
     for line in state.incomplete:
         terminalreporter.write_line(f"INCOMPLETE {line}", red=True)
+    if state.quint_note:
+        terminalreporter.write_line(f"quint: {state.quint_note}")
     terminalreporter.write_line(f"receipt: {state.artifacts / RECEIPT}")
 
 

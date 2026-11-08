@@ -78,7 +78,7 @@ permissions:
 steps:
   # ... checkout, Node.js 22+, Python, then:
   - run: pytest --quint-require-complete
-  - uses: gigaverse-app/pytest-quint-connect/report@v1
+  - uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z  # the installed pytest-quint-connect version
     if: ${{ !cancelled() }}
 ```
 
@@ -89,6 +89,10 @@ step when `README.md`'s block is stale. When the `readme` file does not exist or
 markers, the step adds a warning annotation naming the file and leaves it alone. The
 block is Markdown and HTML: next to a `README.rst`, keep it in a Markdown file such as
 `contracts/README.md` and set `readme` to it.
+
+Pin the action to the version of pytest-quint-connect your tests install. It renders
+with its own copy of the code, so another version can render the README block
+differently and fail the check. With commit SHAs, write `report@<sha>  # vX.Y.Z`.
 
 | Input | Default | |
 | --- | --- | --- |
@@ -182,7 +186,10 @@ and per test: outcomes, completeness, steps replayed, imported modules (with
 failed history its state, action, arguments, first differences and mismatch file, and for
 a surviving mutant how many histories it survived. A detected mutant's entry in
 `mutations` says where it was first caught: `detected_by` (the case id of the trace),
-`state`, `action`, `arguments` and the differences; the entry of a mutant named by a found bug adds
+`state`, `action`, `arguments` and the differences, and `caught_by_sample`: whether a sampled
+history caught it too (witnesses replay first; samples then replay until one does). When
+every detected mutant has `caught_by_sample: false`, the session summary and the PR comment
+say that only the named witnesses catch the mutants; the entry of a mutant named by a found bug adds
 `histories` (how many were replayed) and `diverged` (the case ids that mismatched, in
 generation order). `root` is the session's rootdir, and
 the mismatch paths are relative to it. `config_file` is the configuration file given

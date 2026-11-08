@@ -15,7 +15,7 @@ pull request
    │     every mutant is caught
    │     every contract in quint_required_contracts ran, unfiltered
    │
-   ├─ report@v1 (also on failure) ─► one PR comment: what ran, what failed, how to reproduce it
+   ├─ report action (on failure too) ► one PR comment: what ran, what failed, how to reproduce it
    │                                ├► artifact: traces, mismatch reports, results.json
    │                                └► README block still matches the evidence
    │
@@ -44,13 +44,13 @@ on:
   pull_request:
   push:
     branches: [main]
-permissions:
-  contents: read
-  pull-requests: write  # the report's PR comment
 jobs:
   contracts:
     name: Quint contracts
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # the report's PR comment
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -79,26 +79,49 @@ jobs:
           pytest -c contracts/quint.ini contracts --quint-require-complete
           --junitxml=contracts/.artifacts/quint-connect/junit.xml
       # Comments on the pull request, uploads every receipt's directory and checks the README block.
-      - uses: gigaverse-app/pytest-quint-connect/report@v1
+      # vX.Y.Z: the version of pytest-quint-connect you installed (see below).
+      - uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z
         if: ${{ !cancelled() }}
 ```
 
 Adjust the install step and the paths to your project, and follow its conventions:
-if your workflows pin Actions to commit SHAs, pin these too (the report action's `v1`
-is `gh api repos/gigaverse-app/pytest-quint-connect/commits/v1 --jq .sha`). With uv,
-install with `uv sync --locked` and prefix both commands with `uv run`. Through tox,
-run them as a tox environment that passes the cache directory through, since tox
-hides the environment from tests:
+
+- **Triggers.** Use the triggers your other workflows use. With both `push` and
+  `pull_request` on every branch, the job runs twice for each pull-request commit;
+  the `push` filter above keeps it to `main`.
+- **Permissions.** The job-level block replaces the workflow-level `permissions:` for
+  this job. If your workflow already has one, keep it, and give this job `contents: read`
+  and `pull-requests: write`, plus anything else it needs from the workflow's block.
+- **Pin the report action to the installed version.** The action renders the report
+  with its own copy of pytest-quint-connect, not the one your tests installed, so a
+  different version can render the README block differently and fail the check. Pin
+  it to the release you installed and bump both together. If your workflows pin
+  Actions to commit SHAs, write
+  `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # vX.Y.Z`, with the SHA from
+  `gh api repos/gigaverse-app/pytest-quint-connect/commits/vX.Y.Z --jq .sha`.
+- **uv.** Install with `uv sync --locked` and prefix both commands with `uv run`.
+
+### Run through tox or nox
+
+If tests run through tox, run the contracts as their own tox environment, and have
+the CI job call `tox -e contracts`. tox hides the environment from tests, so pass the
+cache directory through, and pin the plugin to the same version as the report action:
 
 ```ini
 [testenv:contracts]
+deps =
+    pytest
+    pytest-quint-connect==X.Y.Z
 pass_env = PYTEST_QUINT_CONNECT_CACHE, QUINT
 commands =
     pytest-quint-connect codegen --check contracts/cache/quint-connect.json
     pytest -c contracts/quint.ini contracts --quint-require-complete --junitxml=contracts/.artifacts/quint-connect/junit.xml
 ```
 
-nox passes the environment through unless a session restricts it.
+tox installs your package non-editably, so the tests import the installed copy unless
+`contracts/quint.ini` puts the source directory first on `pythonpath`. Add the
+manifest's [`attest`](manifest.md) to prove which copy ran. nox passes the environment
+through unless a session restricts it.
 
 Without the cache, each run installs Quint with `npm ci` once. The plugin keeps each
 Quint pin in its own directory under the cache, so a stale cache costs one install,
@@ -110,7 +133,12 @@ The layout above keeps each contract in `contracts/NAME/` with one `contracts/qu
 that is used only through `-c`. Make sure your main test command does not collect
 `contracts/`: set `testpaths` in its configuration (for example `testpaths = tests`),
 or add `--ignore=contracts`. Otherwise the main run collects the contract tests
-without their configuration, and they fail to import. `-c` also makes `contracts/`
+without their configuration, and they fail to import. A repository with no pytest
+configuration at all collects everything, so give it one in the file it already uses
+for tool settings, such as `[tool.pytest.ini_options]` in `pyproject.toml`, `[pytest]`
+in `tox.ini`, or `[tool:pytest]` in `setup.cfg`. Add `.artifacts/` to `.gitignore`.
+If the repository type-checks its tests, install `pytest` and `pytest-quint-connect`
+where the type checker runs, because the driver imports both. `-c` also makes `contracts/`
 the rootdir: node ids, the artifacts directory and the printed `reproduce:` commands
 are relative to it or say so.
 

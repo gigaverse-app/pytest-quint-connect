@@ -72,6 +72,24 @@ def test_check_reports_a_stale_module_and_write_refreshes_it(tmp_path: Path, qui
     assert main(["codegen", str(manifest), *flags, "--check"]) == 1
 
 
+def test_first_run_says_it_installs_the_bundled_quint_and_later_runs_say_they_reuse_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A real npm ci into an empty cache: the line tells a user why the first run is slow, and where Quint lives.
+    manifest = copy_example(tmp_path)
+    cache = tmp_path / "cache"
+    monkeypatch.setenv("PYTEST_QUINT_CONNECT_CACHE", str(cache))
+    monkeypatch.delenv("QUINT", raising=False)
+    assert main(["typecheck", str(manifest)]) == 0
+    first = capsys.readouterr()
+    assert f"installing the bundled Quint 0.33.1 into {cache}" in first.err
+    assert "with npm ci (first use only)" in first.err
+    assert "lru.qnt typechecks with Quint 0.33.1" in first.out
+    assert main(["typecheck", str(manifest)]) == 0
+    second = capsys.readouterr()
+    assert f"using the bundled Quint 0.33.1 from {cache}" in second.err and "installing" not in second.err
+
+
 def test_check_names_the_default_module_it_could_not_find(
     tmp_path: Path, quint, capsys: pytest.CaptureFixture[str]
 ) -> None:

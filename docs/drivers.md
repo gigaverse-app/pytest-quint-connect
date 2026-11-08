@@ -98,6 +98,40 @@ Project only what the model specifies. The projection is trusted code: keep it
 small and obviously correct, because a projection that hides a field also hides
 the bugs in it.
 
+**Observing must not change state.** `observe()` runs after every step, so a read that
+the code counts as a use changes the state under test. In cachetools, `cache.items()`
+and `cache[key]` count as uses and refresh recency, so an `observe()` built on them
+would make every entry look recently used and hide the recency bugs the contract
+exists to catch. Read state only through accessors with no side effects (`len()`,
+`key in cache`, a view the library documents as passive). Check the target's
+documentation for reads that count as uses.
+
+### State the code cannot show
+
+A model often needs state the public API does not expose, such as recency order or a
+counter. Keep it in its own model-only variable, outside `observe`, and let the
+observed variables show its effects: which entry a full cache evicts, which item
+`popitem()` returns.
+
+```quint
+var order: List[str]                        // model-only: least recently used first
+var observed: { keys: Set[str], popped: str }
+
+action put(key: str): bool = {
+  val kept = order.select(k => k != key)
+  val room = if (kept.length() >= CAPACITY) kept.slice(1, kept.length()) else kept
+  all {
+    order' = room.append(key),
+    observed' = { keys: room.append(key).toSet(), popped: "" },
+    event' = { op: "put", key: key },
+  }
+}
+```
+
+The manifest's `observe` stays `observed`, so the driver never reads the order. A
+recency bug still shows, as the wrong key missing from `keys` after an eviction, or the
+wrong `popped`.
+
 ## Step conventions
 
 **Event (default).** The model keeps a state variable, usually `event`, holding a
