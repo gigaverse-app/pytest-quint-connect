@@ -72,8 +72,8 @@ Release Please turns merged titles into a release PR; see [RELEASING.md](RELEASI
 
 `uv run pre-commit install` installs both the staged dry-lint check and the
 `prepare-commit-msg` trailer hook, alongside Ruff and documentation checks.
-Put your own `ANTHROPIC_API_KEY` in the shell or the ignored `.env`. The hook uses
-Sonnet, Python 3.13 and the same accepted baseline as CI. Missing judge credentials
+Put a TypeSafe key in `TYPESAFE_AI_API_KEY`, in the shell or the ignored `.env`. The hook uses
+the `agent` preset (TypeSafe's Jev judge), Python 3.13 and the same accepted baseline as CI. Missing judge credentials
 fail strict checking. The trailer records duplicates fixed before the first push,
 so the PR sticky includes that local prevention credit.
 
@@ -101,7 +101,7 @@ incomplete judging or missing authentication fails visibly. Humans and agents
 choose refactors; the audit never edits application code or merges its own PR.
 
 ```bash
-uv tool install --no-config --python 3.13 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@v1'
+uv tool install --no-config --python 3.13 'dry-lint @ git+https://github.com/gigaverse-app/dry-lint@v1'
 dry-lint sweep --budget-usd 5 --report audit.json --output audit.md
 # Review both sides, refactor and test before recording progress.
 dry-lint sweep --update --budget-usd 5 --readme README.md --repository gigaverse-app/pytest-quint-connect --repository-id 1449617982

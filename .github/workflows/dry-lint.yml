@@ -27,15 +27,15 @@ jobs:
           persist-credentials: false
       - uses: gigaverse-app/dry-lint@v1
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          plugins: anthropic==2.4.0
+          preset: agent
+          typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           baseline: .dry-lint/baseline.json
           require-complete: 'true'
           comment: 'true'
           comment-on-clean: 'true'
 
   # TEMPORARY (adoption PR only): the judge key exists only in Actions, so the initial accepted baseline is
-  # generated here by dry-lint's own `sweep --init` with the repository's Sonnet judge, uploaded for review, then
+  # generated here by dry-lint's own `sweep --init` with the repository's judge, uploaded for review, then
   # committed and this job removed. It never runs once .dry-lint/baseline.json exists.
   bootstrap-baseline:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -47,18 +47,18 @@ jobs:
           persist-credentials: false
       - name: Initialize the accepted baseline with a complete judged sweep
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TYPESAFE_AI_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
           REPOSITORY_ID: ${{ github.repository_id }}
         run: |
           if [[ -f .dry-lint/baseline.json ]]; then
             echo "Baseline already committed; nothing to initialize."
             exit 0
           fi
-          if [[ -z "$ANTHROPIC_API_KEY" ]]; then
-            echo "::error::Add the ANTHROPIC_API_KEY repository secret; the baseline needs the same judge as CI."
+          if [[ -z "$TYPESAFE_AI_API_KEY" ]]; then
+            echo "::error::The organization TYPESAFE_API_KEY secret is not available to this repository."
             exit 1
           fi
-          uvx --no-config --python 3.13 --from 'dry-lint[anthropic] @ git+https://github.com/gigaverse-app/dry-lint@v1' \
+          uvx --no-config --python 3.13 --from 'dry-lint @ git+https://github.com/gigaverse-app/dry-lint@v1' \
             dry-lint sweep --init --budget-usd 5 --readme README.md \
             --repository "$GITHUB_REPOSITORY" --repository-id "$REPOSITORY_ID" \
             --report "$RUNNER_TEMP/init-report.json" --output "$RUNNER_TEMP/init-report.md"

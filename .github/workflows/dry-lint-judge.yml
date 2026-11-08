@@ -22,8 +22,8 @@ jobs:
           persist-credentials: false
       - uses: gigaverse-app/dry-lint@v1
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          plugins: anthropic==2.4.0
+          preset: agent
+          typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           baseline: .dry-lint/baseline.json
           require-complete: 'true'
           comment: 'true'
