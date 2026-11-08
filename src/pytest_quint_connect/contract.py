@@ -8,11 +8,11 @@ See ``docs/manifest.md`` for every field.
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-__all__ = ["Bounds", "Contract", "ContractError", "Mutant", "Regression", "load_contract"]
+__all__ = ["Bounds", "Bug", "Contract", "ContractError", "Mutant", "load_contract"]
 
 DEFAULT_QUINT_VERSION = "0.33.1"
 
@@ -22,6 +22,7 @@ _OPTIONAL = {
     "root",
     "witnesses",
     "mutants",
+    "bugs_found",
     "convention",
     "event",
     "action_field",
@@ -52,34 +53,38 @@ class Bounds:
     n_traces: int
 
 
-@dataclass(frozen=True)
-class Regression:
-    """A real, previously shipped defect that a mutant reproduces: where it was fixed, in one line."""
-
-    ref: str
-    summary: str
+def _declared(item: object) -> dict[str, Any]:
+    """A manifest object's fields, without the optional ones it left out."""
+    return {key: value for key, value in asdict(item).items() if value is not None}
 
 
 @dataclass(frozen=True)
 class Mutant:
-    """A deliberate fault the driver factory builds from ``HistoryContext.mutant``.
-
-    ``description`` says what the fault does. A ``regression`` mutant reproduces a shipped
-    defect; every history is replayed through it so the receipt can say how many diverge.
-    """
+    """A deliberate fault the driver factory builds from ``HistoryContext.mutant``; ``description`` says what it does."""
 
     name: str
     description: str | None = None
-    regression: Regression | None = None
 
     def as_json(self) -> dict[str, Any]:
-        """The manifest's object form, without the fields it left out."""
-        entry: dict[str, Any] = {"name": self.name}
-        if self.description is not None:
-            entry["description"] = self.description
-        if self.regression is not None:
-            entry["regression"] = {"ref": self.regression.ref, "summary": self.regression.summary}
-        return entry
+        return _declared(self)
+
+
+@dataclass(frozen=True)
+class Bug:
+    """A real defect this contract found and that was fixed: the manifest's ``bugs_found`` entry.
+
+    ``mutant`` names the mutant that reintroduces it. Every history is replayed through that
+    mutant, so the receipt can say how many diverge; the rest of the entry is declared.
+    """
+
+    summary: str
+    fixed_in: str
+    found_by: str | None = None
+    regression_test: str | None = None
+    mutant: str | None = None
+
+    def as_json(self) -> dict[str, Any]:
+        return _declared(self)
 
 
 @dataclass(frozen=True)
@@ -104,6 +109,7 @@ class Contract:
     bounds: Bounds
     witnesses: tuple[str, ...]
     mutant_specs: tuple[Mutant, ...]
+    bugs_found: tuple[Bug, ...]
     convention: str
     event: str
     action_field: str
@@ -124,6 +130,10 @@ class Contract:
     def mutants(self) -> tuple[str, ...]:
         """Mutant names in manifest order: what ``HistoryContext.mutant`` and case ids carry."""
         return tuple(mutant.name for mutant in self.mutant_specs)
+
+    def bug_reintroduced_by(self, mutant: str) -> Bug | None:
+        """The found bug this mutant reintroduces, if any: such a mutant replays every history."""
+        return next((bug for bug in self.bugs_found if bug.mutant == mutant), None)
 
     @property
     def directory(self) -> Path:
@@ -188,28 +198,23 @@ def _names(data: Mapping[str, Any], key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def _strings(value: object, keys: tuple[str, ...], what: str) -> dict[str, str]:
-    """An object with exactly ``keys``, each a non-empty string."""
-    if not isinstance(value, dict) or set(value) != set(keys):
-        raise ContractError(f"{what} must be an object with exactly the fields {list(keys)}")
+def _strings(value: object, required: tuple[str, ...], optional: tuple[str, ...], what: str) -> dict[str, str]:
+    """An object with every ``required`` field, no field outside ``optional``, each a non-empty string."""
+    if not isinstance(value, dict) or not set(required) <= set(value) <= {*required, *optional}:
+        allowed = f"; optional {list(optional)}" if optional else ""
+        raise ContractError(f"{what} must be an object with the fields {list(required)}{allowed}")
     if not all(isinstance(item, str) and item for item in value.values()):
-        raise ContractError(f"{what}: {', '.join(keys)} must be non-empty strings")
+        raise ContractError(f"{what}: every field must be a non-empty string")
     return value
 
 
 def _mutant(entry: object) -> Mutant:
-    """A ``mutants`` entry: a name, or ``{"name", "description", "regression"?}``."""
+    """A ``mutants`` entry: a name, or ``{"name", "description"}``."""
     if isinstance(entry, str) and entry:
         return Mutant(entry)
     if not isinstance(entry, dict):
         raise ContractError(f"a mutants entry must be a name or an object, got {entry!r}")
-    what = f"mutant {entry.get('name')!r}"
-    fields = _strings({key: item for key, item in entry.items() if key != "regression"}, ("name", "description"), what)
-    regression = None
-    if "regression" in entry:
-        found = _strings(entry["regression"], ("ref", "summary"), f"{what} regression")
-        regression = Regression(found["ref"], found["summary"])
-    return Mutant(fields["name"], fields["description"], regression)
+    return Mutant(**_strings(entry, ("name", "description"), (), f"mutant {entry.get('name')!r}"))
 
 
 def _mutants(data: Mapping[str, Any]) -> tuple[Mutant, ...]:
@@ -220,6 +225,22 @@ def _mutants(data: Mapping[str, Any]) -> tuple[Mutant, ...]:
     if len({mutant.name for mutant in mutants}) != len(mutants):
         raise ContractError("manifest field 'mutants' repeats a name")
     return mutants
+
+
+def _bugs(data: Mapping[str, Any], mutants: tuple[str, ...]) -> tuple[Bug, ...]:
+    """``bugs_found``: each ``{"summary", "fixed_in", "found_by"?, "regression_test"?, "mutant"?}``."""
+    value = data.get("bugs_found", [])
+    if not isinstance(value, list):
+        raise ContractError("manifest field 'bugs_found' must be a list of objects")
+    fields = ("found_by", "regression_test", "mutant")
+    bugs = tuple(Bug(**_strings(entry, ("summary", "fixed_in"), fields, "a bugs_found entry")) for entry in value)
+    claimed = [bug.mutant for bug in bugs if bug.mutant is not None]
+    undeclared = sorted(set(claimed) - set(mutants))
+    if undeclared:
+        raise ContractError(f"bugs_found names undeclared mutants {undeclared}; declare them in 'mutants'")
+    if len(set(claimed)) != len(claimed):
+        raise ContractError("two bugs_found entries name the same mutant")
+    return bugs
 
 
 def _positive(bounds: Mapping[str, Any], key: str, *, minimum: int = 1) -> int:
@@ -331,6 +352,7 @@ def load_contract(manifest: Path) -> Contract:
         bounds=bounds,
         witnesses=witnesses,
         mutant_specs=mutants,
+        bugs_found=_bugs(data, tuple(mutant.name for mutant in mutants)),
         convention=convention,
         event=_string(data, "event", "event"),
         action_field=_string(data, "action_field", "op"),

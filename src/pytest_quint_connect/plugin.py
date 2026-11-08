@@ -221,13 +221,13 @@ class _Session:
         raise AssertionError(f"unknown case kind {case.kind}")
 
     def run_mutant(self, case: Case, generation: Generation, factory: DriverFactory, item: pytest.Item) -> None:
-        """Replay histories through the mutant until one is caught, or through every history for a regression.
+        """Replay histories through the mutant until one is caught, or through all if it reintroduces a found bug.
 
         Only an observed-state mismatch counts as detection. Any other exception (a setup error, a
         crash in the mutant) propagates and fails the case.
         """
         run = self.runs[case.test]
-        spec = next(mutant for mutant in case.contract.mutant_specs if mutant.name == case.name)
+        every_history = case.contract.bug_reintroduced_by(case.name) is not None
         diverged: list[str] = []
         for trace_id, trace in generation.traces.items():
             try:
@@ -245,7 +245,7 @@ class _Session:
                     run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
                     item.user_properties.append(("quint_detected_by", trace_id))
                 diverged.append(trace_id)
-                if spec.regression is None:
+                if not every_history:
                     return
         if diverged:
             run.mutations[case.name].update(histories=len(generation.traces), diverged=diverged)
@@ -276,6 +276,7 @@ class _Session:
                 "witnesses": list(contract.witnesses),
                 "mutants": list(contract.mutants),
                 "mutant_specs": [mutant.as_json() for mutant in contract.mutant_specs],
+                "bugs_found": [bug.as_json() for bug in contract.bugs_found],
                 "limits": list(contract.limits),
             }
             try:

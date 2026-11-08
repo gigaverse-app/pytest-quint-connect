@@ -32,7 +32,8 @@ instead of silently weakening a check.
 | `actions` | yes | Every action name a trace may contain, mapped to the implementation boundary it drives. An undeclared action in a trace fails; a declared action no history reaches fails the `coverage` case. |
 | `bounds` | yes | `seed`, `max_samples`, `max_steps` and `n_traces` for `quint run`. `n_traces` sampled histories become `sample-0` … `sample-N-1`. The seed is also passed to `quint test`. |
 | `witnesses` | no | Names of `run …Test` definitions. Each must produce exactly one trace and becomes a `witness-NAME` case. |
-| `mutants` | no | Deliberate faults your driver factory builds from `context.mutant`. Each becomes a `mutant-NAME` case that must be caught. An entry is a name, or an object with a `description`; see [mutants](#mutants). |
+| `mutants` | no | Planted bugs: deliberate faults your driver factory builds from `context.mutant`. Each becomes a `mutant-NAME` case that must be caught. An entry is a name, or an object with a `description`; see [mutants](#mutants). |
+| `bugs_found` | no | Real bugs this contract found and that were fixed, each optionally re-checked by a mutant; see [bugs found](#bugs-found). |
 | `convention` | no | `event` (default) or `mbt`; see [drivers](drivers.md#step-conventions). |
 | `event`, `action_field` | no | For the event convention: the state variable holding the step record (default `event`) and its action-name field (default `op`). |
 | `observe` | no | State variable the driver's observation is compared with (default `observed`), or a list of variable names compared as one record. |
@@ -48,35 +49,56 @@ instead of silently weakening a check.
 
 ## Mutants
 
-A `mutants` entry is either a bare name or an object:
+Reports call mutants *planted bugs* and explain the term on hover: deliberately broken
+copies of the code, each of which must make some history diverge. A `mutants` entry is
+a bare name or an object:
 
 ```json
 "mutants": [
   "drops-newest",
-  {"name": "stale-read", "description": "get() returns the value but does not refresh recency"},
-  {
-    "name": "unmerged-outcomes",
-    "description": "merge_reports keeps only the first worker's outcome for each test",
-    "regression": {"ref": "389c5bb", "summary": "parallel workers' outcomes were dropped when reports merged"}
-  }
+  {"name": "stale-read", "description": "get() returns the value but does not refresh recency"}
 ]
 ```
 
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `name` | yes | What `HistoryContext.mutant` carries and the case id uses. |
-| `description` | yes | What the fault does, in one line. The PR comment and README block show it beside where the mutant was caught. |
-| `regression` | no | `{"ref", "summary"}`: the mutant reproduces a real, previously shipped defect. `ref` names the fix (commit, PR or URL) and `summary` says in one line what was wrong. |
+| `description` | yes | What the fault does, in one line. The PR comment and README block show it beside where it was caught. |
 
-Unknown fields are rejected in the entry and in `regression`. A bare name stays valid
-and has no description.
+Unknown fields are rejected. A bare name stays valid and has no description. A mutant
+stops at the first history that catches it, unless a found bug names it.
 
-An ordinary mutant stops at the first history that catches it. A `regression` mutant
-is replayed through every history, and the receipt records which ones diverged, so the
-report can say "Catches the bug fixed in 389c5bb: 16 of 21 histories diverge". Mark
-only a defect that was really shipped and fixed, and point `ref` at the fix: the
-receipt proves how many histories diverge through the mutant, while the claim that the
-mutant is that defect is yours.
+## Bugs found
+
+When adopting a contract surfaces a real bug (a witness or a historical model shows
+the code doing the wrong thing, you write a regression test and fix the code), record
+it. Reports lead with these:
+
+```json
+"bugs_found": [
+  {
+    "summary": "A rejected report shard leaked its earlier cases and new suites into the combined report",
+    "fixed_in": "#210",
+    "found_by": "the historical audit model pinned to 389c5bb",
+    "regression_test": "package/tests/core/test_profile_coverage.py::test_rejected_shard_cannot_promote_or_mutate_any_prior_evidence",
+    "mutant": "shard-leaks-before-rejection"
+  }
+]
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `summary` | yes | What was wrong, in one sentence. |
+| `fixed_in` | yes | The fix: a commit, PR (`#210`) or URL. |
+| `found_by` | no | How the contract found it: a witness, a sampled history, a historical model. |
+| `regression_test` | no | The pytest node id of the test added with the fix. |
+| `mutant` | no | A declared mutant that reintroduces the bug. Every history is replayed through it, and the receipt records which diverged. |
+
+Unknown fields are rejected, `mutant` must name a declared mutant, and two bugs cannot
+name the same one. The report then says, for example, "16 of 21 histories diverge when
+planted bug `shard-leaks-before-rejection` reintroduces it". The count is what the run
+proves; the rest of the entry is your account, shown as written. Record only bugs that
+were really fixed. Without a `mutant` the report says no planted bug re-checks it.
 
 Model and historical paths are relative to the manifest. Edit the model, manifest
 and driver together when behavior changes; review an intended weakening openly

@@ -121,8 +121,7 @@ Mutation controls prove that the observation can see the faults that matter. Bui
 each one in the factory from `context.mutant`: a deliberately wrong implementation,
 a compiled source mutation, or a post-call corruption of state. Keep them in the
 consumer's code; the plugin only knows their names and, from the manifest, a one-line
-`description` and an optional `regression` marker for a mutant that reproduces a shipped
-defect ([manifest](manifest.md#mutants)). A mutant counts as detected only
+`description`, and whether a [found bug](manifest.md#bugs-found) names it. A mutant counts as detected only
 when some generated history produces an observed-state mismatch. If building or
 running it raises any other exception, the mutant case fails.
 

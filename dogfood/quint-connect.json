@@ -23,6 +23,14 @@
     {"name": "failed-session-keeps-old-receipt", "description": "a failed or still-running session leaves the previous results.json in place"},
     {"name": "require-complete-ignored", "description": "--quint-require-complete is accepted but never changes the exit code"}
   ],
+  "bugs_found": [
+    {
+      "summary": "Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it",
+      "fixed_in": "#3",
+      "found_by": "the first run of this contract",
+      "regression_test": "tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays"
+    }
+  ],
   "bounds": {"seed": 11, "max_samples": 300, "max_steps": 3, "n_traces": 4},
   "sources": [
     "src/pytest_quint_connect/plugin.py",
