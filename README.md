@@ -93,6 +93,16 @@ def cache_driver():
 pytest --quint-require-complete
 ```
 
+In CI, add the report as the next step. It keeps one comment on each pull request
+with what ran, what failed and the command that reproduces each failure, and keeps a
+README block like [this repository's](#measured) current:
+
+```yaml
+- run: pytest --quint-require-complete
+- uses: gigaverse-app/pytest-quint-connect/report@v1  # job permission: pull-requests: write
+  if: ${{ !cancelled() }}
+```
+
 A hand-written driver that implements `step(step)` and `observe()` works too; see
 [drivers](docs/drivers.md).
 
