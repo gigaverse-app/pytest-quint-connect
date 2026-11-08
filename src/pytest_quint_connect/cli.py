@@ -147,6 +147,7 @@ def report(arguments: argparse.Namespace) -> int:
         readme_note=note,
         assets=arguments.assets,
         ledger=ledger,
+        pull=arguments.pull.lstrip("#"),
     )
     if arguments.comment:
         Path(arguments.comment).write_bytes(comment.encode("utf-8"))
@@ -175,6 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     summary.add_argument("--title", default="", help="names this lane or session in the comment")
     summary.add_argument("--head", default="", help="commit the receipts were produced from")
     summary.add_argument("--run-url", default="", help="link to the run that produced the receipts")
+    summary.add_argument("--pull", default="", help="number of the pull request the comment is for")
     summary.add_argument(
         "--repository-root", default=".", help="sessions under this directory get a cd line in reproduce commands"
     )
