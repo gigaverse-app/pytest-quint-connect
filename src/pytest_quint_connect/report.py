@@ -896,6 +896,76 @@ def _banner(assets: str, status: str | None) -> list[str]:
     ]
 
 
+# The scoreboard's columns: where each starts in the 640 px caption strip, and what it counts. Kept in step with
+# SCORE_COLUMNS in scripts/render_brand.py, which draws the captions (tests/test_brand_glyphs.py checks).
+SCOREBOARD = (
+    (0, "contracts"),
+    (98, "histories"),
+    (200, "cases passed"),
+    (318, "cases failed"),
+    (436, "not run"),
+    (532, "mutants caught"),
+)
+GLYPH_WIDTH, GLYPH_HEIGHT = 18, 36
+
+
+def _score(evidence: Evidence) -> list[tuple[str, str]]:
+    """Each column's text and its color, by the same rule as pytest-obligation's: red only for a failure,
+    amber for what did not run, green for what passed, and plain for what is only counted."""
+    totals = Totals.of(evidence.rows)
+    failed = sum(len(row.failures) for row in evidence.rows) + sum(
+        1 for row in evidence.rows if row.covered is False or row.generation_failure
+    )
+    failed = min(failed, totals.cases - totals.passed)
+    not_run = totals.cases - totals.passed - failed
+    caught = "good" if totals.detected == totals.mutants else "bad"
+    return [
+        (str(totals.contracts), "neutral"),
+        (str(totals.histories), "neutral"),
+        (str(totals.passed), "good" if totals.passed else "neutral"),
+        (str(failed), "bad" if failed else "good"),
+        (str(not_run), "warning" if not_run else "good"),
+        (f"{totals.detected}/{totals.mutants}" if totals.mutants else "0", caught if totals.mutants else "neutral"),
+    ]
+
+
+def _glyph(base: str, name: str, width: int, height: int, alt: str = "") -> str:
+    return (
+        f'<picture><source media="(prefers-color-scheme: dark)" srcset="{base}{name}-dark.svg">'
+        f'<img src="{base}{name}-light.svg" width="{width}" height="{height}" alt="{escape(alt, quote=True)}" '
+        'align="middle"></picture>'
+    )
+
+
+def _gap(base: str, width: int) -> str:
+    return (
+        f'<img src="{base}space.svg" width="{width}" height="{GLYPH_HEIGHT}" alt="" align="middle">'
+        if width > 0
+        else ""
+    )
+
+
+def _scoreboard(evidence: Evidence, base: str) -> str:
+    """The run's numbers as large colored digits over a caption strip, 640 px wide; plain text if one is too long.
+
+    Only the first glyph of each number carries the whole count as alt text, so a screen reader reads ``13
+    cases passed`` once rather than digit by digit.
+    """
+    values = _score(evidence)
+    starts = [start for start, _ in SCOREBOARD] + [640]
+    parts = []
+    for i, ((text, color), (_, label)) in enumerate(zip(values, SCOREBOARD, strict=True)):
+        width = min(GLYPH_WIDTH, (starts[i + 1] - starts[i] - 6) // len(text))
+        if width < 8:
+            return "**" + " · ".join(f"{t} {lab}" for (t, _), (_, lab) in zip(values, SCOREBOARD, strict=True)) + "**"
+        for j, char in enumerate(text):
+            glyph = f"{color}-{'slash' if char == '/' else char}"
+            parts.append(_glyph(base, glyph, width, width * 2, f"{text} {label}" if j == 0 else ""))
+        parts.append(_gap(base, starts[i + 1] - starts[i] - width * len(text)))
+    words = " · ".join(f"{text} {label}" for (text, _), (_, label) in zip(values, SCOREBOARD, strict=True))
+    return "<p>" + "".join(parts) + "<br>" + _glyph(base, "captions", 640, 20, words) + "</p>"
+
+
 def _tally(ledger: "Ledger") -> list[str]:
     """This pull request's disagreements across its pushes, as a table that spans the comment."""
     caught = len(ledger.caught)
@@ -958,6 +1028,8 @@ def render_comment(
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
     lines.append("")
+    if assets and evidence.rows:
+        lines += [_scoreboard(evidence, f"{assets}/score/"), ""]
     # What needs a person comes first; bugs the contracts found earlier are credited after it, as history.
     lines += _alert(evidence, repository)
     lines += _credit(evidence.rows)

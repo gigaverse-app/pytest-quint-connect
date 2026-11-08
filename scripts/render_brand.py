@@ -86,23 +86,78 @@ def sticky_banner(variant: str, dark: bool) -> str:
     """A pull-request comment's full-width banner. Adopters hot-link these from a released revision."""
     pose, first, second, failed = STICKY[variant]
     ground, edge, ink, muted = palette(dark)
-    uri, width = art(pose, 168)
-    shown = 52 * width / 168
+    # Tall enough that Quinty reads at a narrow comment's width, where the banner scales down to fit.
+    uri, width = art(pose, 320)
+    shown = 88 * width / 320
     glow = 0.22 if dark else 0.14
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="640" height="56" viewBox="0 0 640 56" role="img" aria-label="pytest-quint-connect: {first}">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="640" height="96" viewBox="0 0 640 96" role="img" aria-label="pytest-quint-connect: {first}">
 <title>pytest-quint-connect: {first}</title>
 <defs><linearGradient id="sticky-glow" x1="0" y1="0" x2="1" y2="0">
 <stop stop-color="{PURPLE}" stop-opacity="{glow}"/><stop offset="0.55" stop-color="{PURPLE}" stop-opacity="0"/>
 </linearGradient></defs>
-<rect x="0.5" y="0.5" width="639" height="55" rx="10" fill="{ground}" stroke="{edge}"/>
-<rect x="0.5" y="0.5" width="639" height="55" rx="10" fill="url(#sticky-glow)"/>
-<image href="{uri}" x="10" y="2" width="{shown:.1f}" height="52"/>
-<text x="{18 + shown:.0f}" y="35" font-family="{FONT}" font-size="20" font-weight="800" letter-spacing="-0.4" fill="{ink}">{wordmark(dark)}</text>
-<text x="{240 + shown:.0f}" y="25" font-family="{FONT}" font-size="12" font-weight="700" fill="{CORAL if failed else ink}">{escape(first)}</text>
-<text x="{240 + shown:.0f}" y="41" font-family="{FONT}" font-size="11.5" fill="{muted}">{escape(second)}</text>
-<g transform="translate(535 4) scale(0.92)">{motif(failed)}</g>
+<rect x="0.5" y="0.5" width="639" height="95" rx="12" fill="{ground}" stroke="{edge}"/>
+<rect x="0.5" y="0.5" width="639" height="95" rx="12" fill="url(#sticky-glow)"/>
+<image href="{uri}" x="8" y="4" width="{shown:.1f}" height="88"/>
+<text x="{20 + shown:.0f}" y="44" font-family="{FONT}" font-size="25" font-weight="800" letter-spacing="-0.5" fill="{ink}">{wordmark(dark)}</text>
+<text x="{20 + shown:.0f}" y="68" font-family="{FONT}" font-size="14" font-weight="700" fill="{CORAL if failed else ink}">{escape(first)}</text>
+<text x="{20 + shown:.0f}" y="86" font-family="{FONT}" font-size="12" fill="{muted}">{escape(second)}</text>
+<g transform="translate(528 20) scale(1.05)">{motif(failed)}</g>
 </svg>
 """
+
+
+# The PR comment's scoreboard: large colored digits, composed by report.py from these fixed glyphs (the way
+# pytest-obligation composes its report-glyphs), so a comment needs no image service and no per-run files.
+# Adopters' comments hot-link them from a released revision: never rename or move them.
+SCORE_COLORS = {
+    "good": ("#1A7F37", "#3FB950"),
+    "bad": ("#CF222E", "#F85149"),
+    "warning": ("#9A6700", "#D29922"),
+    "neutral": ("#1F2328", "#F0F6FC"),
+}
+# Kept in step with SCOREBOARD in src/pytest_quint_connect/report.py (tests/test_brand_glyphs.py checks).
+SCORE_COLUMNS = (
+    (0, "Contracts"),
+    (98, "Histories"),
+    (200, "Cases passed"),
+    (318, "Cases failed"),
+    (436, "Not run"),
+    (532, "Mutants caught"),
+)
+
+
+def glyph(char: str, color: str) -> str:
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="36" viewBox="0 0 18 36" '
+        f'font-family="{FONT}"><text x="9" y="28" text-anchor="middle" font-size="28" font-weight="700" '
+        f'fill="{color}">{char}</text></svg>\n'
+    )
+
+
+def captions(dark: bool) -> str:
+    muted = palette(dark)[3]
+    labels = "".join(
+        f'<text x="{x}" y="14" font-size="11.5" font-weight="600" fill="{muted}">{escape(label)}</text>'
+        for x, label in SCORE_COLUMNS
+    )
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="20" viewBox="0 0 640 20" '
+        f'font-family="{FONT}">{labels}</svg>\n'
+    )
+
+
+def score_glyphs() -> dict[str, str]:
+    files = {}
+    for name, (light, dark) in SCORE_COLORS.items():
+        for theme, color in (("light", light), ("dark", dark)):
+            for char, slug in [*((str(d), str(d)) for d in range(10)), ("/", "slash")]:
+                files[f"docs/assets/score/{name}-{slug}-{theme}.svg"] = glyph(char, color)
+    for theme, dark in (("light", False), ("dark", True)):
+        files[f"docs/assets/score/captions-{theme}.svg"] = captions(dark)
+    files["docs/assets/score/space.svg"] = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"/>\n'
+    )
+    return files
 
 
 def hero(dark: bool, brand: dict[str, str]) -> str:
@@ -192,6 +247,7 @@ def render() -> dict[str, str]:
     for variant in STICKY:
         for theme, dark in (("light", False), ("dark", True)):
             files[f"docs/assets/sticky-banner{variant}-{theme}.svg"] = sticky_banner(variant, dark)
+    files.update(score_glyphs())
     # The counter's sign embeds Quinty too; the Worker has no file system, so the art ships as a module.
     uri, _ = art("inspector", 320)
     files["counter/src/quinty.js"] = (
@@ -256,6 +312,7 @@ def main():
             if not path.exists() or path.read_text(encoding="utf-8") != content:
                 stale.append(name)
         else:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8", newline="\n")
     if stale:
         parser.exit(1, "Regenerate branding: " + ", ".join(stale) + "\n")
