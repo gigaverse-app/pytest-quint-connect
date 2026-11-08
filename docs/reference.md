@@ -126,7 +126,17 @@ marker. A report for an older run or attempt, or for a commit the pull request h
 past, never replaces it. A fork pull request's token cannot comment, so it keeps the job
 summary and the artifact.
 
-The comment opens with a full-width tally of the pull request's **disagreements**: a
+A run that needs a person opens with one GitHub alert. A failed run gets a caution naming
+the clearest failure (a named witness before a sample, then the shortest path) and the
+command that reruns it; an incomplete one gets a warning saying why it is not evidence.
+Bugs the contracts found earlier follow as a tip, one line each, as history rather than
+current failures. Below the contract table, each failing contract test shows its clearest
+failure in full, with every differing field beside the model's expectation, and folds the
+rest into one line and a command each. A collapsed glossary at the bottom explains the
+words and statuses.
+
+After the first push, or once anything was caught, the comment carries a full-width tally
+of the pull request's **disagreements**, and names each history it fixed: a
 history where the code reached a different state than the model, or a mutant that no
 history caught. Crashes and setup errors are not disagreements. A disagreement is
 *caught* on the first push that reports it and *fixed* once a later push runs that case
