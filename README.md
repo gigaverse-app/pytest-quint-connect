@@ -147,7 +147,7 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 | Write a driver and choose a step convention | [docs/drivers.md](docs/drivers.md) |
 | Know what a passing run does and does not prove | [docs/limits.md](docs/limits.md) |
 | Configure options and read the receipt | [docs/reference.md](docs/reference.md) |
-| See it on a production integration | [pytest-obligation's report-merge contract](https://github.com/gigaverse-app/pytest-obligation/tree/main/docs/quint/report-merge) |
+| See it on production integrations | [pytest-obligation's report-merge contract](https://github.com/gigaverse-app/pytest-obligation/tree/main/docs/quint/report-merge), [pytest-selective's selection contract](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) |
 
 ## Measured
 
@@ -155,6 +155,7 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 | --- | --- | --- | --- | --- |
 | [LRU cache example](examples/lru_cache) | 15 (3 witnesses, 12 samples) | 17 per implementation | 1/1 | list and `OrderedDict` implementations pass; the stale-read cache fails 4 of 15 histories |
 | pytest-obligation `merge_reports` | 21 (5 witnesses, 16 samples) | 28 | 6/6 | same 21 histories, state for state, as the runner it replaced |
+| [pytest-selective's selection](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) | 19 (7 witnesses, 12 samples) | 23 | 3/3 | each step is a real Git commit selected by `affected()`; the mutants drop base-tree edges, stop after direct importers and ignore global inputs |
 | [This plugin's own receipts](dogfood) | 8 (4 witnesses, 4 samples) | 13 | 4/4 | each step is a real pytest session; the mutants break the plugin's completeness and receipt logic |
 
 Quint 0.33.1, TypeScript backend. See [PROVENANCE.md](PROVENANCE.md) for where the
