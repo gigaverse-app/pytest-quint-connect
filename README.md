@@ -205,7 +205,7 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 | Write a driver and choose a step convention | [docs/drivers.md](docs/drivers.md) |
 | Know what a passing run does and does not prove | [docs/limits.md](docs/limits.md) |
 | Configure options and read the receipt | [docs/reference.md](docs/reference.md) |
-| See it on production integrations | [pytest-obligation's report-merge contract](https://github.com/gigaverse-app/pytest-obligation/tree/main/docs/quint/report-merge), [pytest-selective's selection contract](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) |
+| See it on production integrations | [pytest-obligation's report-merge contract](https://github.com/gigaverse-app/pytest-obligation/tree/main/docs/quint/report-merge), [pytest-selective's selection contract](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection), [dry-lint's campaign ledger contract](https://github.com/gigaverse-app/dry-lint/tree/main/contracts/campaign) |
 
 ## Measured
 
@@ -321,6 +321,7 @@ Adopters measure their own contracts the same way; these figures come from their
 | --- | --- | --- | --- | --- |
 | pytest-obligation `merge_reports` | 21 (5 witnesses, 16 samples) | 28 | 6/6 | same 21 histories, state for state, as the runner it replaced |
 | [pytest-selective's selection](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) | 19 (7 witnesses, 12 samples) | 23 | 3/3 | each step is a real Git commit selected by `affected()`; the mutants drop base-tree edges, stop after direct importers and ignore global inputs |
+| [dry-lint's campaign ledger](https://github.com/gigaverse-app/dry-lint/tree/main/contracts/campaign) | 20 (4 witnesses, 16 samples) | 25 | 4/4 | each step drives the real `CampaignStore` on a SQLite ledger; found a real bug (a reservation could be settled twice, refunding credit again) |
 
 Quint 0.33.1, TypeScript backend. See [PROVENANCE.md](PROVENANCE.md) for where the
 engine came from and how the baseline was reproduced.
