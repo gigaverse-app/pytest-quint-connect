@@ -3,34 +3,24 @@
 import argparse
 import difflib
 import os
-import shutil
 import sys
-import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 
 from .codegen import CodegenError, compile_ir, generate_module
 from .contract import ContractError, load_contract
 from .quint import QuintError, resolve_quint
+from .replay import scratch_directory
 
 
 def default_output(manifest: Path, module: str) -> Path:
     return manifest.parent / f"{module}_driver.py"
 
 
-@contextmanager
-def _logs_kept_on_failure() -> Iterator[Path]:
-    """A directory for Quint's logs, removed only when generation succeeds, so an error's log path exists."""
-    directory = Path(tempfile.mkdtemp(prefix="quint-codegen-"))
-    yield directory
-    shutil.rmtree(directory, ignore_errors=True)
-
-
 def codegen(arguments: argparse.Namespace) -> int:
     contract = load_contract(Path(arguments.manifest))
     output = Path(arguments.output) if arguments.output else default_output(contract.manifest, contract.module)
-    with _logs_kept_on_failure() as logs:
+    # Kept when generation fails, so the log an error names still exists.
+    with scratch_directory("quint-codegen-", keep_on_failure=True) as logs:
         tool = resolve_quint(contract.quint_version, logs, arguments.quint or os.environ.get("QUINT"))
         ir = compile_ir(contract, tool, logs)
     source = generate_module(contract, ir, output=output, class_name=arguments.class_name)
