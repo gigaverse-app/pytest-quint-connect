@@ -17,10 +17,25 @@ jobs:
   select-tests:
     name: Select tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # Receipts are completed steps of earlier runs' jobs.
+      checks: read
+      pull-requests: read
+    env:
+      # The jobs whose passing first attempts can prove the tests lane, by exact job name.
+      TEST_LANE_JOBS: >-
+        {"py311-ubuntu":"Test (Python 3.11, ubuntu-latest)","py311-windows":"Test (Python 3.11, windows-latest)",
+        "py311-macos":"Test (Python 3.11, macos-latest)","py314-ubuntu":"Test (Python 3.14, ubuntu-latest)",
+        "py314-windows":"Test (Python 3.14, windows-latest)","py314-macos":"Test (Python 3.14, macos-latest)",
+        "minimum":"Test with pytest 8.0 (Python 3.11)"}
     outputs:
-      lanes: ${{ steps.plan.outputs.lanes }}
+      # Planned lanes after reuse: the tests lane is false only when every one of its jobs is proven by a receipt.
+      lanes: ${{ steps.admit.outputs.lanes }}
       mode: ${{ steps.files.outputs.mode }}
       files: ${{ steps.files.outputs.test_roots_json }}
+      receipt: ${{ steps.evidence.outputs.receipt }}
+      reused: ${{ steps.evidence.outputs.reused }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,6 +45,9 @@ jobs:
         uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
         with:
           config: .github/test-lanes.json
+      # Everything the tests lane executes or reads (tests/.gv-dependencies.yaml), bound into each receipt.
+      - id: inputs
+        run: echo "paths=$(jq -c . .github/validation-inputs.json)" >> "$GITHUB_OUTPUT"
       - name: Share the lane graph and execution inputs with file selection
         run: |
           uv run --no-project --python 3.14 --with "$(python3 scripts/ci/selector_requirement.py)" \
@@ -40,6 +58,29 @@ jobs:
         with:
           config: ${{ runner.temp }}/test-impact.json
           full-roots: tests
+      # CI-esta reuses a passing first attempt of the same job when its inputs and selected files are identical:
+      # after a squash merge, and on a PR push that changes nothing the tests read. Release Publish (workflow_call),
+      # manual runs and the test:full label always execute.
+      - id: evidence
+        if: >-
+          ${{ (github.event_name == 'pull_request' || github.event_name == 'push') &&
+              !contains(github.event.pull_request.labels.*.name, 'test:full') }}
+        uses: gigaverse-app/ci-esta/actions/resolve-lane-evidence@v1
+        with:
+          lanes: ${{ env.TEST_LANE_JOBS }}
+          execution-context: ${{ steps.files.outputs.mode }} ${{ steps.files.outputs.test_roots_json }}
+          input-paths: ${{ steps.inputs.outputs.paths }}
+          reuse-after-merge: 'true'
+          reuse-version-only-release: 'true'
+      - id: admit
+        name: Admit the tests lane unless every job is proven
+        env:
+          LANES: ${{ steps.plan.outputs.lanes }}
+          REUSED: ${{ steps.evidence.outputs.reused || '{}' }}
+        run: |
+          lanes=$(jq -c --argjson jobs "$TEST_LANE_JOBS" --argjson reused "$REUSED"             'if [$jobs | keys[] | $reused[.] == true] | all then .tests = false else . end' <<<"$LANES")
+          echo "reused=$REUSED"
+          echo "lanes=$lanes" | tee -a "$GITHUB_OUTPUT"
 
   quality:
     name: Lint, docs and gate contract
@@ -113,6 +154,9 @@ jobs:
         with:
           junit-pattern: test-timings.xml
           artifact-name: test-timings-${{ matrix.python }}-${{ matrix.os }}
+      - name: ${{ needs.select-tests.outputs.receipt || 'No execution receipt' }}
+        if: ${{ needs.select-tests.result == 'success' && needs.select-tests.outputs.receipt != '' }}
+        run: echo 'Recording a completed execution of this job for this tested tree and selection.'
 
   minimum-pytest:
     name: Test with pytest 8.0 (Python 3.11)
@@ -137,6 +181,9 @@ jobs:
           CI_TEST_MODE: ${{ needs.select-tests.outputs.mode }}
           CI_TEST_FILES: ${{ needs.select-tests.outputs.files }}
         run: uv run --no-sync python scripts/run_ci_tests.py -q -p no:cacheprovider
+      - name: ${{ needs.select-tests.outputs.receipt || 'No execution receipt' }}
+        if: ${{ needs.select-tests.result == 'success' && needs.select-tests.outputs.receipt != '' }}
+        run: echo 'Recording a completed execution of this job for this tested tree and selection.'
 
   build:
     name: Build and smoke the installed wheel

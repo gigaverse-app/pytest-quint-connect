@@ -1,0 +1,13 @@
+[
+  ".github",
+  "src",
+  "tests",
+  "dogfood",
+  "examples",
+  "scripts",
+  "docs/assets",
+  "pyproject.toml",
+  "uv.lock",
+  ".release-please-manifest.json",
+  "release-please-config.json"
+]
