@@ -1,4 +1,7 @@
-![pytest-quint-connect: Model-based testing for Python under pytest.](https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/banner.png?v=c5c6ae8f72ed)
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/readme-hero-dark.png?v=fbbc73f6a0f1">
+  <img alt="pytest-quint-connect: Quinty the starfish inspects a contract. Model-based testing for Python under pytest." src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/readme-hero-light.png?v=fb4d663f9ca2" width="100%">
+</picture></p>
 
 # pytest-quint-connect
 
@@ -225,6 +228,18 @@ records progress against the accepted backlog. [Setup and cleanup workflow](CONT
 
 Retired means a side was removed, or (functions only) the judge now finds the pair separate. It is not a count of refactors. Dismissals stay separate; an uninitialized model baseline is unknown.
 <!-- dry-lint-progress:end -->
+
+## Meet Quinty
+
+<p>
+<img src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/quinty/inspector-320.png" alt="Quinty in a deerstalker, inspecting a contract with a magnifier" width="150">
+<img src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/quinty/chef-320.png" alt="Quinty in a chef's hat, stamping approval on a passing contract" width="150">
+<img src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/quinty/explorer-320.png" alt="Quinty with a map, tracing the path where the code left the model" width="150">
+</p>
+
+Quinty is a starfish: five arms, a *quint*. On a pull request, Quinty stamps approval when every
+history matched the model, follows the map to the spot where the code left the model when one did
+not, and otherwise inspects the contract.
 
 ## Related projects
 

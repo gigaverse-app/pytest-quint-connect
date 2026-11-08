@@ -75,13 +75,19 @@ logs and JSON outside the source tree; PR validation records own that evidence.
 
 ## Canonical branding
 
-Edit `docs/assets/logo.svg` for the project mark and `docs/assets/brand.json` for
-its name, color and tagline. Render the banner, square icon and social card:
+Quinty the starfish is the project's mascot. The art lives in `docs/assets/quinty/` as three
+1254 px transparent PNGs: `inspector` (the avatar, icon, mark, README hero and social card), `chef` (the
+pull-request banner when every contract passed) and `explorer` (the banner when one failed).
+`docs/assets/brand.json` holds the name, color and tagline. Scale the art and render every asset:
 
 ```bash
-uv run --no-project --with resvg-py==0.2.6 python scripts/render_brand.py --png
+uv run --no-project --with resvg-py==0.2.6 --with pillow==12.0.0 python scripts/render_brand.py --png
 python scripts/render_brand.py --check
 ```
+
+Rendering embeds the committed scaled copies (`docs/assets/quinty/*-SIZE.png`), so `--check` needs no
+image library. Adopters' pull-request comments hot-link `sticky-banner*.svg` from a released revision:
+never rename or move those files.
 
 Commit the rendered assets with their sources. MkDocs reads the canonical assets directly at build time; do not keep another logo
 in `documentation/assets`. Its header, favicon, homepage and social previews use
