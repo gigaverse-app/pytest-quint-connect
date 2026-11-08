@@ -149,9 +149,9 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
   never runs Quint; a Quint failure is a setup error for every case of that contract.
 - **Mutation controls.** A mutant passes only when some generated history produces
   an observed-state mismatch. An exception while building or running the mutant fails
-  the case: it is not detection. Reports call mutants *planted bugs*. Bugs a contract
-  found and that were fixed (`bugs_found`) lead the report; a planted bug that
-  reintroduces one is replayed through every history, and the report says how many diverge.
+  the case: it is not detection. Mutants are planted fake bugs that prove the tests are
+  meaningful. Bugs a contract found and that were fixed (`bugs_found`) lead the report; a
+  mutant that reintroduces one is replayed through every history, and the report says how many diverge.
 - **Complete or not.** With `--quint-require-complete`, the session fails unless every
   contract in `quint_required_contracts` ran every case and passed. A `-k`-filtered run
   is recorded as `partial`, a replay as `replay-only`; a crash leaves `running`, never
@@ -182,9 +182,9 @@ generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
-<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 planted bugs caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_planted_bugs_caught-brightgreen"></a>
+<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 mutants caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_mutants_caught-brightgreen"></a>
 
-| | Contract | Cases passed | [Planted bugs caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") |
+| | Contract | Cases passed | [Mutants caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") |
 | :-: | :-- | --: | --: |
 | ✅ | `lru-cache` `test_lru_contract.py::test_lru_cache`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
 | ✅ | `lru-cache` `test_lru_contract.py::test_ordered_refactor`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
@@ -192,9 +192,9 @@ generated, and CI fails when it no longer matches the evidence:
 
 **Bugs these contracts found**
 
-1. `session-receipts` · **Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it.** Fixed in #3 · found by the first run of this contract · regression test `tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`. No [planted bug](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") re-checks it.
+1. `session-receipts` · **Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it.** Fixed in #3 · found by the first run of this contract · regression test `tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`. No [mutant](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") re-checks it.
 
-**[Planted bugs](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") these contracts catch**
+**[Mutants (planted fake bugs)](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") these contracts catch**
 
 - `lru-cache` · `stale-read`: get() returns the value but does not refresh recency, so a just-read entry can be evicted next. Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`.
 - `session-receipts` · `filtered-counts-as-complete`: a -k run that skipped cases is judged as if every case ran. Caught by `witness-filteredRunIsNeverPassedTest` at state 1, after `session(kind='filtered', strict=False)`.
@@ -212,7 +212,7 @@ generated, and CI fails when it no longer matches the evidence:
 
 Adopters measure their own contracts the same way; these figures come from their CI:
 
-| Contract | Histories | Cases | Planted bugs (mutants) detected | Notes |
+| Contract | Histories | Cases | Mutants detected | Notes |
 | --- | --- | --- | --- | --- |
 | pytest-obligation `merge_reports` | 21 (5 witnesses, 16 samples) | 28 | 6/6 | same 21 histories, state for state, as the runner it replaced |
 | [pytest-selective's selection](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) | 19 (7 witnesses, 12 samples) | 23 | 3/3 | each step is a real Git commit selected by `affected()`; the mutants drop base-tree edges, stop after direct importers and ignore global inputs |

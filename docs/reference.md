@@ -36,15 +36,15 @@ skipped: they belong to sessions a driver ran inside one history.
 
 - **Comment**: one table row per contract test (histories, cases passed, mutants caught,
   actions covered), then the bugs the contracts found (summary, fix, how found, regression
-  test, and how many histories diverge when its planted bug reintroduces it), then each
-  other planted bug (mutant) with its description and where it was first caught (trace,
-  state, action). "Planted bugs" links to an explanation that shows on hover. Then each failure with its state,
+  test, and how many histories diverge when its mutant reintroduces it), then each
+  other mutant (planted fake bug) with its description and where it was first caught (trace,
+  state, action). "Mutants" links to an explanation that shows on hover. Then each failure with its state,
   action and differences, and a
   `pytest 'NODE[CASE]'` command that reproduces it. The command regenerates the same
   histories from the manifest's seed. Statuses stay distinct: `failed`, `interrupted`
   (the session never finished), `partial` (filtered), `not run` (collected, nothing
   selected), `replay-only` and `passed`.
-- **README block**: the same table, the same bugs-found and planted-bug lists and a badge, between the lines
+- **README block**: the same table, the same bugs-found and mutant lists and a badge, between the lines
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->`, which the
   document must already contain. Text outside them is never touched. The block holds no
   commit, run or failure detail, so it changes only when the evidence changes.

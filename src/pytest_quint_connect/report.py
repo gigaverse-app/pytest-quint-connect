@@ -26,17 +26,17 @@ END = "<!-- pytest-quint-connect:end -->"
 _LISTED = re.compile(r"<!-- pytest-quint-connect:contracts (.*?) -->")
 HOME = "https://github.com/gigaverse-app/pytest-quint-connect"
 LIMITS = f"{HOME}/blob/main/docs/limits.md"
-# "Mutant" is jargon: wherever reports count them, they say "planted bugs" and explain it on hover.
-PLANTED = f"{HOME}/blob/main/docs/why.md#proof-that-the-tests-can-fail"
-PLANTED_TIP = (
-    "Mutants: deliberately broken copies of the code. Each must make some history diverge, "
-    "proving the contract would notice that kind of bug"
+# "Mutant" is the industry term but jargon: every mention links to this explanation, shown on hover.
+MUTANTS = f"{HOME}/blob/main/docs/why.md#proof-that-the-tests-can-fail"
+MUTANTS_TIP = (
+    "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. "
+    "Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"
 )
 
 
 def _term(text: str) -> str:
-    """``text`` linked to the explanation of planted bugs, which shows on hover."""
-    return f'[{text}]({PLANTED} "{PLANTED_TIP}")'
+    """``text`` linked to the explanation of mutants, which shows on hover."""
+    return f'[{text}]({MUTANTS} "{MUTANTS_TIP}")'
 
 
 # GitHub refuses comments over 65,536 characters; leave room for the publisher's trailer.
@@ -47,7 +47,7 @@ MAX_FAILURES = 20
 SEVERITY = ("failed", "interrupted", "partial", "not run", "replay-only", "passed")
 ICON = {"failed": "❌", "interrupted": "⏳", "partial": "🟡", "not run": "➖", "replay-only": "🔁", "passed": "✅"}
 MEANING = {
-    "failed": "a case failed, a planted bug survived, or Quint could not generate histories",
+    "failed": "a case failed, a mutant survived, or Quint could not generate histories",
     "interrupted": "the session ended before writing a final receipt",
     "partial": "some cases were filtered out or did not run; not complete evidence",
     "not run": "the contract test was collected but none of its cases were selected",
@@ -254,7 +254,7 @@ def _headline(evidence: Evidence) -> str:
 def _table(rows: list[Row]) -> list[str]:
     """Four columns, so the table fits a pull-request comment at any width; details sit under each contract."""
     lines = [
-        f"| | Contract | Cases passed | {_term('Planted bugs caught')} |",
+        f"| | Contract | Cases passed | {_term('Mutants caught')} |",
         "| :-: | :-- | --: | --: |",
     ]
     for row in rows:
@@ -284,7 +284,9 @@ def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
     lines = [f"**{_code(row.contract)}** · {_code(failure.case)}"]
     if "survived" in finding:
         survived = finding["survived"]
-        lines.append(f": the planted bug survived all {survived} histories; no observation differed from the model.")
+        lines.append(
+            f": the mutant (a planted fake bug) survived all {survived} histories; no observation differed from the model."
+        )
     elif "state" in finding:
         action = _call(finding.get("action"), finding.get("arguments"))
         lines.append(f": observed state differs from the model at state {finding['state']}, after {action}")
@@ -325,8 +327,8 @@ def _caught(catch: Catch) -> str:
     return "its case failed; see the job log" if catch.outcome == "failed" else "not run in this session"
 
 
-def _planted(catch: Catch) -> str:
-    """One planted bug: what it breaks and where it was caught."""
+def _mutant_line(catch: Catch) -> str:
+    """One mutant: what it breaks and where it was caught."""
     description = f"{_text(catch.description).rstrip('.')}. " if catch.description else ""
     verdict = f"Caught by {_caught(catch)}." if catch.mutation is not None else f"**Not caught**: {_caught(catch)}."
     return f"{_code(catch.mutant)}: {description}{verdict}"
@@ -335,16 +337,19 @@ def _planted(catch: Catch) -> str:
 def _reintroduced(catch: Catch | None) -> str:
     """What this run shows about a found bug: only what the receipt of its mutant proves."""
     if catch is None:
-        return f"No {_term('planted bug')} re-checks it."
+        return f"No {_term('mutant')} re-checks it."
     named = _code(catch.mutant)
     if catch.description:
         named += f" ({_text(catch.description).rstrip('.')})"
     mutation = catch.mutation
     if mutation is None:
-        return f"{_term('Planted bug')} {named}, which reintroduces it: {_caught(catch)}."
+        return f"{_term('Mutant')} {named}, which reintroduces it: {_caught(catch)}."
+    if "diverged" not in mutation:
+        # A receipt from before the mutant replayed every history: it proves the catch, not a count.
+        return f"{_term('Mutant')} {named}, which reintroduces it, is caught by {_caught(catch)}."
     histories = _plural(int(mutation.get("histories", 0)), "history", "histories")
     return (
-        f"{len(mutation.get('diverged', []))} of {histories} diverge when {_term('planted bug')} {named} "
+        f"{len(mutation.get('diverged', []))} of {histories} diverge when {_term('mutant')} {named} "
         f"reintroduces it; first caught by {_caught(catch)}."
     )
 
@@ -371,13 +376,13 @@ def _catch_of(row: Row, mutant: str) -> Catch | None:
 
 
 def _catches(rows: list[Row]) -> list[str]:
-    """Bugs the contracts found, then the planted bugs they catch: one item per bug and contract."""
+    """Bugs the contracts found, then the mutants they catch: one item per bug and contract."""
     contracts: dict[str, list[Row]] = {}
     for row in rows:
         contracts.setdefault(row.contract, []).append(row)
     several = len(contracts) > 1
     found: list[str] = []
-    planted: list[str] = []
+    mutant_lines: list[str] = []
     for contract, members in contracts.items():
         prefix = f"{_code(contract)} · " if several else ""
         reintroducing = set()
@@ -394,17 +399,20 @@ def _catches(rows: list[Row]) -> list[str]:
                 found += [f"1. {prefix}{_found(bug)}", *(f"   - {verdict}" for verdict in verdicts)]
         for catch in members[0].catches:
             if catch.mutant not in reintroducing:
-                lines = _per_test({row.test: _planted(_catch_of(row, catch.mutant) or catch) for row in members})
-                planted += [f"- {prefix}{line}" for line in lines]
-    if len(planted) > MAX_FAILURES:
-        planted = [*planted[:MAX_FAILURES], f"- …and {len(planted) - MAX_FAILURES} more in the receipts."]
+                lines = _per_test({row.test: _mutant_line(_catch_of(row, catch.mutant) or catch) for row in members})
+                mutant_lines += [f"- {prefix}{line}" for line in lines]
+    if len(mutant_lines) > MAX_FAILURES:
+        mutant_lines = [
+            *mutant_lines[:MAX_FAILURES],
+            f"- …and {len(mutant_lines) - MAX_FAILURES} more in the receipts.",
+        ]
     these = "these contracts" if several else "this contract"
     lines: list[str] = []
     if found:
         lines += [f"**Bugs {these} found**", "", *found[: MAX_FAILURES * 2], ""]
-    if planted:
-        heading = f"{_term('Planted bugs')} {these} {'catch' if several else 'catches'}"
-        lines += [f"**{heading}**", "", *planted, ""]
+    if mutant_lines:
+        heading = f"{_term('Mutants (planted fake bugs)')} {these} {'catch' if several else 'catches'}"
+        lines += [f"**{heading}**", "", *mutant_lines, ""]
     return lines
 
 
@@ -437,7 +445,7 @@ def _tally(ledger: "Ledger") -> list[str]:
         f"| {' | '.join(cells)} |",
         "",
         f"<sub>Across {_plural(pushes, 'push', 'pushes')}. A disagreement is a history where the code reached a "
-        "different state than the model, or a planted bug no history caught; crashes and setup errors are not "
+        "different state than the model, or a mutant no history caught; crashes and setup errors are not "
         "counted.</sub>",
         "",
     ]
@@ -527,13 +535,13 @@ def render_readme(evidence: Evidence) -> str:
     color = {"passed": "brightgreen", "failed": "red"}.get(status, "yellow")
     message = (
         f"{_plural(len(contracts), 'contract')} {status} · {_plural(histories, 'history', 'histories')}"
-        f" · {detected}/{mutants} planted bugs caught"
+        f" · {detected}/{mutants} mutants caught"
     )
     alt = f"Quint contracts: {message}"
     return "\n".join(
         [
             f"<!-- pytest-quint-connect:contracts {','.join(contracts)} -->",
-            f'<a href="{HOME}" title="{PLANTED_TIP}"><img alt="{alt}" src="{_badge("Quint contracts", message, color)}"></a>',
+            f'<a href="{HOME}" title="{MUTANTS_TIP}"><img alt="{alt}" src="{_badge("Quint contracts", message, color)}"></a>',
             "",
             *_table(evidence.rows),
             "",

@@ -68,8 +68,10 @@ agent, or to yourself, to fix.
 ### Proof that the tests can fail
 
 A test suite that cannot fail proves nothing. Each contract declares *mutants*:
-deliberately wrong versions that every run must catch. A mutant counts as caught
-only when some history shows an observed difference. A crash is not detection.
+planted fake bugs. A mutant is a deliberately wrong version of the code, used only
+during the test run and never shipped, that every run must catch. A mutant counts
+as caught only when some history shows an observed difference. A crash is not
+detection.
 
 | Contract | Histories | Mutants caught |
 | --- | --- | --- |
@@ -80,6 +82,17 @@ only when some history shows an observed difference. A crash is not detection.
 
 If the observation or the histories cannot see a fault, its mutant survives and the
 run fails. That tells you the contract has a blind spot before a real bug finds it.
+
+So a passing run always reads N of N. A count like 3 of 6 means the run failed:
+three kinds of bug would go unnoticed, and the report names each survivor. Fix the
+observation or the histories; never delete the mutant. A larger N is better only when
+the mutants break different things. Six variations of one fault prove what one does,
+which is why reports list what each mutant breaks and where it was caught.
+
+A mutant can also be a planted copy of a real bug. When a contract finds a bug that
+is then fixed, a mutant that reintroduces it re-checks the fix on every run, and the
+report counts how many histories that bug breaks
+([bugs found](manifest.md#bugs-found)).
 
 ### Spec and code that cannot quietly drift apart
 
