@@ -77,6 +77,11 @@ def _identifier(text: str) -> str:
     return name
 
 
+def _python_name(text: str) -> str:
+    """A Quint name as a Python method or parameter name: ``touchGlobal`` becomes ``touch_global``."""
+    return _identifier(re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "_", text).lower())
+
+
 def _strip_ids(node: Any) -> Any:
     if isinstance(node, dict):
         return {key: _strip_ids(value) for key, value in node.items() if key != "id"}
@@ -313,7 +318,7 @@ def generate_module(contract: Contract, ir: dict[str, Any], *, output: Path, cla
     table: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {}
     used: set[str] = {"observe", "step", "close", "check_contract"}
     for action in contract.actions:
-        method = _identifier(action)
+        method = _python_name(action)
         if method in used:
             raise CodegenError(f"action {action!r} maps to the reserved or duplicate method name {method!r}")
         used.add(method)
@@ -329,7 +334,10 @@ def generate_module(contract: Contract, ir: dict[str, Any], *, output: Path, cla
                     f"parameter {name!r} is not carried by any field of the event record {sorted(event_fields)}. "
                     "Assign it to an event field in the action's event' record."
                 )
-            bindings.append((_identifier(name), source, emitter.annotation(node, f"{action}_{name}")))
+            python = _python_name(name)
+            if python in (bound for bound, _, _ in bindings):
+                raise CodegenError(f"action {action!r}: two parameters map to the Python name {python!r}")
+            bindings.append((python, source, emitter.annotation(node, f"{action}_{name}")))
         table[action] = (method, tuple((name, source) for name, source, _ in bindings))
         signature = ", ".join(["self", *(f"{name}: {annotation}" for name, _, annotation in bindings)])
         boundary = contract.actions[action].replace("\\", "\\\\").replace('"', '\\"')

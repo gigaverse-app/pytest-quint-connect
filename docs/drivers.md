@@ -38,8 +38,11 @@ pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
 - a `TypedDict` for each record type and for each variant of each sum type (unit
   variants may omit `value`), and a union alias for each sum type;
 - `<Contract>Driver`, an abstract subclass of `pytest_quint_connect.typed.ActionDriver`
-  with one abstract method per manifest action, using the Quint action's own
-  parameter names and types, plus `observe()` returning the observed state's type.
+  with one abstract method per manifest action, taking the Quint action's
+  parameters with their types, plus `observe()` returning the observed state's type.
+  Python names are snake_case: action `fetchEntry(lookupKey)` becomes
+  `fetch_entry(self, lookup_key)`. The base maps them back to the Quint names, so
+  traces bind unchanged; two names that would collide stop generation.
 
 Subclass it and implement each method against the real code. The base's `step()`
 calls the method for each model step, taking each argument from the event field the
