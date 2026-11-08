@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -101,13 +102,18 @@ def run(arguments: list[str], log: Path, *, cwd: Path | None = None, timeout: fl
         raise QuintError(f"timed out after {timeout}s; see {log}: {' '.join(arguments)}") from None
     log.write_text(result.stdout, encoding="utf-8")
     if result.returncode:
-        tail = "\n".join(result.stdout.strip().splitlines()[-15:])
-        raise QuintError(f"command failed ({result.returncode}); see {log}: {' '.join(arguments)}\n{tail}")
+        # The tool's own words first: reports truncate long errors, and the command line says least.
+        tail = "\n".join(result.stdout.strip().splitlines()[-40:])
+        raise QuintError(f"{tail}\ncommand failed ({result.returncode}); log: {log}\ncommand: {' '.join(arguments)}")
     return result.stdout
 
 
-def _managed_install(version: str, logs: Path) -> Path:
-    """Install the locked Quint toolchain shipped with this package into a per-user cache."""
+def _managed_install(version: str, logs: Path, notify: Callable[[str], None]) -> Path:
+    """Install the locked Quint toolchain shipped with this package into a per-user cache.
+
+    ``notify`` hears one line: that the cached install is reused, or that a first install starts (it can take
+    a minute), so a user can tell which Quint ran and where it lives.
+    """
     lock = TOOLCHAIN / "package-lock.json"
     pinned = json.loads((TOOLCHAIN / "package.json").read_text(encoding="utf-8"))["dependencies"][
         "@informalsystems/quint"
@@ -121,6 +127,7 @@ def _managed_install(version: str, logs: Path) -> Path:
     target = _cache_root() / f"quint-{version}-{digest}"
     executable = _shim(target / "node_modules/.bin/quint")
     if executable.is_file():
+        notify(f"using the bundled Quint {version} from {target}")
         return executable
     npm = shutil.which("npm")
     if npm is None:
@@ -128,6 +135,7 @@ def _managed_install(version: str, logs: Path) -> Path:
             "Quint is not installed and npm was not found. Install Node.js 22+ with npm, "
             "or pass --quint PATH (or set QUINT) to an existing Quint executable."
         )
+    notify(f"installing the bundled Quint {version} into {target} with npm ci (first use only)")
     staging = target.with_name(target.name + ".partial")
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
@@ -139,7 +147,9 @@ def _managed_install(version: str, logs: Path) -> Path:
     return _shim(target / "node_modules/.bin/quint")
 
 
-def resolve_quint(version: str, logs: Path, configured: str | None = None) -> QuintTool:
+def resolve_quint(
+    version: str, logs: Path, configured: str | None = None, notify: Callable[[str], None] = lambda line: None
+) -> QuintTool:
     """Use ``configured`` (``--quint``/ini/``QUINT``) or the managed install, and require ``version``."""
     if configured:
         executable = _shim(Path(configured))
@@ -149,7 +159,7 @@ def resolve_quint(version: str, logs: Path, configured: str | None = None) -> Qu
                 raise QuintError(f"configured Quint executable not found: {configured}")
             executable = Path(located)
     else:
-        executable = _managed_install(version, logs)
+        executable = _managed_install(version, logs, notify)
     prefix = _launcher(executable)
     tool = QuintTool(executable, "", prefix)
     reported = run([*tool.command, "--version"], logs / "quint-version.log", timeout=120).strip()
@@ -172,7 +182,8 @@ def generate(contract: Contract, output: Path, tool: QuintTool, *, timeout: floa
     quint = tool.command
     model = str(contract.model)
     seed = str(contract.bounds.seed)
-    common = ["--main", contract.module, "--backend", contract.backend, "--seed", seed, "--verbosity", "1"]
+    # Verbosity 2: a failing witness names its assertion and line; a violated invariant prints the trace.
+    common = ["--main", contract.module, "--backend", contract.backend, "--seed", seed, "--verbosity", "2"]
     generation = Generation(output, {}, quint=tool)
 
     def call(arguments: list[str], log: str) -> None:

@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v0.3.0...v1.0.0) (2026-11-08)
+
+
+### Features
+
+* **brand:** Quinty the starfish, with banners that match the outcome ([#26](https://github.com/gigaverse-app/pytest-quint-connect/issues/26)) ([1247277](https://github.com/gigaverse-app/pytest-quint-connect/commit/12472776c51b383af3e8d1b8381443efcbbfbe4d))
+* **report:** full-width sticky with a banner and a tally of disagreements across pushes ([#23](https://github.com/gigaverse-app/pytest-quint-connect/issues/23)) ([38224ba](https://github.com/gigaverse-app/pytest-quint-connect/commit/38224ba23f870f92ab59408ebdb54e56e07bd3cd))
+* **report:** lead with bugs a contract found and describe its planted bugs ([#24](https://github.com/gigaverse-app/pytest-quint-connect/issues/24)) ([92469ce](https://github.com/gigaverse-app/pytest-quint-connect/commit/92469ce972218377108f707975e794e370781130))
+
+
+### Bug fixes
+
+* **report:** four-column contract table that fits a comment at any width ([#25](https://github.com/gigaverse-app/pytest-quint-connect/issues/25)) ([af6d63e](https://github.com/gigaverse-app/pytest-quint-connect/commit/af6d63e5f223ea9924705f08d3364f592c96d541))
+
+
+### Chores
+
+* release 1.0.0 ([#21](https://github.com/gigaverse-app/pytest-quint-connect/issues/21)) ([3959fca](https://github.com/gigaverse-app/pytest-quint-connect/commit/3959fca7d655ff908a43aa133cc1e4528fa99561))
+
 ## [0.3.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v0.2.0...v0.3.0) (2026-11-08)
 
 

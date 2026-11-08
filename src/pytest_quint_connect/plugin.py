@@ -24,9 +24,12 @@ from typing import Any
 
 import pytest
 
+from .compare import plain
 from .contract import Contract, ContractError, display_path, load_contract
+from .itf import ItfError, load_trace
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
-from .replay import DriverFactory, ReplayMismatch, replay_trace
+from .replay import DriverFactory, ReplayMismatch, TraceError, replay_trace, steps
+from .report import WITNESSES_ONLY, witnesses_only
 
 __all__ = ["quint_contract"]
 
@@ -103,6 +106,9 @@ class _Session:
         self.require_complete = bool(config.getoption("quint_require_complete"))
         self.required = [name for name in config.getini("quint_required_contracts") if name]
         self.timeout = float(config.getini("quint_timeout"))
+        # The configuration file named with -c, relative to rootdir; None when pytest found it itself.
+        explicit = config.getoption("inifilename", None) and config.inipath
+        self.config_file = display_path(explicit, self.root) if explicit else None
         self.contracts: dict[str, Contract] = {}
         self.generations: dict[str, Generation] = {}
         self.failures: dict[str, Exception] = {}
@@ -110,6 +116,14 @@ class _Session:
         self.tool: QuintTool | None = None
         self.tool_error: Exception | None = None
         self.incomplete: list[str] = []
+        self.quint_note: str | None = None
+
+    def note(self, line: str) -> None:
+        """Which Quint this session uses, for the summary; a first install, which can take a minute, also now."""
+        self.quint_note = line
+        reporter = self.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter is not None and line.startswith("installing"):
+            reporter.write_line(f"pytest-quint-connect: {line}")
 
     @property
     def mode(self) -> str:
@@ -137,7 +151,7 @@ class _Session:
                         raise self.tool_error
                     try:
                         self.tool = resolve_quint(
-                            contract.quint_version, self.artifacts / "_toolchain", self.configured_quint()
+                            contract.quint_version, self.artifacts / "_toolchain", self.configured_quint(), self.note
                         )
                     except Exception as error:
                         self.tool_error = error
@@ -155,7 +169,15 @@ class _Session:
         return self.generations[contract.name]
 
     def reproduce(self, case: Case, trace: Path, mutant: str | None) -> str:
-        words = ["pytest", case.test, "--quint-replay", str(trace)]
+        """A command that replays ``trace`` as printed, from the directory pytest was invoked in."""
+        invoked = self.config.invocation_params.dir
+        words = ["pytest"]
+        if self.config_file is not None:
+            # An explicit -c chose the configuration (and so the rootdir); without it the node does not resolve.
+            words += ["-c", display_path(self.root / self.config_file, invoked)]
+        path, separator, function = case.test.partition("::")
+        words += [display_path(self.root / path, invoked) + separator + function]
+        words += ["--quint-replay", display_path(trace, invoked)]
         if mutant:
             words += ["--quint-mutant", mutant]
         return shlex.join(words)
@@ -224,12 +246,16 @@ class _Session:
         """Replay histories through the mutant until one is caught, or through all if it reintroduces a found bug.
 
         Only an observed-state mismatch counts as detection. Any other exception (a setup error, a
-        crash in the mutant) propagates and fails the case.
+        crash in the mutant) propagates and fails the case. Witnesses replay first; when one catches the
+        mutant, the samples still replay until one catches it too, so the receipt can say whether sampling
+        adds detection power (``caught_by_sample``) or only the named scenarios do.
         """
         run = self.runs[case.test]
         every_history = case.contract.bug_reintroduced_by(case.name) is not None
         diverged: list[str] = []
         for trace_id, trace in generation.traces.items():
+            if diverged and not every_history and not trace_id.startswith("sample-"):
+                continue
             try:
                 replay_trace(
                     trace,
@@ -245,10 +271,13 @@ class _Session:
                     run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
                     item.user_properties.append(("quint_detected_by", trace_id))
                 diverged.append(trace_id)
-                if not every_history:
-                    return
+                if not every_history and trace_id.startswith("sample-"):
+                    break
         if diverged:
-            run.mutations[case.name].update(histories=len(generation.traces), diverged=diverged)
+            mutation = run.mutations[case.name]
+            mutation["caught_by_sample"] = any(trace_id.startswith("sample-") for trace_id in diverged)
+            if every_history:
+                mutation.update(histories=len(generation.traces), diverged=diverged)
             return
         run.findings[case.id] = {"survived": len(generation.traces)}
         pytest.fail(
@@ -272,6 +301,8 @@ class _Session:
                 "name": name,
                 "manifest": contract.manifest.as_posix(),
                 "bounds": vars(contract.bounds),
+                "invariant": contract.invariant,
+                "actions": dict(contract.actions),
                 "convention": contract.convention,
                 "witnesses": list(contract.witnesses),
                 "mutants": list(contract.mutants),
@@ -288,6 +319,12 @@ class _Session:
                 entry["quint"] = generation.quint.version if generation.quint else None
                 entry["commands"] = generation.commands
                 entry["traces"] = {case: path.as_posix() for case, path in generation.traces.items()}
+                if contract.witnesses:
+                    witness = contract.witnesses[0]
+                    try:
+                        entry["illustrated"] = _illustration(contract, witness, generation.traces[f"witness-{witness}"])
+                    except (OSError, ItfError, TraceError) as error:
+                        entry["illustrated_error"] = f"{type(error).__name__}: {error}"
             if name in self.failures:
                 failure = self.failures[name]
                 entry["generation_failure"] = f"{type(failure).__name__}: {failure}"
@@ -314,6 +351,7 @@ class _Session:
             "replay_mutant": self.replay_mutant,
             "head": _git_head(self.root),
             "root": self.root.as_posix(),
+            "config_file": self.config_file,
             "required": self.required,
             "incomplete_required": self.incomplete,
             "contracts": contracts,
@@ -335,6 +373,21 @@ class _Session:
             missing = run.missing()
             if missing:
                 self.incomplete.append(f"{run.test}: {len(missing)} case(s) did not run or did not pass: {missing}")
+
+
+def _illustration(contract: Contract, witness: str, trace: Path) -> dict[str, Any]:
+    """One witness, step by step: each action the model took and the observation it expects afterwards.
+
+    Reports show it so a reviewer can judge the model itself; it is read from the generated trace, like
+    every expectation, and witnesses are scripted runs, so it is the same in every session.
+    """
+    return {
+        "witness": witness,
+        "steps": [
+            {"state": step.index, "action": step.action, "arguments": plain(step.args), "observed": plain(expected)}
+            for step, expected in steps(load_trace(trace), contract)
+        ],
+    }
 
 
 def _action_of(raw_state: dict[str, Any], contract: Contract) -> str:
@@ -491,10 +544,14 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: pyte
             f"{len(generation.traces) if generation else 0} fresh histories; "
             f"{len(run.mutations)}/{len(run.contract.mutants)} mutants detected"
         )
+        if witnesses_only(run.mutations, run.contract.bounds.n_traces):
+            terminalreporter.write_line(f"{run.test}: {WITNESSES_ONLY}", yellow=True)
     if state.replay_path:
         terminalreporter.write_line("replay-only: one saved trace was checked; this is not complete coverage")
     for line in state.incomplete:
         terminalreporter.write_line(f"INCOMPLETE {line}", red=True)
+    if state.quint_note:
+        terminalreporter.write_line(f"quint: {state.quint_note}")
     terminalreporter.write_line(f"receipt: {state.artifacts / RECEIPT}")
 
 

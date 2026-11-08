@@ -81,7 +81,8 @@ def test_the_comment_spans_the_page_and_carries_the_ledger() -> None:
         evidence("failed"), repository=Path("/repo"), assets="https://x.test/assets", ledger=ledger
     )
     assert comment.startswith('<picture>\n  <source media="(prefers-color-scheme: dark)"')
-    assert 'src="https://x.test/assets/sticky-banner-light.svg" width="100%"' in comment
+    assert 'src="https://x.test/assets/sticky-banner-failed-light.svg" width="100%"' in comment
+    assert 'srcset="https://x.test/assets/sticky-banner-failed-dark.svg"' in comment
     tally = next(line for line in comment.splitlines() if line.startswith("| <img"))
     assert tally.count('<img width="2000" height="1" align="right" alt="">') == 3
     assert "**4**" in tally and "**0**" in tally
@@ -99,3 +100,18 @@ def test_cli_extends_the_previous_comment(tmp_path: Path) -> None:
     assert main(["report", passed, "--ledger", str(previous), "--head", "b", "--comment", str(comment)]) == 0
     assert parse(comment.read_text(encoding="utf-8")).fixed == 4
     assert main(["report", passed, "--ledger", str(tmp_path / "missing.md"), "--comment", str(comment)]) == 0
+
+
+@pytest.mark.parametrize(
+    "receipt, variant", [("passed", "-passed"), ("failed", "-failed"), ("partial", ""), ("replay", "")]
+)
+def test_quinty_matches_the_outcome(receipt: str, variant: str) -> None:
+    comment = render_comment(evidence(receipt), repository=Path("/repo"), assets="https://x.test/assets")
+    assert f'src="https://x.test/assets/sticky-banner{variant}-light.svg"' in comment
+
+
+def test_every_banner_the_comment_can_name_exists() -> None:
+    assets = Path(__file__).resolve().parents[1] / "docs" / "assets"
+    for variant in ("", "-passed", "-failed"):
+        for theme in ("light", "dark"):
+            assert (assets / f"sticky-banner{variant}-{theme}.svg").is_file()
