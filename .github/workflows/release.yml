@@ -22,9 +22,13 @@ jobs:
   checks:
     needs: validate-tag
     uses: ./.github/workflows/ci.yml
-    # A called workflow gets no more than this; the contracts job asks for the report comment's permission.
+    # A called workflow gets no more than this, and GitHub refuses to start it when a job asks for more:
+    # the contracts job needs the report comment's permission, the receipts job reads earlier runs and checks.
+    # ci_tests/test_workflow_permissions.py keeps this grant a superset of what ci.yml requests.
     permissions:
       contents: read
+      actions: read
+      checks: read
       pull-requests: write
   publish:
     needs: checks
