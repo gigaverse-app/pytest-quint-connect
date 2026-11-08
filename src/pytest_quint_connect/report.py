@@ -406,7 +406,9 @@ def _credit(rows: list[Row], pull: str = "") -> list[str]:
         ]
     shown = found[:5]
     for _, bug in shown:
-        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')} (fixed in {_ref(bug.get('fixed_in'))})")
+        # A bug this pull request fixes needs no link back to the page the reader is on.
+        fixed = "" if _fixed_here(bug, pull) else f" (fixed in {_ref(bug.get('fixed_in'))})"
+        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')}{fixed}")
     if len(found) > len(shown):
         lines.append(f"> - …and {len(found) - len(shown)} more, in the table below")
     return [*lines, ""]
@@ -750,7 +752,7 @@ def _mutants_table(rows: list[Row]) -> list[str]:
             bugs += 1
             breaks = _text(catch.description).rstrip(".") if catch.description else "—"
             if catch.mutant in reintroducing:
-                breaks += "<br><sub>reintroduces a real bug found earlier</sub>"
+                breaks += "<br><sub>reintroduces a real bug this contract found</sub>"
             per_test = _per_test({row.test: _mutant_cells(_catch_of(row, catch.mutant) or catch) for row in members})
             target = caught if all(hit for _, (hit, _, _) in per_test) else missed
             uncaught += target is missed
@@ -931,13 +933,14 @@ def _tally(ledger: "Ledger") -> list[str]:
     caught = len(ledger.caught)
     cells = [f"{SPREAD}**{count}**" for count in (caught, ledger.fixed, ledger.open)]
     pushes = len(ledger.pushes)
+    # 🐞 is reserved for real bugs found; a disagreement is evidence from this pull request's own runs.
     return [
-        "| 🐞 Disagreements caught | ✅ Fixed in this PR | ❗ Still failing |",
+        "| 🔀 Disagreements caught | ✅ Fixed in this PR | ❗ Still failing |",
         "| :--: | :--: | :--: |",
         f"| {' | '.join(cells)} |",
         "",
-        f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}; "
-        "what counts as a disagreement is at the bottom.</sub>",
+        f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}: histories where the code reached a "
+        "different state than the model, or mutants no history caught. Real bugs found are counted apart.</sub>",
         "",
         *_fixed(ledger),
     ]

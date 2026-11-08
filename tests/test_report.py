@@ -474,7 +474,7 @@ def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_b
     )
     # The mutant that reintroduces it is listed with the others, and says so.
     assert block(comment, "🧪 1 mutant (planted fake bug), caught")[1] == [
-        f"| `lru-cache` | `stale-read` | {STALE_READ}<br><sub>reintroduces a real bug found earlier</sub> | {CAUGHT} |"
+        f"| `lru-cache` | `stale-read` | {STALE_READ}<br><sub>reintroduces a real bug this contract found</sub> | {CAUGHT} |"
     ]
     assert row in render_readme(evidence("bug-found"))
     assert comment.index("| ✅ | `lru-cache`") < comment.index("<summary>🐞") < comment.index("<summary>🧪")
@@ -493,6 +493,10 @@ def test_a_bug_this_pull_request_fixes_is_credited_to_it_and_kept_apart_from_the
     # Not "since fixed" in what reads as an earlier pull request, beside a tally of 0 fixed in this one.
     assert "> **🏅 This pull request fixes 1 real bug this contract found.**" in comment
     assert "They are not disagreements: the tally counts only what this pull request's pushes caught." in comment
+    # The bug's own line does not link back to this pull request.
+    tip = comment.split("> [!TIP]", 1)[1].split("\n\n", 1)[0]
+    assert "(fixed in" not in tip
+    assert "Real bugs found are counted apart." in comment and "🔀 Disagreements caught" in comment
     other = render_comment(load([path]), repository=REPO, ledger=ledger, pull="158")
     assert "🏅 This contract found 1 real bug, fixed in" in other and "not disagreements" not in other
 
