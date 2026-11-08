@@ -343,14 +343,15 @@ def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_detai
     comment = render_comment(dogfood(), repository=REPO)
     # What matters now leads; the bug found earlier is credited apart, as history, not as a current failure.
     assert headline(comment) == ["### ✅ Quint contracts: 1 contract · all 13 cases passed · 4/4 mutants caught"]
-    # Credited prominently, right under the headline, with what it was: history, not a current failure.
-    assert comment.split("\n\n", 2)[1].splitlines()[:3] == [
+    # Credited prominently, right under the header of numbers, with what it was: history, not a failure.
+    assert comment[comment.index("> [!TIP]") :].splitlines()[:3] == [
         "> [!TIP]",
         "> **🏅 This contract found 1 real bug, fixed in #3.**",
         "> - Valid histories whose step calls one action without any { … } were rejected: Quint records "
         "mbt::actionTaken as step, and the event cross-check refused it (fixed in #3)",
     ]
-    expanded, rows = block(comment, "✅ 1 contract · 13/13 cases · 4/4 mutants caught · 8 histories")
+    # The header gives the numbers, so the sticky's table summary names what it holds instead.
+    expanded, rows = block(comment, "✅ Each contract test: its status, cases, histories and coverage")
     assert not expanded and len(rows) == 1 and rows[0].startswith("| ✅ | `session-receipts`")
     expanded, rows = block(comment, "🐞 1 real bug found by this contract")
     assert not expanded and rows == [
@@ -373,13 +374,15 @@ def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_detai
     # The README block is the same rendering.
     readme = render_readme(dogfood())
     assert "<!-- pytest-quint-connect:contracts session-receipts -->" in readme
-    for summary in ("✅ 1 contract", "🐞 1 real bug", "🧪 4 mutants"):
+    assert block(readme, "✅ 1 contract · 13/13 cases")[1] == block(comment, "✅ Each contract test")[1]
+    for summary in ("🐞 1 real bug", "🧪 4 mutants"):
         assert block(readme, summary) == block(comment, summary)
 
 
 def test_every_table_spans_the_comment_through_its_widest_column() -> None:
     comment = render_comment(evidence("bug-found"), repository=REPO)
-    headers = [table[0] for table in tables(comment)]
+    header, *headers = [table[0] for table in tables(comment)]
+    assert header.startswith("| **1** | **34/34** |")
     assert headers[:3] == [
         f'| | {SPREAD}Contract | Cases passed | [Mutants caught]({MUTANTS} "{MUTANTS_TIP}") |',
         f"| Contract | {SPREAD}Bug | Fixed in | Regression test |",
@@ -403,7 +406,7 @@ def test_a_red_run_lists_failing_rows_first(tmp_path: Path) -> None:
     assert headline(comment) == [
         "### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 33/34 cases passed · 2/2 mutants caught"
     ]
-    expanded, rows = block(comment, "❌ 1 contract · 33/34 cases · 2/2 mutants caught · 15 histories")
+    expanded, rows = block(comment, "❌ Each contract test")
     # The sticky folds the table under the failures; the README block keeps a red table open.
     assert not expanded
     assert block(render_readme(edited_passed_receipt(tmp_path, fail_the_refactor)), "❌ 1 contract")[0]
@@ -426,16 +429,18 @@ def test_the_comment_folds_its_details_under_what_a_person_must_do() -> None:
     # The table is detail in the sticky, red or green; the alert and the failures carry what to do.
     ledger = Ledger(caught={"k": {"found": 1, "kind": "mismatch", "state": "open"}})
     for each in (ledger, Ledger()):
-        expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=each), "✅ 1 contract")
+        expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=each), "✅ Each contract")
         assert not expanded
     comment = render_comment(evidence("failed"), repository=REPO)
     assert "<details open>" not in comment
     # The command the alert gives is not repeated under the failure it reruns.
     assert comment.count("pytest 'test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'") == 1
-    assert comment.index("> [!CAUTION]") < comment.index("#### What failed") < comment.index("<summary>❌ 1 contract")
-    assert comment.index("<summary>❌ 1 contract") < comment.index("What do these words")
+    assert (
+        comment.index("> [!CAUTION]") < comment.index("#### What failed") < comment.index("<summary>❌ Each contract")
+    )
+    assert comment.index("<summary>❌ Each contract") < comment.index("What do these words")
     passed = render_comment(evidence("passed"), repository=REPO)
-    assert passed.index("<summary>✅ 1 contract") < passed.index(CLAIMS) < passed.index("What do these words")
+    assert passed.index("<summary>✅ Each contract") < passed.index(CLAIMS) < passed.index("What do these words")
 
 
 def test_mutants_are_explained_on_hover_wherever_they_are_counted() -> None:

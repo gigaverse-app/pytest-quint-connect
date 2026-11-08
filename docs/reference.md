@@ -127,6 +127,13 @@ marker. A report for an older run or attempt, or for a commit the pull request h
 past, never replaces it. A fork pull request's token cannot comment, so it keeps the job
 summary and the artifact.
 
+Under the headline and any alert, a full-width header gives the run's key numbers once,
+each over its name and what it counts: contracts, cases passed, mutants caught, real bugs
+found, and disagreements in this pull request. With the action's assets the numbers are
+large colored digits (red only for a failure, amber for what did not run, green for what
+passed or was caught); from the command line they are bold text. The rest of the comment
+names items (failures, fixed histories, bugs, mutants) without restating the counts.
+
 A run that needs a person opens with one GitHub alert. A failed run gets a caution naming
 the clearest failure (a named witness before a sample, then the shortest path) and the
 command that reruns it; an incomplete one gets a warning saying why it is not evidence.
@@ -140,8 +147,8 @@ pull request fixes it, and that it is not a disagreement: the tally counts only 
 pull request's pushes caught, while a found bug is pinned by its mutant. A collapsed glossary at the
 bottom explains the words and statuses.
 
-After the first push, or once anything was caught, the comment carries a full-width tally
-of the pull request's **disagreements**, and names each history it fixed: a
+The header's last number counts the pull request's **disagreements** across its pushes,
+and the comment names each history the pull request fixed. A disagreement is a
 history where the code reached a different state than the model, or a mutant that no
 history caught. Crashes and setup errors are not disagreements. A disagreement is
 *caught* on the first push that reports it and *fixed* once a later push runs that case

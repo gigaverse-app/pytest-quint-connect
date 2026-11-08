@@ -115,15 +115,6 @@ SCORE_COLORS = {
     "warning": ("#9A6700", "#D29922"),
     "neutral": ("#1F2328", "#F0F6FC"),
 }
-# Kept in step with SCOREBOARD in src/pytest_quint_connect/report.py (tests/test_brand_glyphs.py checks).
-SCORE_COLUMNS = (
-    (0, "Contracts"),
-    (98, "Histories"),
-    (200, "Cases passed"),
-    (318, "Cases failed"),
-    (436, "Not run"),
-    (532, "Mutants caught"),
-)
 
 
 def glyph(char: str, color: str) -> str:
@@ -134,29 +125,12 @@ def glyph(char: str, color: str) -> str:
     )
 
 
-def captions(dark: bool) -> str:
-    muted = palette(dark)[3]
-    labels = "".join(
-        f'<text x="{x}" y="14" font-size="11.5" font-weight="600" fill="{muted}">{escape(label)}</text>'
-        for x, label in SCORE_COLUMNS
-    )
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="20" viewBox="0 0 640 20" '
-        f'font-family="{FONT}">{labels}</svg>\n'
-    )
-
-
 def score_glyphs() -> dict[str, str]:
     files = {}
     for name, (light, dark) in SCORE_COLORS.items():
         for theme, color in (("light", light), ("dark", dark)):
             for char, slug in [*((str(d), str(d)) for d in range(10)), ("/", "slash")]:
                 files[f"docs/assets/score/{name}-{slug}-{theme}.svg"] = glyph(char, color)
-    for theme, dark in (("light", False), ("dark", True)):
-        files[f"docs/assets/score/captions-{theme}.svg"] = captions(dark)
-    files["docs/assets/score/space.svg"] = (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"/>\n'
-    )
     return files
 
 

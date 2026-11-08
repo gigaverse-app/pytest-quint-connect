@@ -46,6 +46,6 @@ dependencies:
     kind: content
     reason: The comment may only name banners the action's own revision ships.
   - readers: ["test_scoreboard.py"]
-    inputs: ["data/receipts/**", "//docs/assets/score/*.svg", "//scripts/render_brand.py"]
+    inputs: ["data/receipts/**", "//docs/assets/score/*.svg"]
     kind: content
-    reason: The scoreboard may only name glyphs this revision ships, at the columns the brand script draws.
+    reason: The header may only name glyphs this revision ships.
