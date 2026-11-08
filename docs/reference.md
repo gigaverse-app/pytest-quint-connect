@@ -46,11 +46,17 @@ Reads `results.json` receipts (files or quoted recursive globs, such as
 it never runs Quint or imports the project. Receipts under a plugin `_work` directory are
 skipped: they belong to sessions a driver ran inside one history.
 
-- **Comment**: one table row per contract test (histories, cases passed, mutants caught,
-  actions covered), then the bugs the contracts found (summary, fix, how found, regression
-  test, and how many histories diverge when its planted bug reintroduces it), then each
-  other planted bug (mutant) with its description and where it was first caught (trace,
-  state, action). "Planted bugs" links to an explanation that shows on hover. Then, collapsed
+- **Comment**: a headline that says what matters now (cases passed and planted bugs caught,
+  or each test's status, worst first), with bugs the contracts found earlier credited on a
+  separate line as history. Then one table row per contract test (histories, cases passed,
+  mutants caught, actions covered), failing rows first, under a summary line of the totals.
+  Then two tables, each under its own collapsed summary: the bugs the contracts found
+  (summary, how found, fix, regression test, and how many histories diverge when its planted
+  bug reintroduces it), and every planted bug (mutant) with what it breaks and the case and
+  step that first caught it. When every contract passed every case and caught every planted
+  bug, the contract table starts collapsed too; otherwise it stays open, as does the planted
+  bugs table when one was not caught. Tables span the comment's width. "Planted bugs" links
+  to an explanation that shows on hover. Then, collapsed
   under "What `NAME` says", what each contract claims, so a reviewer can judge the model
   itself: each declared action and the code it drives, the invariant, the witnesses, the
   bounds, and, when it declares witnesses, the first one step by step (each action and the observation the model
@@ -62,7 +68,7 @@ skipped: they belong to sessions a driver ran inside one history.
   histories from the manifest's seed. Statuses stay distinct: `failed`, `interrupted`
   (the session never finished), `partial` (filtered), `not run` (collected, nothing
   selected), `replay-only` and `passed`.
-- **README block**: the same table, the same bugs-found and planted-bug lists, the same claims and a badge, between the lines
+- **README block**: the same tables, collapsed the same way, the same claims and a badge, between the lines
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->`, which the
   document must already contain. Text outside them is never touched. The block holds no
   commit, run or failure detail, so it changes only when the evidence changes.

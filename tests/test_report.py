@@ -9,6 +9,8 @@ manifest, may claim it.
 The failed, partial and replay fixtures predate ``mutant_specs`` and stand for older receipts. The
 passed and bug-found fixtures also record the manifest's actions and invariant and the first witness
 step by step (``illustrated``), which the report shows as what each contract claims.
+``session-passed.json`` is this repository's own dogfood contract (``session-receipts``), complete,
+with its four planted bugs and the real bug it found: the receipt this repository's sticky reports.
 """
 
 import hashlib
@@ -18,11 +20,13 @@ from pathlib import Path
 import pytest
 
 from pytest_quint_connect.cli import main
+from pytest_quint_connect.ledger import Ledger
 from pytest_quint_connect.report import (
     COMMENT_BUDGET,
     END,
     PLANTED,
     PLANTED_TIP,
+    SPREAD,
     START,
     Evidence,
     ReportError,
@@ -40,6 +44,10 @@ REPO = Path("/repo")
 
 def evidence(*names: str):
     return load([RECEIPTS / f"lru-{name}.json" for name in names])
+
+
+def dogfood() -> Evidence:
+    return load([RECEIPTS / "session-passed.json"])
 
 
 def readme_with_block(tmp_path: Path) -> Path:
@@ -71,7 +79,9 @@ def test_rows_count_histories_cases_and_mutants() -> None:
 
 def test_comment_explains_each_failure_with_a_reproduce_command() -> None:
     comment = render_comment(evidence("failed"), repository=REPO, head="abc1234", run_url="https://run.example")
-    assert comment.startswith("### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed\n")
+    assert comment.startswith(
+        "### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 30/34 cases passed · 2/2 planted bugs caught\n"
+    )
     assert "observed state differs from the model at state 3, after `fetch(key='a', value=0)`" in comment
     assert "`entries[0].key: values differ; expected: 'b'; actual: 'a'`" in comment
     assert "and 1 more difference" in comment
@@ -97,6 +107,27 @@ def test_comment_without_receipts_says_nothing_ran() -> None:
     assert render_comment(load([]), repository=REPO).startswith("### ➖ Quint contracts: no contract ran in this run")
 
 
+def tables(text: str) -> list[list[str]]:
+    """Every markdown table in ``text``: runs of lines that start with a pipe."""
+    found: list[list[str]] = []
+    previous = False
+    for line in text.splitlines():
+        row = line.startswith("|")
+        if row and not previous:
+            found.append([])
+        if row:
+            found[-1].append(line)
+        previous = row
+    return found
+
+
+def assert_tables_keep_their_columns(text: str) -> None:
+    """Every row of every table has as many cells as its header: nothing a receipt says can split a cell."""
+    for table in tables(text):
+        widths = {line.count("|") - line.count("\\|") for line in table}
+        assert len(widths) == 1, table
+
+
 def test_receipt_text_cannot_break_the_comment(tmp_path: Path) -> None:
     receipt = json.loads((RECEIPTS / "lru-failed.json").read_text(encoding="utf-8"))
     receipt["contracts"][0]["name"] = "evil`|\n</sub><img src=x>"
@@ -104,8 +135,7 @@ def test_receipt_text_cannot_break_the_comment(tmp_path: Path) -> None:
     path.write_text(json.dumps(receipt), encoding="utf-8")
     comment = render_comment(load([path]), repository=REPO)
     assert "`evil'\\| </sub><img src=x>`" in comment
-    # Every table row keeps its own column count: 4 cells in the contract table, 3 in the tally.
-    assert all(line.count("|") - line.count("\\|") in (4, 5) for line in comment.splitlines() if line.startswith("|"))
+    assert_tables_keep_their_columns(comment)
 
 
 def test_comment_stays_within_githubs_limit(tmp_path: Path) -> None:
@@ -115,7 +145,10 @@ def test_comment_stays_within_githubs_limit(tmp_path: Path) -> None:
     receipt["contracts"][0]["tests"] = tests * 200
     path = tmp_path / "results.json"
     path.write_text(json.dumps(receipt), encoding="utf-8")
-    assert len(render_comment(load([path]), repository=REPO)) <= COMMENT_BUDGET
+    comment = render_comment(load([path]), repository=REPO)
+    assert len(comment) <= COMMENT_BUDGET
+    # The cut fell inside the contract table's block: it is closed, so the note after it is not hidden.
+    assert "truncated" in comment and comment.count("<details") == comment.count("</details>")
 
 
 def test_not_a_receipt_is_an_error(tmp_path: Path) -> None:
@@ -269,67 +302,163 @@ def test_no_sign_without_the_flag_or_an_existing_one(tmp_path: Path, monkeypatch
     assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
 
 
-def section(text: str, heading: str) -> list[str]:
-    """The list lines under a bold heading that starts with ``heading``."""
-    start = text.index(f"**{heading}")
-    _, _, rest = text[start:].partition("**\n\n")
-    return rest.split("\n\n", 1)[0].splitlines()
+def block(text: str, summary: str) -> tuple[bool, list[str]]:
+    """Whether the ``<details>`` whose summary starts with ``summary`` starts open, and its table's rows."""
+    start = text.index(f"<summary>{summary}")
+    opening = text[text.rindex("<details", 0, start) : start]
+    body = text[start : text.index("</details>", start)]
+    rows = [line for line in body.splitlines() if line.startswith("| ")][2:]
+    return "open" in opening, rows
 
 
-def planted(text: str) -> list[str]:
-    return section(text, f"{TERM}")
+def headline(text: str) -> list[str]:
+    """The heading line and the lines under it, up to the first blank line."""
+    return text.split("\n\n", 1)[0].splitlines()
 
 
-TERM = f'[Planted bugs]({PLANTED} "{PLANTED_TIP}")'
+TERM = f'[Planted bug]({PLANTED} "{PLANTED_TIP}")'
+CAUGHT = "`witness-evictsLeastRecentlyUsedTest` | state 3, after `fetch(key='a', value=0)`"
+STALE_READ = "get() returns the value but does not refresh recency, so a just-read entry can be evicted next"
+
+
+def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_details() -> None:
+    comment = render_comment(dogfood(), repository=REPO)
+    # What matters now leads; the bug found earlier is credited apart, as history, not as a current failure.
+    assert headline(comment) == [
+        "### ✅ Quint contracts: 1 contract · all 13 cases passed · 4/4 planted bugs caught",
+        "<sub>🏅 Earlier, this contract found 1 real bug, since fixed in #3.</sub>",
+    ]
+    expanded, rows = block(comment, "✅ 1 contract · 13/13 cases · 4/4 planted bugs caught · 8 histories")
+    assert not expanded and len(rows) == 1 and rows[0].startswith("| ✅ | `session-receipts`")
+    expanded, rows = block(comment, "🐞 1 real bug found by this contract")
+    assert not expanded and rows == [
+        "| `session-receipts` | Valid histories whose step calls one action without any { … } were rejected: Quint "
+        "records mbt::actionTaken as step, and the event cross-check refused it<br><sub>found by the first run of "
+        "this contract · no planted bug re-checks it</sub> | #3 | "
+        "<sub>`tests/test_replay.py`<br>`::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`</sub> |"
+    ]
+    expanded, rows = block(comment, "🧪 4 planted bugs, all caught")
+    assert not expanded and rows[0] == (
+        "| `session-receipts` | `filtered-counts-as-complete` | a -k run that skipped cases is judged as if every "
+        "case ran | `witness-filteredRunIsNeverPassedTest` | state 1, after `session(kind='filtered', strict=False)` |"
+    )
+    assert [row.split(" | ")[1] for row in rows] == [
+        "`filtered-counts-as-complete`",
+        "`replay-counts-as-complete`",
+        "`failed-session-keeps-old-receipt`",
+        "`require-complete-ignored`",
+    ]
+    # The README block is the same rendering.
+    readme = render_readme(dogfood())
+    assert "<!-- pytest-quint-connect:contracts session-receipts -->" in readme
+    for summary in ("✅ 1 contract", "🐞 1 real bug", "🧪 4 planted bugs"):
+        assert block(readme, summary) == block(comment, summary)
+
+
+def test_every_table_spans_the_comment_through_its_widest_column() -> None:
+    comment = render_comment(evidence("bug-found"), repository=REPO)
+    headers = [table[0] for table in tables(comment)]
+    assert headers[:3] == [
+        f'| | {SPREAD}Contract | Cases passed | [Planted bugs caught]({PLANTED} "{PLANTED_TIP}") |',
+        f"| Contract | {SPREAD}Bug | Fixed in | Regression test |",
+        f"| Contract | {TERM} | {SPREAD}What it breaks | Caught by | At |",
+    ]
+    # One spacer per table, floated right, in the column whose text wraps: the numbers stay narrow, and on a
+    # narrow screen the spacer shrinks with the comment instead of forcing a scrollbar.
+    assert all(header.count(SPREAD) == 1 for header in headers[:3])
+    assert 'align="right"' in SPREAD and 'height="1"' in SPREAD
+    # Inline code never wraps, so a whole node id would set its column's minimum width past the comment's
+    # edge: the regression test's file and test sit on separate lines.
+    assert "| <sub>`test_lru_contract.py`<br>`::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`</sub> |" in comment
+
+
+def test_a_red_run_keeps_its_table_open_with_failing_rows_first(tmp_path: Path) -> None:
+    def fail_the_refactor(contract: dict) -> None:
+        # The refactor sorts after test_lru_cache: only failing-first ordering puts it on top.
+        contract["tests"][1]["outcomes"]["sample-3"] = "failed"
+
+    comment = render_comment(edited_passed_receipt(tmp_path, fail_the_refactor), repository=REPO)
+    assert headline(comment) == [
+        "### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 33/34 cases passed · 2/2 planted bugs caught"
+    ]
+    expanded, rows = block(comment, "❌ 1 contract · 33/34 cases · 2/2 planted bugs caught · 15 histories")
+    assert expanded
+    assert [row.split(" | ")[:2] for row in rows] == [
+        [
+            "| ❌",
+            "`lru-cache` `test_lru_contract.py::test_ordered_refactor`<br><sub>15 histories (3 witnesses, 12 "
+            "samples, seed 7) · every action covered · Quint 0.33.1</sub>",
+        ],
+        [
+            "| ✅",
+            "`lru-cache` `test_lru_contract.py::test_lru_cache`<br><sub>15 histories (3 witnesses, 12 samples, "
+            "seed 7) · every action covered · Quint 0.33.1</sub>",
+        ],
+    ]
+    assert_tables_keep_their_columns(comment)
+
+
+def test_an_open_disagreement_keeps_the_table_open() -> None:
+    ledger = Ledger(caught={"k": {"found": 1, "kind": "mismatch", "state": "open"}})
+    expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=ledger), "✅ 1 contract")
+    assert expanded
+    expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=Ledger()), "✅ 1 contract")
+    assert not expanded
 
 
 def test_planted_bugs_are_explained_on_hover_wherever_they_are_counted() -> None:
     comment = render_comment(evidence("passed"), repository=REPO)
-    assert f'| | Contract | Cases passed | [Planted bugs caught]({PLANTED} "{PLANTED_TIP}") |\n' in comment
-    assert f"**{TERM} this contract catches**" in comment
-    block = render_readme(evidence("passed"))
-    assert f'<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="{PLANTED_TIP}">' in block
+    assert f'| [Planted bugs caught]({PLANTED} "{PLANTED_TIP}") |\n' in comment
+    assert f"| Contract | {TERM} |" in comment
+    block_ = render_readme(evidence("passed"))
+    assert f'<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="{PLANTED_TIP}">' in block_
     assert "mutant" not in comment.lower().replace(PLANTED_TIP.lower(), "")
 
 
 def test_comment_says_what_each_planted_bug_breaks_and_where_it_was_caught() -> None:
     comment = render_comment(evidence("passed"), repository=REPO)
-    # Both test functions caught it in the same place, so they share one line.
-    assert planted(comment) == [
-        "- `stale-read`: get() returns the value but does not refresh recency, so a just-read entry can be "
-        "evicted next. Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
-    ]
-    assert comment.index("| ✅ | `lru-cache`") < comment.index(f"**{TERM}")
-    assert planted(render_readme(evidence("passed"))) == planted(comment)
-    assert "Bugs this contract found" not in comment and "bug found" not in comment
-
-
-def test_found_bugs_lead_with_what_was_fixed_and_how_many_histories_its_return_breaks() -> None:
-    comment = render_comment(evidence("bug-found"), repository=REPO)
-    assert comment.startswith("### ✅ Quint contracts: 1 contract · 2 tests passed · 1 bug found\n")
-    (line,) = section(comment, "Bugs this contract found")
-    assert line == (
-        "1. **reads did not refresh recency, so a just-read entry could be evicted next (test data: this cache was "
-        "never shipped).** Fixed in example-only · found by witness evictsLeastRecentlyUsedTest · regression test "
-        "`test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`. 4 of 15 histories diverge "
-        f'when [planted bug]({PLANTED} "{PLANTED_TIP}") `stale-read` (get() returns the value but does not refresh '
-        "recency, so a just-read entry can be evicted next) reintroduces it; first caught by "
-        "`witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    assert headline(comment) == ["### ✅ Quint contracts: 1 contract · all 34 cases passed · 2/2 planted bugs caught"]
+    # Both test functions caught it in the same place, so they share one row.
+    assert block(comment, "🧪 1 planted bug, caught") == (
+        False,
+        [f"| `lru-cache` | `stale-read` | {STALE_READ} | {CAUGHT} |"],
     )
-    # The planted bug that reintroduces a found bug is reported with it, not again in the planted list.
-    assert f"**{TERM}" not in comment
-    assert line in render_readme(evidence("bug-found"))
-    assert comment.index("| ✅ | `lru-cache`") < comment.index("**Bugs this contract found**")
+    assert comment.index("| ✅ | `lru-cache`") < comment.index("<summary>🧪")
+    assert block(render_readme(evidence("passed")), "🧪") == block(comment, "🧪")
+    assert "🐞" not in comment and "Earlier" not in comment
+
+
+def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_breaks() -> None:
+    comment = render_comment(evidence("bug-found"), repository=REPO)
+    assert headline(comment) == [
+        "### ✅ Quint contracts: 1 contract · all 34 cases passed · 2/2 planted bugs caught",
+        "<sub>🏅 Earlier, this contract found 1 real bug, since fixed in example-only.</sub>",
+    ]
+    expanded, (row,) = block(comment, "🐞 1 real bug found by this contract")
+    assert not expanded and row == (
+        "| `lru-cache` | reads did not refresh recency, so a just-read entry could be evicted next (test data: this "
+        "cache was never shipped)<br><sub>found by witness evictsLeastRecentlyUsedTest · planted bug `stale-read` "
+        "reintroduces it: 4 of 15 histories diverge</sub> | example-only | "
+        "<sub>`test_lru_contract.py`<br>`::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`</sub> |"
+    )
+    # The planted bug that reintroduces it is listed with the others, and says so.
+    assert block(comment, "🧪 1 planted bug, caught")[1] == [
+        f"| `lru-cache` | `stale-read` | {STALE_READ}<br><sub>reintroduces a real bug found earlier</sub> | {CAUGHT} |"
+    ]
+    assert row in render_readme(evidence("bug-found"))
+    assert comment.index("| ✅ | `lru-cache`") < comment.index("<summary>🐞") < comment.index("<summary>🧪")
 
 
 def test_receipts_without_mutant_specs_still_say_where_each_planted_bug_was_caught() -> None:
     # lru-failed.json was written before receipts carried descriptions or found bugs.
-    assert planted(render_comment(evidence("failed"), repository=REPO)) == [
-        "- `stale-read`: Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
-    ]
-    assert planted(render_comment(evidence("partial"), repository=REPO)) == [
-        "- `stale-read`: **Not caught**: not run in this session."
-    ]
+    assert block(render_comment(evidence("failed"), repository=REPO), "🧪") == (
+        False,
+        [f"| `lru-cache` | `stale-read` | — | {CAUGHT} |"],
+    )
+    assert block(render_comment(evidence("partial"), repository=REPO), "🧪 1 planted bug, 1 not caught") == (
+        True,
+        ["| `lru-cache` | `stale-read` | — | ➖ **not run** | not run in this session |"],
+    )
 
 
 def edited_bug_receipt(tmp_path: Path, edit) -> Evidence:
@@ -348,38 +477,48 @@ def test_a_found_bug_claims_no_more_than_its_planted_bug_shows(tmp_path: Path) -
         refactor["findings"] = {"mutant-stale-read": {"survived": 15}}
 
     comment = render_comment(edited_bug_receipt(tmp_path, survive_in_refactor), repository=REPO)
-    header, caught, survived = section(comment, "Bugs this contract found")
-    assert header.startswith("1. **reads did not refresh recency") and header.endswith(
-        "witness-evictsLeastRecentlyUsedTest]`."
-    )
-    assert caught.startswith("   - 4 of 15 histories diverge") and caught.endswith(
-        "<sub>`test_lru_contract.py::test_lru_cache`</sub>"
-    )
+    (row,) = block(comment, "🐞")[1]
     assert (
-        "which reintroduces it: survived all 15 histories. <sub>`test_lru_contract.py::test_ordered_refactor`"
-        in survived
-    )
+        "planted bug `stale-read` reintroduces it: 4 of 15 histories diverge in `test_lru_contract.py::test_lru_cache` · "
+        "planted bug `stale-read` reintroduces it: **survived all 15 histories** in "
+        "`test_lru_contract.py::test_ordered_refactor`</sub>"
+    ) in row
+    # The test that missed it comes first, and keeps the block open.
+    expanded, rows = block(comment, "🧪 1 planted bug, 1 not caught")
+    assert expanded and [cells.split(" | ")[-2:] for cells in rows] == [
+        ["❌ **not caught**", "survived all 15 histories |"],
+        ["`witness-evictsLeastRecentlyUsedTest`", "state 3, after `fetch(key='a', value=0)` |"],
+    ]
+    assert rows[0].startswith("| `lru-cache`<br><sub>`test_lru_contract.py::test_ordered_refactor`</sub> |")
 
     def without_mutant(contract: dict) -> None:
         del contract["bugs_found"][0]["mutant"]
 
     comment = render_comment(edited_bug_receipt(tmp_path, without_mutant), repository=REPO)
-    (line,) = section(comment, "Bugs this contract found")
-    assert (
-        line.endswith(f'No [planted bug]({PLANTED} "{PLANTED_TIP}") re-checks it.') and "histories diverge" not in line
-    )
-    assert planted(comment)[0].startswith("- `stale-read`: get() returns")
+    (row,) = block(comment, "🐞")[1]
+    assert "no planted bug re-checks it</sub>" in row and "histories diverge" not in row
+    assert block(comment, "🧪")[1] == [f"| `lru-cache` | `stale-read` | {STALE_READ} | {CAUGHT} |"]
 
 
-def test_manifest_text_cannot_inject_markup_or_mentions(tmp_path: Path) -> None:
+def test_manifest_text_cannot_inject_markup_mentions_or_cells(tmp_path: Path) -> None:
     def inject(contract: dict) -> None:
-        contract["mutant_specs"][0]["description"] = "<img src=x> pings\n@octocat"
+        contract["mutant_specs"][0]["description"] = "<img src=x> pings\n@octocat | extra cell"
         contract["bugs_found"][0]["fixed_in"] = "see [this](javascript:alert(1))"
-        contract["bugs_found"][0]["summary"] = "**bold** <script>"
+        contract["bugs_found"][0]["summary"] = "**bold** <script> | split"
+        contract["bugs_found"][0]["regression_test"] = "a|b"
 
-    (line,) = section(render_comment(edited_bug_receipt(tmp_path, inject), repository=REPO), "Bugs this contract found")
-    assert "&lt;img src=x&gt; pings &#64;octocat" in line and "&lt;script&gt;" in line
-    assert "Fixed in `see [this](javascript:alert(1))`" in line
+    comment = render_comment(edited_bug_receipt(tmp_path, inject), repository=REPO)
+    (row,) = block(comment, "🐞")[1]
+    assert "&lt;script&gt; \\| split" in row and "| `see [this](javascript:alert(1))` |" in row and "`a\\|b`" in row
+    assert "&lt;img src=x&gt; pings &#64;octocat \\| extra cell" in block(comment, "🧪")[1][0]
+    assert_tables_keep_their_columns(comment)
+
+    def link_with_a_pipe(contract: dict) -> None:
+        contract["bugs_found"][0]["fixed_in"] = "https://example.com/a|b"
+
+    comment = render_comment(edited_bug_receipt(tmp_path, link_with_a_pipe), repository=REPO)
+    assert "| `https://example.com/a\\|b` |" in block(comment, "🐞")[1][0]
+    assert_tables_keep_their_columns(comment)
 
 
 def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> None:
@@ -431,14 +570,14 @@ def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -
     )
     assert len(rows) == 6
     # Verdicts come first; the claims follow them.
-    assert comment.index(f"**{TERM}") < comment.index(CLAIMS_OPEN)
+    assert comment.index("<summary>🧪") < comment.index(CLAIMS_OPEN)
     assert claims_block(render_readme(evidence("passed"))) == block
 
 
 def test_receipts_without_claims_render_no_claims() -> None:
     # lru-failed.json was written before receipts recorded the manifest's actions and invariant.
-    assert "<details>" not in render_comment(evidence("failed"), repository=REPO)
-    assert "<details>" not in render_readme(evidence("partial"))
+    assert "says</summary>" not in render_comment(evidence("failed"), repository=REPO)
+    assert "says</summary>" not in render_readme(evidence("partial"))
 
 
 def edited_passed_receipt(tmp_path: Path, edit) -> Evidence:
@@ -478,5 +617,5 @@ def test_long_witnesses_are_cut_and_claims_give_way_to_the_budget(tmp_path: Path
     comment = render_comment(edited_passed_receipt(tmp_path, overflow), repository=REPO)
     assert len(comment) <= COMMENT_BUDGET
     # Leaving the claims out keeps every verdict and the footer, rather than truncating inside a collapsed block.
-    assert "<details>" not in comment and "truncated" not in comment
+    assert "says</summary>" not in comment and "truncated" not in comment
     assert comment.rstrip().endswith("pytest-quint-connect</a></sub>")

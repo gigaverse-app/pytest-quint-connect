@@ -209,59 +209,42 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 
 ## Measured
 
-This repository's own contracts, from the receipts of its last complete CI run. The block is
+This repository's own contract, from the receipt of its last complete CI run. The block is
 generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
-<!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
+<!-- pytest-quint-connect:contracts session-receipts -->
 <a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
 
-<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 planted bugs caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_planted_bugs_caught-brightgreen"></a>
-
-| | Contract | Cases passed | [Planted bugs caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") |
-| :-: | :-- | --: | --: |
-| ✅ | `lru-cache` `test_lru_contract.py::test_lru_cache`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
-| ✅ | `lru-cache` `test_lru_contract.py::test_ordered_refactor`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
-| ✅ | `session-receipts` `test_session_contract.py::test_session_receipts`<br><sub>8 histories (4 witnesses, 4 samples, seed 11) · every action covered · Quint 0.33.1</sub> | 13/13 | 4/4 |
-
-**Bugs these contracts found**
-
-1. `session-receipts` · **Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it.** Fixed in #3 · found by the first run of this contract · regression test `tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`. No [planted bug](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") re-checks it.
-
-**[Planted bugs](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") these contracts catch**
-
-- `lru-cache` · `stale-read`: get() returns the value but does not refresh recency, so a just-read entry can be evicted next. Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`.
-- `session-receipts` · `filtered-counts-as-complete`: a -k run that skipped cases is judged as if every case ran. Caught by `witness-filteredRunIsNeverPassedTest` at state 1, after `session(kind='filtered', strict=False)`.
-- `session-receipts` · `replay-counts-as-complete`: replaying one saved trace no longer marks the session incomplete. Caught by `witness-replayIsNeverCompleteTest` at state 2, after `session(kind='replay', strict=True)`.
-- `session-receipts` · `failed-session-keeps-old-receipt`: a failed or still-running session leaves the previous results.json in place. Caught by `witness-staleSuccessIsReplacedTest` at state 2, after `session(kind='noQuint', strict=False)`.
-- `session-receipts` · `require-complete-ignored`: --quint-require-complete is accepted but never changes the exit code. Caught by `witness-filteredRunIsNeverPassedTest` at state 2, after `session(kind='filtered', strict=True)`.
+<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug"><img alt="Quint contracts: 1 contract passed · 8 histories · 4/4 planted bugs caught" src="https://img.shields.io/badge/Quint_contracts-1_contract_passed_%C2%B7_8_histories_%C2%B7_4%2F4_planted_bugs_caught-brightgreen"></a>
 
 <details>
-<summary>What <code>lru-cache</code> says</summary>
+<summary>✅ 1 contract · 13/13 cases · 4/4 planted bugs caught · 8 histories</summary>
 
-**Actions**, and the code each one drives:
+| | <img width="2000" height="1" align="right" alt="">Contract | Cases passed | [Planted bugs caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") |
+| :-: | :-- | --: | --: |
+| ✅ | `session-receipts` `test_session_contract.py::test_session_receipts`<br><sub>8 histories (4 witnesses, 4 samples, seed 11) · every action covered · Quint 0.33.1</sub> | 13/13 | 4/4 |
 
-- `init`: construct a fresh cache with capacity 2
-- `store`: cache.put(key, value)
-- `fetch`: cache.get(key), observed as Hit(value) or Miss
-- `inspect`: read cache.items() without changing it
+</details>
 
-**Invariant** `withinCapacity`, checked while sampling histories.
+<details>
+<summary>🐞 1 real bug found by this contract</summary>
 
-**Witnesses**, scenarios replayed exactly as written: `evictsLeastRecentlyUsedTest`, `overwriteRefreshesTest`, `missKeepsContentsTest`.
+| Contract | <img width="2000" height="1" align="right" alt="">Bug | Fixed in | Regression test |
+| :-- | :-- | :-- | :-- |
+| `session-receipts` | Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it<br><sub>found by the first run of this contract · no planted bug re-checks it</sub> | #3 | <sub>`tests/test_replay.py`<br>`::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`</sub> |
 
-**Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`.
+</details>
 
-**Witness `evictsLeastRecentlyUsedTest`, step by step**: what the model expects the code to show after each action.
+<details>
+<summary>🧪 4 planted bugs, all caught</summary>
 
-| State | Action | Model expects |
-| --: | :-- | :-- |
-| `0` | `init(key='', value=0)` | `{ entries: [], lastRead: NoRead }` |
-| `1` | `store(key='a', value=1)` | `{ entries: [{ key: "a", value: 1 }], lastRead: NoRead }` |
-| `2` | `store(key='b', value=2)` | `{ entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }], lastRead: NoRead }` |
-| `3` | `fetch(key='a', value=0)` | `{ entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }], lastRead: Hit(1) }` |
-| `4` | `store(key='c', value=0)` | `{ entries: [{ key: "a", value: 1 }, { key: "c", value: 0 }], lastRead: NoRead }` |
-| `5` | `inspect(key='', value=0)` | `{ entries: [{ key: "a", value: 1 }, { key: "c", value: 0 }], lastRead: NoRead }` |
+| Contract | [Planted bug](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") | <img width="2000" height="1" align="right" alt="">What it breaks | Caught by | At |
+| :-- | :-- | :-- | :-- | :-- |
+| `session-receipts` | `filtered-counts-as-complete` | a -k run that skipped cases is judged as if every case ran | `witness-filteredRunIsNeverPassedTest` | state 1, after `session(kind='filtered', strict=False)` |
+| `session-receipts` | `replay-counts-as-complete` | replaying one saved trace no longer marks the session incomplete | `witness-replayIsNeverCompleteTest` | state 2, after `session(kind='replay', strict=True)` |
+| `session-receipts` | `failed-session-keeps-old-receipt` | a failed or still-running session leaves the previous results.json in place | `witness-staleSuccessIsReplacedTest` | state 2, after `session(kind='noQuint', strict=False)` |
+| `session-receipts` | `require-complete-ignored` | --quint-require-complete is accepted but never changes the exit code | `witness-filteredRunIsNeverPassedTest` | state 2, after `session(kind='filtered', strict=True)` |
 
 </details>
 
@@ -294,10 +277,11 @@ generated, and CI fails when it no longer matches the evidence:
 <sub>Generated by [pytest-quint-connect](https://github.com/gigaverse-app/pytest-quint-connect) from contract receipts; [what a passing run proves](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/limits.md).</sub>
 <!-- pytest-quint-connect:end -->
 
-- [`lru-cache`](examples/lru_cache): the list and `OrderedDict` implementations pass the same
-  histories, and the stale-read cache fails 4 of 15.
-- [`session-receipts`](dogfood): each step is a real pytest session of the example, and the
-  mutants break the plugin's own completeness and receipt logic.
+[`session-receipts`](dogfood) checks the plugin itself: each step is a real pytest session of
+the example, and the planted bugs break the plugin's own completeness and receipt logic. CI also
+runs [`lru-cache`](examples/lru_cache), the teaching example, as a smoke test (the list and
+`OrderedDict` implementations pass the same histories, and the stale-read cache fails 4 of 15);
+it is not reported here, because it checks tutorial code, not code this repository ships.
 
 Adopters measure their own contracts the same way; these figures come from their CI:
 
