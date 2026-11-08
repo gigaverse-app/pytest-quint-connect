@@ -69,6 +69,7 @@ class Row:
     covered: bool | None
     quint: str | None
     generation_failure: str | None = None
+    config_file: str | None = None
     failures: list[Failure] = field(default_factory=list)
 
     @property
@@ -158,6 +159,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     covered={"passed": True, "failed": False}.get(outcomes.get("coverage", "")),
                     quint=contract.get("quint"),
                     generation_failure=failure,
+                    config_file=receipt.get("config_file"),
                     failures=[Failure(case, outcomes[case], findings.get(case, {})) for case in sorted(failed)],
                 )
             )
@@ -230,7 +232,9 @@ def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
         lines += details
     else:
         lines.append(": failed; see the job log.")
-    command = "pytest " + shlex.quote(f"{row.test}[{failure.case}]")
+    # Run from the session's rootdir; a configuration chosen with -c must be named again.
+    config = f"-c {shlex.quote(row.config_file)} " if row.config_file else ""
+    command = f"pytest {config}" + shlex.quote(f"{row.test}[{failure.case}]")
     directory = _directory(row, repository)
     if directory and directory != ".":
         command = f"cd {shlex.quote(directory)}\n{command}"

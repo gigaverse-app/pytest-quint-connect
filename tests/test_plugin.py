@@ -5,6 +5,7 @@ tests never skip when Quint is missing: they fail, like a required check would.
 """
 
 import json
+import shlex
 import shutil
 from pathlib import Path
 from xml.etree import ElementTree
@@ -103,6 +104,38 @@ def test_behavioral_fault_fails_with_diff_reproduction_and_artifact(pytester: py
     )
 
 
+def test_reproduce_command_runs_as_printed_with_an_explicit_config_file(pytester: pytest.Pytester) -> None:
+    # The layout of a repository whose contracts live apart from its main suite (docs/ci.md):
+    # invoked from the repository root with -c, so rootdir is contracts/, not the invocation directory.
+    nested = pytester.path / "contracts" / "lru"
+    nested.mkdir(parents=True)
+    for name in ("lru.qnt", "quint-connect.json", "lru_cache.py", "lru_cache_driver.py", "test_lru_contract.py"):
+        shutil.copyfile(EXAMPLE / name, nested / name)
+    shutil.copyfile(EXAMPLE / "conftest.py", pytester.path / "contracts" / "conftest.py")
+    (pytester.path / "contracts" / "quint.ini").write_text("[pytest]\npythonpath = lru\n", encoding="utf-8")
+    (pytester.path / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n", encoding="utf-8")
+    config = ["-c", "contracts/quint.ini", "--lru-implementation", "stale-read"]
+    failed = pytester.runpytest(*config, "contracts", "-k", "test_lru_cache and evictsLeastRecentlyUsedTest")
+    failed.assert_outcomes(failed=1, deselected=33)
+    line = next(line for line in failed.outlines if line.strip().startswith("reproduce: "))
+    words = shlex.split(line.strip().removeprefix("reproduce: "))
+    trace = "contracts/.artifacts/quint-connect/lru-cache/witness-evictsLeastRecentlyUsedTest-0.itf.json"
+    assert words == [
+        "pytest",
+        "-c",
+        "contracts/quint.ini",
+        "contracts/lru/test_lru_contract.py::test_lru_cache",
+        "--quint-replay",
+        trace,
+    ]
+    evidence = json.loads((pytester.path / "contracts" / ".artifacts/quint-connect/results.json").read_text())
+    assert evidence["config_file"] == "quint.ini"
+    # Exactly as printed, from the same directory: it selects the test and reaches the same mismatch.
+    replayed = pytester.runpytest(*words[1:], "--lru-implementation", "stale-read")
+    replayed.assert_outcomes(failed=1)
+    assert_output(replayed, "state:  3 after action fetch(key='a', value=0)")
+
+
 def test_saved_trace_replays_exactly_and_is_never_complete(pytester: pytest.Pytester, example: Path) -> None:
     pytester.runpytest("-k", "witness").assert_outcomes(passed=6)
     trace = example / ".artifacts/quint-connect/lru-cache/witness-evictsLeastRecentlyUsedTest-0.itf.json"
@@ -165,6 +198,18 @@ def test_required_witness_that_quint_does_not_produce_is_an_error(pytester: pyte
     result = pytester.runpytest("-k", "test_lru_cache")
     result.assert_outcomes(errors=16)
     assert_output(result, "Quint generated 0 traces for required witness 'noSuchWitnessTest'")
+
+
+def test_failing_witness_reports_quints_assertion_and_line(pytester: pytest.Pytester, example: Path) -> None:
+    model = example / "lru.qnt"
+    wrong = '{ key: "a", value: 1 }, { key: "c", value: 9 }'
+    model.write_text(model.read_text().replace('{ key: "a", value: 1 }, { key: "c", value: 0 }', wrong, 1))
+    result = pytester.runpytest("-k", "test_lru_cache and witness-evicts")
+    result.assert_outcomes(errors=1)
+    # Quint's own explanation, not only "evictsLeastRecentlyUsedTest failed after 1 test(s)".
+    assert_output(result, "Error [QNT508]: Assertion failed", "lru.qnt:53:", wrong)
+    failure = receipt(example)["contracts"][0]["generation_failure"]
+    assert "Assertion failed" in failure[:400], "the report shows the first 400 characters"
 
 
 def test_changed_historical_model_is_an_error(pytester: pytest.Pytester, example: Path) -> None:

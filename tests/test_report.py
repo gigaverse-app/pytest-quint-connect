@@ -163,7 +163,21 @@ def test_cli_without_markers_leaves_the_document_alone(tmp_path: Path, capsys: p
     readme.write_text("# No block\n", encoding="utf-8")
     assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme), "--check"]) == 0
     assert readme.read_text(encoding="utf-8") == "# No block\n"
-    assert "nothing to keep current" in capsys.readouterr().out
+    assert "has no <!-- pytest-quint-connect:start --> line" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("name", "found"), [("README.rst", "has no"), ("READMEE.md", "does not exist")])
+def test_cli_warns_in_github_actions_when_the_readme_cannot_hold_the_block(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, name: str, found: str
+) -> None:
+    # The trial agent's README.rst: markers there would render as text, and a wrong path did nothing silently.
+    (tmp_path / "README.rst").write_text("Project\n=======\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    readme = tmp_path / name
+    assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme), "--check"]) == 0
+    out = capsys.readouterr().out
+    assert f"::warning file={readme},title=pytest-quint-connect README block::{readme} {found}" in out
+    assert "contracts/README.md" in out
 
 
 def test_cli_collects_receipts_by_glob_and_keeps_their_directories(tmp_path: Path) -> None:
@@ -192,3 +206,20 @@ def test_cli_collects_receipts_by_glob_and_keeps_their_directories(tmp_path: Pat
     assert status.read_text(encoding="utf-8") == "failed"
     assert len(list(artifact.glob("*/lru-cache/mismatch-x.json"))) == 1
     assert receipt_paths([f"{tmp_path.as_posix()}/nothing/**/results.json"]) == []
+
+
+def test_comment_reproduce_command_names_an_explicit_config_file(tmp_path: Path) -> None:
+    # A session run as `pytest -c contracts/quint.ini contracts`: rootdir is contracts/, and from there
+    # pytest finds the node only when told the same configuration file again.
+    receipt = json.loads((RECEIPTS / "lru-failed.json").read_text(encoding="utf-8"))
+    receipt["root"], receipt["config_file"] = "/repo/contracts", "quint.ini"
+    for contract in receipt["contracts"]:
+        for test in contract["tests"]:
+            test["test"] = "lru/" + test["test"]
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    comment = render_comment(load([path]), repository=REPO)
+    assert (
+        "cd contracts\npytest -c quint.ini 'lru/test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
+        in comment
+    )

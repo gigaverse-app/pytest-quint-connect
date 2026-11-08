@@ -101,8 +101,9 @@ def run(arguments: list[str], log: Path, *, cwd: Path | None = None, timeout: fl
         raise QuintError(f"timed out after {timeout}s; see {log}: {' '.join(arguments)}") from None
     log.write_text(result.stdout, encoding="utf-8")
     if result.returncode:
-        tail = "\n".join(result.stdout.strip().splitlines()[-15:])
-        raise QuintError(f"command failed ({result.returncode}); see {log}: {' '.join(arguments)}\n{tail}")
+        # The tool's own words first: reports truncate long errors, and the command line says least.
+        tail = "\n".join(result.stdout.strip().splitlines()[-40:])
+        raise QuintError(f"{tail}\ncommand failed ({result.returncode}); log: {log}\ncommand: {' '.join(arguments)}")
     return result.stdout
 
 
@@ -172,7 +173,8 @@ def generate(contract: Contract, output: Path, tool: QuintTool, *, timeout: floa
     quint = tool.command
     model = str(contract.model)
     seed = str(contract.bounds.seed)
-    common = ["--main", contract.module, "--backend", contract.backend, "--seed", seed, "--verbosity", "1"]
+    # Verbosity 2: a failing witness names its assertion and line; a violated invariant prints the trace.
+    common = ["--main", contract.module, "--backend", contract.backend, "--seed", seed, "--verbosity", "2"]
     generation = Generation(output, {}, quint=tool)
 
     def call(arguments: list[str], log: str) -> None:

@@ -103,6 +103,9 @@ class _Session:
         self.require_complete = bool(config.getoption("quint_require_complete"))
         self.required = [name for name in config.getini("quint_required_contracts") if name]
         self.timeout = float(config.getini("quint_timeout"))
+        # The configuration file named with -c, relative to rootdir; None when pytest found it itself.
+        explicit = config.getoption("inifilename", None) and config.inipath
+        self.config_file = display_path(explicit, self.root) if explicit else None
         self.contracts: dict[str, Contract] = {}
         self.generations: dict[str, Generation] = {}
         self.failures: dict[str, Exception] = {}
@@ -155,7 +158,15 @@ class _Session:
         return self.generations[contract.name]
 
     def reproduce(self, case: Case, trace: Path, mutant: str | None) -> str:
-        words = ["pytest", case.test, "--quint-replay", str(trace)]
+        """A command that replays ``trace`` as printed, from the directory pytest was invoked in."""
+        invoked = self.config.invocation_params.dir
+        words = ["pytest"]
+        if self.config_file is not None:
+            # An explicit -c chose the configuration (and so the rootdir); without it the node does not resolve.
+            words += ["-c", display_path(self.root / self.config_file, invoked)]
+        path, separator, function = case.test.partition("::")
+        words += [display_path(self.root / path, invoked) + separator + function]
+        words += ["--quint-replay", display_path(trace, invoked)]
         if mutant:
             words += ["--quint-mutant", mutant]
         return shlex.join(words)
@@ -295,6 +306,7 @@ class _Session:
             "replay_mutant": self.replay_mutant,
             "head": _git_head(self.root),
             "root": self.root.as_posix(),
+            "config_file": self.config_file,
             "required": self.required,
             "incomplete_required": self.incomplete,
             "contracts": contracts,

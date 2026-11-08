@@ -72,6 +72,41 @@ def test_check_reports_a_stale_module_and_write_refreshes_it(tmp_path: Path, qui
     assert main(["codegen", str(manifest), *flags, "--check"]) == 1
 
 
+def test_check_names_the_default_module_it_could_not_find(
+    tmp_path: Path, quint, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = copy_example(tmp_path)
+    assert main(["codegen", str(manifest), "--quint", str(quint.executable), "--check"]) == 1
+    error = capsys.readouterr().err
+    assert str(tmp_path / "lru_cache_driver.py") in error
+    assert "does not exist, the default output for module lru_cache" in error
+    assert "pass the -o it was generated with" in error
+
+
+def test_header_command_regenerates_the_same_file(tmp_path: Path, quint) -> None:
+    manifest = copy_example(tmp_path)
+    contract = load_contract(manifest)
+    ir = compile_ir(contract, quint)
+    default = generate_module(contract, ir, output=tmp_path / "lru_cache_driver.py")
+    assert "    pytest-quint-connect codegen quint-connect.json\n" in default
+    elsewhere = generate_module(contract, ir, output=tmp_path / "drivers" / "cache_base.py")
+    assert "    pytest-quint-connect codegen ../quint-connect.json -o cache_base.py\n" in elsewhere
+
+
+def test_generated_module_is_stable_under_any_consumer_ruff_config(tmp_path: Path, quint) -> None:
+    manifest = copy_example(tmp_path)
+    output = tmp_path / "lru_cache_driver.py"
+    contract = load_contract(manifest)
+    output.write_text(generate_module(contract, compile_ir(contract, quint), output=output), encoding="utf-8")
+    ruff = [sys.executable, "-m", "ruff"]
+    for line_length in (40, 79, 88, 200):
+        config = tmp_path / f"ruff-{line_length}.toml"
+        config.write_text(f'line-length = {line_length}\n[lint]\nselect = ["ALL"]\n', encoding="utf-8")
+        for command in (["format", "--check"], ["check"]):
+            result = subprocess.run([*ruff, *command, "--config", str(config), str(output)], capture_output=True)
+            assert result.returncode == 0, (line_length, command, result.stdout, result.stderr)
+
+
 def test_generated_module_is_typed_and_ruff_clean(tmp_path: Path, quint) -> None:
     manifest = copy_example(tmp_path)
     output = tmp_path / "lru_cache_driver.py"
@@ -150,9 +185,24 @@ def test_a_model_error_is_reported_with_quints_diagnostic_and_an_existing_log(
     assert main(["codegen", str(manifest), "--quint", str(quint.executable)]) == 2
     error = capsys.readouterr().err
     assert "QNT101" in error and "Built-in name 'next' is redefined" in error
-    log = Path(error.split("see ", 1)[1].split(": ", 1)[0])
+    assert error.index("QNT101") < error.index("command failed"), "Quint's diagnostic leads the error"
+    log = Path(error.split("log: ", 1)[1].splitlines()[0])
     assert log.name == "typecheck.log" and "QNT101" in log.read_text(encoding="utf-8")
     assert not (tmp_path / "lru_cache_driver.py").exists()
+
+
+def test_typecheck_uses_the_pinned_quint_and_reports_its_diagnostic(
+    tmp_path: Path, quint, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = copy_example(tmp_path)
+    flags = ["--quint", str(quint.executable)]
+    assert main(["typecheck", str(manifest), *flags]) == 0
+    assert "lru.qnt typechecks with Quint 0.33.1" in capsys.readouterr().out
+    model = tmp_path / "lru.qnt"
+    # A parameter named after a Quint built-in, the trial agent's first error.
+    model.write_text(model.read_text().replace("action fetch(key: str)", "action fetch(next: str)"))
+    assert main(["typecheck", str(manifest), *flags]) == 2
+    assert "Built-in name 'next' is redefined" in capsys.readouterr().err
 
 
 def test_parameter_that_no_event_field_carries_is_rejected(tmp_path: Path, quint) -> None:
