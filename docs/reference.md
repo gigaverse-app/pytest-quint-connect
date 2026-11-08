@@ -38,13 +38,19 @@ skipped: they belong to sessions a driver ran inside one history.
   actions covered), then the bugs the contracts found (summary, fix, how found, regression
   test, and how many histories diverge when its planted bug reintroduces it), then each
   other planted bug (mutant) with its description and where it was first caught (trace,
-  state, action). "Planted bugs" links to an explanation that shows on hover. Then each failure with its state,
+  state, action). "Planted bugs" links to an explanation that shows on hover. Then, collapsed
+  under "What `NAME` says", what each contract claims, so a reviewer can judge the model
+  itself: each declared action and the code it drives, the invariant, the witnesses, the
+  bounds, and, when it declares witnesses, the first one step by step (each action and the observation the model
+  expects after it, read from its generated trace; at most 20 states). Receipts from
+  earlier plugin versions lack these fields and show no such block. When the comment would exceed
+  GitHub's limit, these blocks are left out first. Then each failure with its state,
   action and differences, and a
   `pytest 'NODE[CASE]'` command that reproduces it. The command regenerates the same
   histories from the manifest's seed. Statuses stay distinct: `failed`, `interrupted`
   (the session never finished), `partial` (filtered), `not run` (collected, nothing
   selected), `replay-only` and `passed`.
-- **README block**: the same table, the same bugs-found and planted-bug lists and a badge, between the lines
+- **README block**: the same table, the same bugs-found and planted-bug lists, the same claims and a badge, between the lines
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->`, which the
   document must already contain. Text outside them is never touched. The block holds no
   commit, run or failure detail, so it changes only when the evidence changes.
