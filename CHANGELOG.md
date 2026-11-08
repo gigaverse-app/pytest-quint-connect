@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.1.0...v1.2.0) (2026-11-08)
+
+
+### Features
+
+* **report:** call them mutants, explained as planted fake bugs that prove the tests are meaningful ([#29](https://github.com/gigaverse-app/pytest-quint-connect/issues/29)) ([a3fa9bb](https://github.com/gigaverse-app/pytest-quint-connect/commit/a3fa9bbe48e1f42a48a278aa67147f53f3708337))
+* **report:** real contracts only, full-width tables, collapse green details ([#32](https://github.com/gigaverse-app/pytest-quint-connect/issues/32)) ([3c80ec9](https://github.com/gigaverse-app/pytest-quint-connect/commit/3c80ec941dd8a5f137e768a00200f901a3977092))
+
+
+### Performance
+
+* **ci:** keep report code and the example conftest out of every test's selection ([#33](https://github.com/gigaverse-app/pytest-quint-connect/issues/33)) ([f10106b](https://github.com/gigaverse-app/pytest-quint-connect/commit/f10106bf6e3b15c9b834dd57133c84c56c986be6))
+
 ## [1.1.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.0.0...v1.1.0) (2026-11-08)
 
 
