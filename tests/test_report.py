@@ -6,9 +6,12 @@ replaced by /repo (scripts/normalize_receipt.py). ``lru-bug-found.json`` is a co
 the example's manifest listing a found bug that ``stale-read`` reintroduces (``fixed_in:
 example-only``): the example cache was never shipped, so only this test data, not the committed
 manifest, may claim it.
-The failed, partial and replay fixtures predate ``mutant_specs`` and stand for older receipts.
+The failed, partial and replay fixtures predate ``mutant_specs`` and stand for older receipts. The
+passed and bug-found fixtures also record the manifest's actions and invariant and the first witness
+step by step (``illustrated``), which the report shows as what each contract claims.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -233,6 +236,39 @@ def test_comment_reproduce_command_names_an_explicit_config_file(tmp_path: Path)
     )
 
 
+def test_the_counter_sign_is_keyed_by_the_repository_id_and_survives_a_local_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pytest_quint_connect.report import Sign
+
+    sign = Sign.of("1449617982", "gigaverse-app/pytest-quint-connect")
+    assert sign.key == hashlib.sha256(b"github-repository:1449617982").hexdigest()
+    block = render_readme(evidence("passed"), sign)
+    assert f"/v1/sign.svg?key={sign.key}&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark" in block
+    assert Sign.found(block) == sign
+
+    readme = readme_with_block(tmp_path)
+    receipt = str(RECEIPTS / "lru-passed.json")
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1449617982")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "gigaverse-app/pytest-quint-connect")
+    assert main(["report", receipt, "--readme", str(readme), "--counter-sign"]) == 0
+    assert sign.key in readme.read_text(encoding="utf-8")
+    # A developer's machine has no repository id: the block keeps the sign it shows, and stays current.
+    monkeypatch.delenv("GITHUB_REPOSITORY_ID")
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    assert main(["report", receipt, "--readme", str(readme), "--check"]) == 0
+    assert main(["report", receipt, "--readme", str(readme)]) == 0
+    assert sign.key in readme.read_text(encoding="utf-8")
+
+
+def test_no_sign_without_the_flag_or_an_existing_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/shop")
+    readme = readme_with_block(tmp_path)
+    assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme)]) == 0
+    assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
+
+
 def section(text: str, heading: str) -> list[str]:
     """The list lines under a bold heading that starts with ``heading``."""
     start = text.index(f"**{heading}")
@@ -360,3 +396,87 @@ def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> 
     comment = render_comment(load([weak]), repository=REPO)
     assert "`test_lru_contract.py::test_lru_cache`: every mutant was caught only by a named witness" in comment
     assert "Raise bounds.n_traces or max_steps" in comment
+
+
+CLAIMS_OPEN = "<details>\n<summary>What <code>lru-cache</code> says</summary>"
+
+
+def claims_block(text: str) -> str:
+    start = text.index(CLAIMS_OPEN)
+    return text[start : text.index("\n</details>\n", start)]
+
+
+def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -> None:
+    comment = render_comment(evidence("passed"), repository=REPO)
+    # One collapsed block per contract, although two test functions check it.
+    assert comment.count(CLAIMS_OPEN) == 1
+    block = claims_block(comment)
+    assert (
+        "- `init`: construct a fresh cache with capacity 2\n- `store`: cache.put(key, value)\n"
+        "- `fetch`: cache.get(key), observed as Hit(value) or Miss\n- `inspect`: read cache.items() without changing it\n"
+    ) in block
+    assert "**Invariant** `withinCapacity`, checked while sampling histories." in block
+    assert (
+        "**Witnesses**, scenarios replayed exactly as written: `evictsLeastRecentlyUsedTest`, "
+        "`overwriteRefreshesTest`, `missKeepsContentsTest`."
+    ) in block
+    assert "**Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`." in block
+    # The first witness, read from its trace: each action and the observation the model expects after it.
+    assert "**Witness `evictsLeastRecentlyUsedTest`, step by step**" in block
+    rows = [line for line in block.splitlines() if line.startswith("| `")]
+    assert rows[0] == "| `0` | `init(key='', value=0)` | `{ entries: [], lastRead: NoRead }` |"
+    assert rows[3] == (
+        "| `3` | `fetch(key='a', value=0)` | "
+        '`{ entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }], lastRead: Hit(1) }` |'
+    )
+    assert len(rows) == 6
+    # Verdicts come first; the claims follow them.
+    assert comment.index(f"**{TERM}") < comment.index(CLAIMS_OPEN)
+    assert claims_block(render_readme(evidence("passed"))) == block
+
+
+def test_receipts_without_claims_render_no_claims() -> None:
+    # lru-failed.json was written before receipts recorded the manifest's actions and invariant.
+    assert "<details>" not in render_comment(evidence("failed"), repository=REPO)
+    assert "<details>" not in render_readme(evidence("partial"))
+
+
+def edited_passed_receipt(tmp_path: Path, edit) -> Evidence:
+    receipt = json.loads((RECEIPTS / "lru-passed.json").read_text(encoding="utf-8"))
+    edit(receipt["contracts"][0])
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    return load([path])
+
+
+def test_claims_from_the_manifest_cannot_inject_markup_or_break_the_table(tmp_path: Path) -> None:
+    def inject(contract: dict) -> None:
+        contract["actions"]["store"] = "<img src=x> pings @octocat"
+        contract["invariant"] = "ok`|</details>"
+        contract["illustrated"]["steps"][1]["observed"] = {"note": "a|b`</details>"}
+
+    comment = render_comment(edited_passed_receipt(tmp_path, inject), repository=REPO)
+    block = claims_block(comment)
+    assert "- `store`: &lt;img src=x&gt; pings &#64;octocat" in block
+    assert r"**Invariant** `ok'\|</details>`" in block
+    assert r"""| `1` | `store(key='a', value=1)` | `{ note: "a\|b'</details>" }` |""" in block
+    assert all(line.count("|") - line.count(r"\|") == 4 for line in block.splitlines() if line.startswith("| "))
+
+
+def test_long_witnesses_are_cut_and_claims_give_way_to_the_budget(tmp_path: Path) -> None:
+    def lengthen(contract: dict) -> None:
+        steps = contract["illustrated"]["steps"]
+        contract["illustrated"]["steps"] = [{**steps[1], "state": index} for index in range(25)]
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, lengthen), repository=REPO))
+    assert sum(line.startswith("| `") for line in block.splitlines()) == 20
+    assert "…and 5 more states in the receipt." in block
+
+    def overflow(contract: dict) -> None:
+        contract["actions"] = {f"action{index}": "x" * 250 for index in range(300)}
+
+    comment = render_comment(edited_passed_receipt(tmp_path, overflow), repository=REPO)
+    assert len(comment) <= COMMENT_BUDGET
+    # Leaving the claims out keeps every verdict and the footer, rather than truncating inside a collapsed block.
+    assert "<details>" not in comment and "truncated" not in comment
+    assert comment.rstrip().endswith("pytest-quint-connect</a></sub>")

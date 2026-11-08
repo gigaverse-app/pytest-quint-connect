@@ -19,6 +19,7 @@ from .report import (
     END,
     START,
     ReportError,
+    Sign,
     check_readme,
     embed,
     has_markers,
@@ -103,10 +104,17 @@ def report(arguments: argparse.Namespace) -> int:
         readme = Path(arguments.readme)
         document = readme.read_text(encoding="utf-8") if readme.is_file() else ""
         refresh = f"pytest-quint-connect report {shlex.join(arguments.receipts)} --readme {shlex.quote(str(readme))}"
+        # The repository's counter sign: requested by the action (its id and name are in the environment),
+        # otherwise kept as the block already shows it, so a local refresh changes nothing.
+        repository_id, repository = os.environ.get("GITHUB_REPOSITORY_ID"), os.environ.get("GITHUB_REPOSITORY")
+        if arguments.counter_sign and repository_id and repository:
+            sign = Sign.of(repository_id, repository)
+        else:
+            sign = Sign.found(document)
         if not has_markers(document):
             _warn_no_block(readme)
         elif arguments.check:
-            result = check_readme(document, evidence, name=str(readme))
+            result = check_readme(document, evidence, name=str(readme), sign=sign)
             if result.state == "stale":
                 sys.stdout.write(result.diff)
                 print(f"\n{readme}: the contract block is stale; run `{refresh}` and commit it", file=sys.stderr)
@@ -118,7 +126,7 @@ def report(arguments: argparse.Namespace) -> int:
             else:
                 print(f"{readme}: the contract block is current")
         else:
-            updated = embed(document, render_readme(evidence))
+            updated = embed(document, render_readme(evidence, sign))
             if updated != document:
                 readme.write_bytes(updated.encode("utf-8"))
                 print(f"updated {readme}")
@@ -171,6 +179,11 @@ def main(argv: list[str] | None = None) -> int:
         "--repository-root", default=".", help="sessions under this directory get a cd line in reproduce commands"
     )
     summary.add_argument("--status-file", help="write the worst contract status here")
+    summary.add_argument(
+        "--counter-sign",
+        action="store_true",
+        help="show this repository's sign from the global counter in the README block (key from GITHUB_REPOSITORY_ID)",
+    )
     summary.add_argument(
         "--ledger",
         help="previous ledger (a file holding the last comment, or empty): count disagreements across pushes",

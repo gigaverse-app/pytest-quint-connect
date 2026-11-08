@@ -24,9 +24,11 @@ from typing import Any
 
 import pytest
 
+from .compare import plain
 from .contract import Contract, ContractError, display_path, load_contract
+from .itf import ItfError, load_trace
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
-from .replay import DriverFactory, ReplayMismatch, replay_trace
+from .replay import DriverFactory, ReplayMismatch, TraceError, replay_trace, steps
 from .report import WITNESSES_ONLY, witnesses_only
 
 __all__ = ["quint_contract"]
@@ -299,6 +301,8 @@ class _Session:
                 "name": name,
                 "manifest": contract.manifest.as_posix(),
                 "bounds": vars(contract.bounds),
+                "invariant": contract.invariant,
+                "actions": dict(contract.actions),
                 "convention": contract.convention,
                 "witnesses": list(contract.witnesses),
                 "mutants": list(contract.mutants),
@@ -315,6 +319,12 @@ class _Session:
                 entry["quint"] = generation.quint.version if generation.quint else None
                 entry["commands"] = generation.commands
                 entry["traces"] = {case: path.as_posix() for case, path in generation.traces.items()}
+                if contract.witnesses:
+                    witness = contract.witnesses[0]
+                    try:
+                        entry["illustrated"] = _illustration(contract, witness, generation.traces[f"witness-{witness}"])
+                    except (OSError, ItfError, TraceError) as error:
+                        entry["illustrated_error"] = f"{type(error).__name__}: {error}"
             if name in self.failures:
                 failure = self.failures[name]
                 entry["generation_failure"] = f"{type(failure).__name__}: {failure}"
@@ -363,6 +373,21 @@ class _Session:
             missing = run.missing()
             if missing:
                 self.incomplete.append(f"{run.test}: {len(missing)} case(s) did not run or did not pass: {missing}")
+
+
+def _illustration(contract: Contract, witness: str, trace: Path) -> dict[str, Any]:
+    """One witness, step by step: each action the model took and the observation it expects afterwards.
+
+    Reports show it so a reviewer can judge the model itself; it is read from the generated trace, like
+    every expectation, and witnesses are scripted runs, so it is the same in every session.
+    """
+    return {
+        "witness": witness,
+        "steps": [
+            {"state": step.index, "action": step.action, "arguments": plain(step.args), "observed": plain(expected)}
+            for step, expected in steps(load_trace(trace), contract)
+        ],
+    }
 
 
 def _action_of(raw_state: dict[str, Any], contract: Contract) -> str:

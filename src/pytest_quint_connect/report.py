@@ -8,11 +8,13 @@ can be checked against a fresh run the way ``codegen --check`` checks a generate
 
 import difflib
 import glob
+import hashlib
 import json
 import re
 import shlex
 import urllib.parse
 from dataclasses import dataclass, field
+from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,6 +44,7 @@ def _term(text: str) -> str:
 # GitHub refuses comments over 65,536 characters; leave room for the publisher's trailer.
 COMMENT_BUDGET = 60_000
 MAX_FAILURES = 20
+MAX_STEPS = 20
 
 # Worst first: the headline names the worst status any contract reached.
 SEVERITY = ("failed", "interrupted", "partial", "not run", "replay-only", "passed")
@@ -79,6 +82,21 @@ class Catch:
 
 
 @dataclass(frozen=True)
+class Claims:
+    """What a contract's manifest says, as its receipt records it: the model a reviewer judges.
+
+    ``illustrated`` is one witness step by step, read from its generated trace: each action and the
+    observation the model expects after it.
+    """
+
+    actions: dict[str, str]
+    invariant: str
+    witnesses: list[str]
+    bounds: dict[str, Any]
+    illustrated: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
 class Row:
     """One contract test function in one session."""
 
@@ -103,6 +121,8 @@ class Row:
     bugs_found: list[dict[str, str]] = field(default_factory=list)
     passed_cases: frozenset[str] = frozenset()
     witnesses_only: bool = False
+    # None for receipts written before they recorded the manifest's actions and invariant.
+    claims: Claims | None = None
 
     @property
     def histories(self) -> int:
@@ -179,6 +199,17 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
         failure = contract.get("generation_failure")
         # Receipts written before mutant_specs existed carry bare names only.
         specs = {spec["name"]: spec for spec in contract.get("mutant_specs", [])}
+        claims = (
+            Claims(
+                actions=dict(contract["actions"]),
+                invariant=str(contract.get("invariant")),
+                witnesses=list(contract.get("witnesses", [])),
+                bounds=dict(bounds),
+                illustrated=contract.get("illustrated"),
+            )
+            if "actions" in contract
+            else None
+        )
         for test in contract.get("tests", []):
             outcomes: dict[str, str] = test.get("outcomes", {})
             failed = [case for case, outcome in outcomes.items() if outcome == "failed"]
@@ -224,6 +255,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     bugs_found=list(contract.get("bugs_found", [])),
                     passed_cases=frozenset(case for case, outcome in outcomes.items() if outcome == "passed"),
                     witnesses_only=witnesses_only(test.get("mutations", {}), samples),
+                    claims=claims,
                 )
             )
     return rows
@@ -252,6 +284,33 @@ def _call(action: object, arguments: object) -> str:
     """``fetch(key='a', value=0)`` as inline code."""
     shown = ", ".join(f"{key}={value!r}" for key, value in dict(arguments or {}).items())
     return _code(f"{action}({shown})")
+
+
+def _value(value: object) -> str:
+    """A value as the receipt records it (``compare.plain``), written in Quint's syntax: ``Hit(1)``, ``NoRead``."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ", ".join(map(_value, value)) + "]"
+    if not isinstance(value, dict):
+        return str(value)
+    # ITF, and so plain(), writes a variant as exactly {tag, value}; a unit variant's value is the empty tuple.
+    if set(value) == {"tag", "value"}:
+        unit = value["value"] == {"#tup": []}
+        return str(value["tag"]) if unit else f"{value['tag']}({_value(value['value'])})"
+    if set(value) == {"#tup"}:
+        return "(" + ", ".join(map(_value, value["#tup"])) + ")"
+    if set(value) == {"#set"}:
+        return "Set(" + ", ".join(map(_value, value["#set"])) + ")"
+    if set(value) == {"#map"}:
+        return "Map(" + ", ".join(f"{_value(key)} -> {_value(item)}" for key, item in value["#map"]) + ")"
+    if set(value) == {"#unserializable"}:
+        return str(value["#unserializable"])
+    if not value:
+        return "{}"
+    return "{ " + ", ".join(f"{key}: {_value(item)}" for key, item in value.items()) + " }"
 
 
 def _plural(count: int, word: str, plural: str = "") -> str:
@@ -392,11 +451,17 @@ def _catch_of(row: Row, mutant: str) -> Catch | None:
     return next((catch for catch in row.catches if catch.mutant == mutant), None)
 
 
-def _catches(rows: list[Row]) -> list[str]:
-    """Bugs the contracts found, then the planted bugs they catch: one item per bug and contract."""
+def _by_contract(rows: list[Row]) -> dict[str, list[Row]]:
+    """Rows grouped by contract, in row order: several test functions can check one contract."""
     contracts: dict[str, list[Row]] = {}
     for row in rows:
         contracts.setdefault(row.contract, []).append(row)
+    return contracts
+
+
+def _catches(rows: list[Row]) -> list[str]:
+    """Bugs the contracts found, then the planted bugs they catch: one item per bug and contract."""
+    contracts = _by_contract(rows)
     several = len(contracts) > 1
     found: list[str] = []
     planted: list[str] = []
@@ -427,6 +492,58 @@ def _catches(rows: list[Row]) -> list[str]:
     if planted:
         heading = f"{_term('Planted bugs')} {these} {'catch' if several else 'catches'}"
         lines += [f"**{heading}**", "", *planted, ""]
+    return lines
+
+
+def _steps(illustrated: dict[str, Any]) -> list[str]:
+    """One witness as a table: each action, and the observation the model expects after it."""
+    steps = list(illustrated.get("steps", []))
+    lines = [
+        f"**Witness {_code(illustrated.get('witness'))}, step by step**: what the model expects the code to show "
+        "after each action.",
+        "",
+        "| State | Action | Model expects |",
+        "| --: | :-- | :-- |",
+    ]
+    for step in steps[:MAX_STEPS]:
+        call = _call(step.get("action"), step.get("arguments"))
+        lines.append(f"| {_code(step.get('state'))} | {call} | {_code(_value(step.get('observed')), 300)} |")
+    lines.append("")
+    if len(steps) > MAX_STEPS:
+        lines += [f"…and {_plural(len(steps) - MAX_STEPS, 'more state')} in the receipt.", ""]
+    return lines
+
+
+def _says(rows: list[Row]) -> list[str]:
+    """What each contract claims, collapsed: its actions, invariant, witnesses, bounds and one witness's steps.
+
+    A passing run proves the code agrees with the model; this is what a reviewer reads to judge the model.
+    """
+    lines: list[str] = []
+    for contract, members in _by_contract(rows).items():
+        claims = members[0].claims
+        if claims is None:
+            continue
+        bounds = " · ".join(f"{key} {_code(value)}" for key, value in claims.bounds.items())
+        witnesses = ", ".join(_code(name) for name in claims.witnesses) or "none"
+        lines += [
+            "<details>",
+            f"<summary>What <code>{_text(contract, 120)}</code> says</summary>",
+            "",
+            "**Actions**, and the code each one drives:",
+            "",
+            *(f"- {_code(action)}: {_text(boundary)}" for action, boundary in claims.actions.items()),
+            "",
+            f"**Invariant** {_code(claims.invariant)}, checked while sampling histories.",
+            "",
+            f"**Witnesses**, scenarios replayed exactly as written: {witnesses}.",
+            "",
+            f"**Bounds**: {bounds}.",
+            "",
+            *(_steps(claims.illustrated) if claims.illustrated else []),
+            "</details>",
+            "",
+        ]
     return lines
 
 
@@ -474,6 +591,10 @@ def _tally(ledger: "Ledger") -> list[str]:
     ]
 
 
+# Where render_comment places the claims, so it can leave them out when the comment would not fit.
+CLAIMS = "<!-- pytest-quint-connect:claims -->"
+
+
 def render_comment(
     evidence: Evidence,
     *,
@@ -509,6 +630,8 @@ def render_comment(
     weak = [row for row in evidence.rows if row.witnesses_only]
     if weak:
         lines += [f"<sub>⚠️ {_code(row.test)}: {WITNESSES_ONLY}.</sub>" for row in weak] + [""]
+    # What the contracts claim follows their verdicts, and is the first thing left out to fit the budget.
+    lines.append(CLAIMS)
     failures = [(row, failure) for row in evidence.rows for failure in row.failures]
     generation = [row for row in evidence.rows if row.generation_failure]
     if failures or generation:
@@ -533,8 +656,12 @@ def render_comment(
         footer.append(f"[run]({run_url})")
     footer.append(f"[what a passing run proves]({LIMITS})")
     lines.append(f'<sub>{" · ".join(footer)} · <a href="{HOME}">pytest-quint-connect</a></sub>')
-    body = "\n".join(lines) + "\n"
     hidden = f"\n{ledger.comment()}\n" if ledger is not None else ""
+    at = lines.index(CLAIMS)
+    body = "\n".join([*lines[:at], *_says(evidence.rows), *lines[at + 1 :]]) + "\n"
+    if len(body) + len(hidden) > COMMENT_BUDGET:
+        # A cut inside a collapsed block would hide the footer in it: leave the claims out before cutting.
+        body = "\n".join([*lines[:at], *lines[at + 1 :]]) + "\n"
     if len(body) + len(hidden) > COMMENT_BUDGET:
         body = (
             body[: COMMENT_BUDGET - 200 - len(hidden)] + "\n\n…truncated; the full report is in the run's artifact.\n"
@@ -549,8 +676,44 @@ def _badge(label: str, message: str, color: str) -> str:
     return f"https://img.shields.io/badge/{part(label)}-{part(message)}-{color}"
 
 
-def render_readme(evidence: Evidence) -> str:
-    """The README block: the same table, with nothing that differs between two runs of the same evidence."""
+COUNTER = "https://pytest-quint-connect-counter.gigaverse-oss.workers.dev"
+_SIGN = re.compile(r"/v1/sign\.svg\?key=([0-9a-f]{64})&amp;name=([^\"&]*)")
+
+
+@dataclass(frozen=True)
+class Sign:
+    """A repository's sign on the global counter: its key (the SHA-256 of its numeric id) and the name it shows."""
+
+    key: str
+    name: str
+
+    @classmethod
+    def of(cls, repository_id: str, name: str) -> "Sign":
+        return cls(hashlib.sha256(f"github-repository:{repository_id}".encode()).hexdigest(), name)
+
+    @classmethod
+    def found(cls, document: str) -> "Sign | None":
+        """The sign an existing block already shows, so a local refresh keeps it without the repository id."""
+        match = _SIGN.search(document)
+        return cls(match.group(1), urllib.parse.unquote(match.group(2))) if match else None
+
+    def picture(self) -> str:
+        query = f"key={self.key}&amp;name={urllib.parse.quote(self.name, safe='')}"
+        alt = f"What pytest-quint-connect's contracts caught in {self.name}'s pull requests"
+        return (
+            f'<a href="{HOME}#impact"><picture>'
+            f'<source media="(prefers-color-scheme: dark)" srcset="{COUNTER}/v1/sign.svg?{query}&amp;theme=dark">'
+            f'<img alt="{escape(alt, quote=True)}" src="{COUNTER}/v1/sign.svg?{query}" width="100%">'
+            "</picture></a>"
+        )
+
+
+def render_readme(evidence: Evidence, sign: Sign | None = None) -> str:
+    """The README block: the same table, with nothing that differs between two runs of the same evidence.
+
+    With ``sign``, the block opens with the repository's live sign from the global counter: what its
+    contracts caught in pull requests. The sign's address never changes, so neither does the block.
+    """
     contracts = sorted({row.contract for row in evidence.rows})
     detected = sum(row.mutants_detected for row in evidence.rows)
     mutants = sum(row.mutants for row in evidence.rows)
@@ -567,11 +730,13 @@ def render_readme(evidence: Evidence) -> str:
     return "\n".join(
         [
             f"<!-- pytest-quint-connect:contracts {','.join(contracts)} -->",
+            *([sign.picture(), ""] if sign else []),
             f'<a href="{HOME}" title="{PLANTED_TIP}"><img alt="{alt}" src="{_badge("Quint contracts", message, color)}"></a>',
             "",
             *_table(evidence.rows),
             "",
             *_catches(evidence.rows),
+            *_says(evidence.rows),
             f"<sub>Generated by [pytest-quint-connect]({HOME}) from contract receipts; "
             f"[what a passing run proves]({LIMITS}).</sub>",
         ]
@@ -600,8 +765,10 @@ class ReadmeCheck:
     diff: str = ""
 
 
-def check_readme(document: str, evidence: Evidence, *, name: str = "README.md") -> ReadmeCheck:
-    expected = embed(document, render_readme(evidence)).replace("\r\n", "\n")
+def check_readme(
+    document: str, evidence: Evidence, *, name: str = "README.md", sign: Sign | None = None
+) -> ReadmeCheck:
+    expected = embed(document, render_readme(evidence, sign)).replace("\r\n", "\n")
     current = document.replace("\r\n", "\n")
     if expected == current:
         return ReadmeCheck("current")

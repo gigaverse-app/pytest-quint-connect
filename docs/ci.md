@@ -211,7 +211,8 @@ The uploaded artifact holds what you need to reproduce a failure without rerunni
 CI:
 
 - `results.json`, the receipt: status, Quint version and commands, seeds, the
-  SHA-256 of the manifest, model and `sources`, and each mutant's detecting history;
+  SHA-256 of the manifest, model and `sources`, each mutant's detecting history, and
+  the manifest's actions and invariant with the first witness step by step;
 - every generated history as an `.itf.json` trace, plus the Quint logs;
 - a `mismatch-TEST-CASE.json` for each failed history;
 - `junit.xml`, whose cases carry `quint_trace`, `quint_seed` and `quint_detected_by`.

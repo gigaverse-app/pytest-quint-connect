@@ -85,6 +85,28 @@ def test_mutants_caught_only_by_witnesses_are_called_out(pytester: pytest.Pytest
     assert mutation["detected_by"].startswith("witness-") and mutation["caught_by_sample"] is False
 
 
+def test_receipt_records_what_the_contract_claims(pytester: pytest.Pytester, example: Path) -> None:
+    pytester.runpytest("-k", "test_lru_cache and witness-evictsLeastRecentlyUsedTest").assert_outcomes(passed=1)
+    (contract,) = receipt(example)["contracts"]
+    manifest = json.loads((EXAMPLE / "quint-connect.json").read_text())
+    assert contract["invariant"] == "withinCapacity" and contract["actions"] == manifest["actions"]
+    # The first witness, read from the trace Quint generated: each step's action and what the model expects after it.
+    illustrated = contract["illustrated"]
+    assert illustrated["witness"] == "evictsLeastRecentlyUsedTest"
+    assert [(step["state"], step["action"], step["arguments"]) for step in illustrated["steps"]] == [
+        (0, "init", {"key": "", "value": 0}),
+        (1, "store", {"key": "a", "value": 1}),
+        (2, "store", {"key": "b", "value": 2}),
+        (3, "fetch", {"key": "a", "value": 0}),
+        (4, "store", {"key": "c", "value": 0}),
+        (5, "inspect", {"key": "", "value": 0}),
+    ]
+    assert illustrated["steps"][3]["observed"] == {
+        "entries": [{"key": "b", "value": 2}, {"key": "a", "value": 1}],
+        "lastRead": {"tag": "Hit", "value": 1},
+    }
+
+
 def test_collection_lists_selectable_cases(pytester: pytest.Pytester, example: Path) -> None:
     result = pytester.runpytest("--collect-only", "-q")
     result.stdout.fnmatch_lines(
@@ -168,6 +190,9 @@ def test_saved_trace_replays_exactly_and_is_never_complete(pytester: pytest.Pyte
     replayed.assert_outcomes(passed=1)
     evidence = receipt(example)
     assert evidence["mode"] == "replay-only" and evidence["source_trace"].endswith("kept.itf.json")
+    # A replay generates no witness, so its receipt illustrates none; the manifest's claims are still recorded.
+    (contract,) = evidence["contracts"]
+    assert contract["actions"] and "illustrated" not in contract
     assert evidence["incomplete_required"] == [
         "replay-only session: replaying one saved trace is never complete coverage"
     ]

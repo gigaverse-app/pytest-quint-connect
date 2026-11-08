@@ -33,6 +33,12 @@ inputs:
   title:
     description: Names this job at the top of its comment when several jobs report on one pull request.
     default: ''
+  share-totals:
+    description: >-
+      On the default branch, add each merged pull request's tally (disagreements caught, fixed before merge, still
+      failing at merge, pushes; the repository only as a SHA-256 of its numeric id) to pytest-quint-connect's public
+      counter. No code, names, paths or people. "false" to opt out.
+    default: 'true'
   github-token:
     description: Token with pull-requests write, for the comment.
     default: ${{ github.token }}
@@ -80,6 +86,7 @@ runs:
         RECEIPTS: ${{ inputs.receipts }}
         README_PATH: ${{ inputs.readme }}
         README_MODE: ${{ inputs.readme-mode }}
+        SHARE_TOTALS: ${{ inputs.share-totals }}
         REPORT_TITLE: ${{ inputs.title }}
         REPORT_PYTHON: ${{ inputs.python-version }}
         REPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -104,6 +111,8 @@ runs:
             readme_state=current
           fi
           if [[ "$README_MODE" == check ]]; then readme_args+=(--check); fi
+          # The block shows this repository's counter sign while it shares its totals.
+          if [[ "$SHARE_TOTALS" != false ]]; then readme_args+=(--counter-sign); fi
         fi
         extra_args=()
         if [[ -f "$REPORT_PREVIOUS" ]]; then extra_args+=(--ledger "$REPORT_PREVIOUS"); fi
@@ -155,6 +164,21 @@ runs:
         script: |
           const publish = require(`${process.env.QUINT_REPORT_ACTION_PATH}/publish.cjs`);
           await publish({github, context, core});
+    - name: Share merged pull requests' tallies with the counter
+      if: ${{ github.event_name == 'push' && inputs.share-totals != 'false' }}
+      uses: actions/github-script@v9
+      env:
+        QUINT_REPORT_SHARE_TOTALS: ${{ inputs.share-totals }}
+        QUINT_REPORT_STICKY_KEY: ${{ inputs.sticky-key }}
+        QUINT_REPORT_ACTION_PATH: ${{ github.action_path }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const path = process.env.QUINT_REPORT_ACTION_PATH;
+          const project = require('node:fs').readFileSync(`${path}/../pyproject.toml`, 'utf8');
+          process.env.QUINT_REPORT_VERSION = (project.match(/^version = "([^"]+)"/m) || [])[1] || '';
+          const {share} = require(`${path}/publish.cjs`);
+          await share({github, context, core});
     - name: Require a current README contract block
       if: ${{ steps.render.outputs.readme == 'stale' }}
       shell: bash
