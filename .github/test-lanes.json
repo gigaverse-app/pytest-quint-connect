@@ -15,7 +15,16 @@
       "dogfood/pytest.ini": "9ffb0792a62dd87edc3fe124040158789e6aa11ab61369738c9e608570e99f57",
       "examples/lru_cache/pytest.ini": "6c3befbb547919b63209db214320c1649a9be5fc334031a67b822e3d718f09fc",
       "pyproject.toml": "836043fbcfef82c8fe001b6c25f3bea5315fb24044a2d9a3e87e5864292a2b3b"
-    }
+    },
+    "global_inputs": [
+      "pyproject.toml",
+      "**/pyproject.toml",
+      "uv.lock",
+      "**/uv.lock",
+      ".python-version",
+      "pytest.ini",
+      "**/pytest.ini"
+    ]
   },
   "lanes": {
     "tests": {
@@ -25,22 +34,48 @@
       "inputs": [
         "src/**",
         "tests/**",
-        "examples/**",
+        "examples/lru_cache/*.py",
+        "examples/lru_cache/*.qnt",
+        "examples/lru_cache/*.json",
         "dogfood/quint-connect.json",
         "dogfood/session.qnt",
-        "dogfood/session_driver.py",
-        "scripts/smoke_distribution.py"
+        "dogfood/session_driver.py"
       ]
     },
     "dogfood": {
       "roots": [
-        "dogfood"
+        "dogfood/test_session_contract.py"
       ],
       "inputs": [
         "src/**",
-        "dogfood/**",
-        "examples/lru_cache/**",
+        "dogfood/*.py",
+        "dogfood/*.qnt",
+        "dogfood/*.json",
+        "examples/lru_cache/*.py",
+        "examples/lru_cache/*.qnt",
+        "examples/lru_cache/*.json",
         "report/**"
+      ]
+    },
+    "package": {
+      "inputs": [
+        "src/**",
+        "README.md",
+        "LICENSE",
+        ".release-please-manifest.json",
+        "release-please-config.json",
+        "tests/test_release.py",
+        "scripts/smoke_distribution.py",
+        "examples/lru_cache/*.py",
+        "examples/lru_cache/*.qnt",
+        "examples/lru_cache/*.json"
+      ]
+    },
+    "routing": {
+      "inputs": [
+        "ci_tests/**",
+        "scripts/ci/**",
+        "tests/.gv-dependencies.yaml"
       ]
     }
   },

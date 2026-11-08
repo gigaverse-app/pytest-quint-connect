@@ -2,11 +2,16 @@
 # test files when one changes. Verified with the read audit (see CONTRIBUTING.md).
 dependencies:
   - readers: ["lru_support.py"]
-    inputs: ["//examples/lru_cache/**"]
+    inputs:
+      - "//examples/lru_cache/*.py"
+      - "//examples/lru_cache/*.qnt"
+      - "//examples/lru_cache/*.json"
+      - "//examples/lru_cache/pytest.ini"
     kind: import
     reason: >-
       Loads the LRU example's cache, driver and generated base by path, and points at its
-      model and manifest; every test that imports lru_support depends on the whole example.
+      model and manifest; every test that imports lru_support depends on the example's
+      executable files and pytest configuration, not on its README.
   - readers: ["test_itf.py", "test_replay.py", "test_codegen.py"]
     inputs: ["data/**"]
     kind: content
