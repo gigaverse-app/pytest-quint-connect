@@ -96,8 +96,8 @@ it. Reports lead with these:
 | `mutant` | no | A declared mutant that reintroduces the bug. Every history is replayed through it, and the receipt records which diverged. |
 
 Unknown fields are rejected, `mutant` must name a declared mutant, and two bugs cannot
-name the same one. The report then says, for example, "16 of 21 histories diverge when
-mutant `shard-leaks-before-rejection` reintroduces it". The count is what the run
+name the same one. The report then says, for example, "mutant
+`shard-leaks-before-rejection` reintroduces it: 16 of 21 histories diverge". The count is what the run
 proves; the rest of the entry is your account, shown as written. Record only bugs that
 were really fixed. Without a `mutant` the report says no mutant re-checks it.
 

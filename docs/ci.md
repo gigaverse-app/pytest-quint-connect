@@ -157,7 +157,7 @@ caught, actions covered) and, for each failure, the state and action where the c
 diverged, the differing fields and the command that reproduces it locally:
 
 ```text
-### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed
+### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 30/34 cases passed · 2/2 mutants caught
 ... table ...
 lru-cache · witness-evictsLeastRecentlyUsedTest: observed state differs from the model at
 state 3, after fetch(key='a', value=0)
@@ -189,6 +189,18 @@ prints the same command to refresh it. A run that skipped a contract the block l
 cannot judge it, and says so instead of failing. Fork pull requests cannot be
 commented on with their own token; their report is in the job summary and the
 artifact. See [the action's inputs](reference.md#github-action).
+
+When CI also runs a teaching example or a smoke-test contract, report only your real
+contracts: set the step's `receipts` input to their receipts, one per line, and refresh
+the block from the same receipts. This repository reports its dogfood contract and not
+the LRU example it runs as a smoke test:
+
+```yaml
+- uses: gigaverse-app/pytest-quint-connect/report@v1
+  if: ${{ !cancelled() }}
+  with:
+    receipts: dogfood/.artifacts/quint-connect/results.json
+```
 
 ## What fails the check
 

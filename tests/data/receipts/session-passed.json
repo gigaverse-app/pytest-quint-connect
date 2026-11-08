@@ -1,0 +1,387 @@
+{
+  "tool": "pytest-quint-connect",
+  "status": "passed",
+  "mode": "generate-and-replay",
+  "source_trace": null,
+  "replay_mutant": null,
+  "head": "0123456789abcdef0123456789abcdef01234567",
+  "root": "/repo/dogfood",
+  "required": [
+    "session-receipts"
+  ],
+  "incomplete_required": [],
+  "contracts": [
+    {
+      "name": "session-receipts",
+      "manifest": "/repo/dogfood/quint-connect.json",
+      "bounds": {
+        "seed": 11,
+        "max_samples": 300,
+        "max_steps": 3,
+        "n_traces": 4
+      },
+      "invariant": "honest",
+      "actions": {
+        "init": "copy examples/lru_cache into a fresh project directory; no receipt yet",
+        "session": "run `python -m pytest` in the project with the installed plugin and the options for this kind; read results.json and the exit code",
+        "inspect": "read results.json and the last exit code without running anything"
+      },
+      "convention": "event",
+      "witnesses": [
+        "staleSuccessIsReplacedTest",
+        "filteredRunIsNeverPassedTest",
+        "replayIsNeverCompleteTest",
+        "faultAfterSuccessFailsTest"
+      ],
+      "mutants": [
+        "filtered-counts-as-complete",
+        "replay-counts-as-complete",
+        "failed-session-keeps-old-receipt",
+        "require-complete-ignored"
+      ],
+      "mutant_specs": [
+        {
+          "name": "filtered-counts-as-complete",
+          "description": "a -k run that skipped cases is judged as if every case ran"
+        },
+        {
+          "name": "replay-counts-as-complete",
+          "description": "replaying one saved trace no longer marks the session incomplete"
+        },
+        {
+          "name": "failed-session-keeps-old-receipt",
+          "description": "a failed or still-running session leaves the previous results.json in place"
+        },
+        {
+          "name": "require-complete-ignored",
+          "description": "--quint-require-complete is accepted but never changes the exit code"
+        }
+      ],
+      "bugs_found": [
+        {
+          "summary": "Valid histories whose step calls one action without any { \u2026 } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it",
+          "fixed_in": "#3",
+          "found_by": "the first run of this contract",
+          "regression_test": "tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays"
+        }
+      ],
+      "limits": [
+        "One inner project (the LRU example), five session kinds, both values of --quint-require-complete, at most three sessions per sampled history.",
+        "Interrupted sessions (a killed pytest process) are not modeled; only a session that ran to its end.",
+        "Mutants patch the installed plugin in each inner pytest process; they are not edits of the source files."
+      ],
+      "sha256": {
+        "dogfood/quint-connect.json": "523d99fc941832be30ad419e902f15a5154e0d93d2f6cb4aec9f1e14e1a31d0a",
+        "dogfood/session.qnt": "4cc1a92508e39f75859b48aa5eb691ff2fc4391087418e2874ce4d1485098ca1",
+        "src/pytest_quint_connect/plugin.py": "56b1fa0176dc1e4429a6d5536df43523e8c1e6774848f7991e8627b387c9fc3f",
+        "src/pytest_quint_connect/quint.py": "c2ffb97686df61d9ba3bda7dde296c5f19a984caf6abe60a4ce8d4ae3ddc6f16",
+        "src/pytest_quint_connect/replay.py": "45e6a8bc4ed03b7d746d7fcf6e6364c5735b536a9c4ac1c33aa7994d370b2644",
+        "examples/lru_cache/quint-connect.json": "27b2049cec26f6ca7ede71b4c525ed84290f8046c46069625b0ec0023a539a4f"
+      },
+      "quint": "0.33.1",
+      "commands": [
+        [
+          "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
+          "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
+          "typecheck",
+          "/repo\\dogfood\\session.qnt"
+        ],
+        [
+          "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
+          "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
+          "test",
+          "/repo\\dogfood\\session.qnt",
+          "--main",
+          "session_receipts",
+          "--backend",
+          "typescript",
+          "--seed",
+          "11",
+          "--verbosity",
+          "1",
+          "--match",
+          "^(staleSuccessIsReplacedTest|filteredRunIsNeverPassedTest|replayIsNeverCompleteTest|faultAfterSuccessFailsTest)$",
+          "--max-samples",
+          "1",
+          "--out-itf",
+          "/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-{test}-{seq}.itf.json"
+        ],
+        [
+          "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
+          "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
+          "run",
+          "/repo\\dogfood\\session.qnt",
+          "--main",
+          "session_receipts",
+          "--backend",
+          "typescript",
+          "--seed",
+          "11",
+          "--verbosity",
+          "1",
+          "--init",
+          "init",
+          "--step",
+          "step",
+          "--invariant",
+          "honest",
+          "--max-samples",
+          "300",
+          "--max-steps",
+          "3",
+          "--n-traces",
+          "4",
+          "--out-itf",
+          "/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\sample-{seq}.itf.json",
+          "--mbt"
+        ]
+      ],
+      "traces": {
+        "witness-staleSuccessIsReplacedTest": "/repo/dogfood/.artifacts/quint-connect/session-receipts/witness-staleSuccessIsReplacedTest-0.itf.json",
+        "witness-filteredRunIsNeverPassedTest": "/repo/dogfood/.artifacts/quint-connect/session-receipts/witness-filteredRunIsNeverPassedTest-1.itf.json",
+        "witness-replayIsNeverCompleteTest": "/repo/dogfood/.artifacts/quint-connect/session-receipts/witness-replayIsNeverCompleteTest-2.itf.json",
+        "witness-faultAfterSuccessFailsTest": "/repo/dogfood/.artifacts/quint-connect/session-receipts/witness-faultAfterSuccessFailsTest-3.itf.json",
+        "sample-0": "/repo/dogfood/.artifacts/quint-connect/session-receipts/sample-0.itf.json",
+        "sample-1": "/repo/dogfood/.artifacts/quint-connect/session-receipts/sample-1.itf.json",
+        "sample-2": "/repo/dogfood/.artifacts/quint-connect/session-receipts/sample-2.itf.json",
+        "sample-3": "/repo/dogfood/.artifacts/quint-connect/session-receipts/sample-3.itf.json"
+      },
+      "illustrated": {
+        "witness": "staleSuccessIsReplacedTest",
+        "steps": [
+          {
+            "state": 0,
+            "action": "init",
+            "arguments": {
+              "kind": "",
+              "strict": false
+            },
+            "observed": {
+              "exitCode": -1,
+              "mode": "none",
+              "status": "none"
+            }
+          },
+          {
+            "state": 1,
+            "action": "session",
+            "arguments": {
+              "kind": "full",
+              "strict": true
+            },
+            "observed": {
+              "exitCode": 0,
+              "mode": "generate-and-replay",
+              "status": "passed"
+            }
+          },
+          {
+            "state": 2,
+            "action": "session",
+            "arguments": {
+              "kind": "noQuint",
+              "strict": false
+            },
+            "observed": {
+              "exitCode": 1,
+              "mode": "generate-and-replay",
+              "status": "failed"
+            }
+          },
+          {
+            "state": 3,
+            "action": "inspect",
+            "arguments": {
+              "kind": "",
+              "strict": false
+            },
+            "observed": {
+              "exitCode": 1,
+              "mode": "generate-and-replay",
+              "status": "failed"
+            }
+          }
+        ]
+      },
+      "tests": [
+        {
+          "test": "test_session_contract.py::test_session_receipts",
+          "complete": true,
+          "not_passed": [],
+          "outcomes": {
+            "coverage": "passed",
+            "mutant-failed-session-keeps-old-receipt": "passed",
+            "mutant-filtered-counts-as-complete": "passed",
+            "mutant-replay-counts-as-complete": "passed",
+            "mutant-require-complete-ignored": "passed",
+            "sample-0": "passed",
+            "sample-1": "passed",
+            "sample-2": "passed",
+            "sample-3": "passed",
+            "witness-faultAfterSuccessFailsTest": "passed",
+            "witness-filteredRunIsNeverPassedTest": "passed",
+            "witness-replayIsNeverCompleteTest": "passed",
+            "witness-staleSuccessIsReplacedTest": "passed"
+          },
+          "steps": {
+            "witness-staleSuccessIsReplacedTest": 4,
+            "witness-filteredRunIsNeverPassedTest": 4,
+            "witness-replayIsNeverCompleteTest": 4,
+            "witness-faultAfterSuccessFailsTest": 4,
+            "sample-0": 4,
+            "sample-1": 4,
+            "sample-2": 4,
+            "sample-3": 4
+          },
+          "mutations": {
+            "filtered-counts-as-complete": {
+              "detected_by": "witness-filteredRunIsNeverPassedTest",
+              "contract": "session-receipts",
+              "trace": "/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-filteredRunIsNeverPassedTest-1.itf.json",
+              "state": 1,
+              "action": "session",
+              "arguments": {
+                "kind": "filtered",
+                "strict": false
+              },
+              "mutant": "filtered-counts-as-complete",
+              "seed": 11,
+              "expected": {
+                "exitCode": 0,
+                "mode": "generate-and-replay",
+                "status": "partial"
+              },
+              "actual": {
+                "status": "passed",
+                "mode": "generate-and-replay",
+                "exitCode": 0
+              },
+              "differences": [
+                {
+                  "path": "status",
+                  "reason": "values differ",
+                  "expected": "partial",
+                  "actual": "passed"
+                }
+              ],
+              "reproduce": "pytest test_session_contract.py::test_session_receipts --quint-replay '/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-filteredRunIsNeverPassedTest-1.itf.json' --quint-mutant filtered-counts-as-complete"
+            },
+            "replay-counts-as-complete": {
+              "detected_by": "witness-replayIsNeverCompleteTest",
+              "contract": "session-receipts",
+              "trace": "/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-replayIsNeverCompleteTest-2.itf.json",
+              "state": 2,
+              "action": "session",
+              "arguments": {
+                "kind": "replay",
+                "strict": true
+              },
+              "mutant": "replay-counts-as-complete",
+              "seed": 11,
+              "expected": {
+                "exitCode": 1,
+                "mode": "replay-only",
+                "status": "partial"
+              },
+              "actual": {
+                "status": "passed",
+                "mode": "replay-only",
+                "exitCode": 0
+              },
+              "differences": [
+                {
+                  "path": "exitCode",
+                  "reason": "values differ",
+                  "expected": 1,
+                  "actual": 0
+                },
+                {
+                  "path": "status",
+                  "reason": "values differ",
+                  "expected": "partial",
+                  "actual": "passed"
+                }
+              ],
+              "reproduce": "pytest test_session_contract.py::test_session_receipts --quint-replay '/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-replayIsNeverCompleteTest-2.itf.json' --quint-mutant replay-counts-as-complete"
+            },
+            "failed-session-keeps-old-receipt": {
+              "detected_by": "witness-staleSuccessIsReplacedTest",
+              "contract": "session-receipts",
+              "trace": "/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-staleSuccessIsReplacedTest-0.itf.json",
+              "state": 2,
+              "action": "session",
+              "arguments": {
+                "kind": "noQuint",
+                "strict": false
+              },
+              "mutant": "failed-session-keeps-old-receipt",
+              "seed": 11,
+              "expected": {
+                "exitCode": 1,
+                "mode": "generate-and-replay",
+                "status": "failed"
+              },
+              "actual": {
+                "status": "passed",
+                "mode": "generate-and-replay",
+                "exitCode": 1
+              },
+              "differences": [
+                {
+                  "path": "status",
+                  "reason": "values differ",
+                  "expected": "failed",
+                  "actual": "passed"
+                }
+              ],
+              "reproduce": "pytest test_session_contract.py::test_session_receipts --quint-replay '/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-staleSuccessIsReplacedTest-0.itf.json' --quint-mutant failed-session-keeps-old-receipt"
+            },
+            "require-complete-ignored": {
+              "detected_by": "witness-filteredRunIsNeverPassedTest",
+              "contract": "session-receipts",
+              "trace": "/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-filteredRunIsNeverPassedTest-1.itf.json",
+              "state": 2,
+              "action": "session",
+              "arguments": {
+                "kind": "filtered",
+                "strict": true
+              },
+              "mutant": "require-complete-ignored",
+              "seed": 11,
+              "expected": {
+                "exitCode": 1,
+                "mode": "generate-and-replay",
+                "status": "partial"
+              },
+              "actual": {
+                "status": "partial",
+                "mode": "generate-and-replay",
+                "exitCode": 0
+              },
+              "differences": [
+                {
+                  "path": "exitCode",
+                  "reason": "values differ",
+                  "expected": 1,
+                  "actual": 0
+                }
+              ],
+              "reproduce": "pytest test_session_contract.py::test_session_receipts --quint-replay '/repo\\dogfood\\.artifacts\\quint-connect\\session-receipts\\witness-filteredRunIsNeverPassedTest-1.itf.json' --quint-mutant require-complete-ignored"
+            }
+          },
+          "imported_modules": {
+            "pytest_quint_connect.itf": "src/pytest_quint_connect/itf.py",
+            "pytest_quint_connect.compare": "src/pytest_quint_connect/compare.py",
+            "pytest_quint_connect.contract": "src/pytest_quint_connect/contract.py",
+            "pytest_quint_connect.quint": "src/pytest_quint_connect/quint.py",
+            "pytest_quint_connect.typed": "src/pytest_quint_connect/typed.py",
+            "pytest_quint_connect.replay": "src/pytest_quint_connect/replay.py",
+            "pytest_quint_connect.plugin": "src/pytest_quint_connect/plugin.py",
+            "pytest_quint_connect": "src/pytest_quint_connect/__init__.py"
+          },
+          "findings": {}
+        }
+      ]
+    }
+  ]
+}
