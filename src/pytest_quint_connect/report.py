@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .contract import display_path
+from .plugin import WITNESSES_ONLY, witnesses_only
 
 if TYPE_CHECKING:
     from .ledger import Ledger
@@ -175,22 +176,6 @@ def load(paths: list[Path]) -> Evidence:
         rows += _rows(receipt)
         incomplete += [str(line) for line in receipt.get("incomplete_required", [])]
     return Evidence(sorted(rows, key=lambda row: (row.contract, row.test)), len(paths), incomplete)
-
-
-def witnesses_only(mutations: dict[str, Any], samples: int) -> bool:
-    """True when sampling ran and caught none of the detected mutants: only the named witnesses did.
-
-    Receipts written before ``caught_by_sample`` existed lack it, and say nothing either way.
-    """
-    return (
-        samples > 0 and bool(mutations) and all(entry.get("caught_by_sample") is False for entry in mutations.values())
-    )
-
-
-WITNESSES_ONLY = (
-    "every mutant was caught only by a named witness; no sampled history caught one. Raise bounds.n_traces "
-    "or max_steps until samples catch them too, or accept knowingly that sampling adds no detection here"
-)
 
 
 def _rows(receipt: dict[str, Any]) -> list[Row]:
