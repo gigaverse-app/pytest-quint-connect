@@ -10,6 +10,16 @@
 | `--quint-replay TRACE` | Replay one saved `.itf.json` through exactly one selected contract test instead of generating. Never complete coverage. |
 | `--quint-mutant NAME` | With `--quint-replay`: replay through that mutant. |
 
+## `pytest-quint-connect typecheck`
+
+```text
+pytest-quint-connect typecheck MANIFEST [--quint PATH]
+```
+
+Typechecks the contract's model with its pinned Quint (the locked install, `--quint` or
+`QUINT`), so `quint` need not be on `PATH`. Exit 2 shows Quint's diagnostic, with the
+file and line. Run it while writing a model, before `codegen`.
+
 ## `pytest-quint-connect codegen`
 
 ```text
@@ -17,9 +27,11 @@ pytest-quint-connect codegen MANIFEST [-o OUTPUT] [--class-name NAME] [--quint P
 ```
 
 Writes a typed driver base for the contract (default output: `MODULE_driver.py` beside
-the manifest). `--check` writes nothing and exits 1 with a diff if the file differs
-from what would be generated. Exit 2 means the manifest, model or Quint could not be
-used. See [drivers](drivers.md#generated-typed-drivers).
+the manifest, where `MODULE` is the manifest's `module`). Prefer the default: then
+`codegen --check MANIFEST` in CI compares the same file without repeating `-o`.
+`--check` writes nothing and exits 1 with a diff if the file differs from what would be
+generated, or with the path it looked for when that file does not exist. Exit 2 means
+the manifest, model or Quint could not be used. See [drivers](drivers.md#generated-typed-drivers).
 
 ## `pytest-quint-connect report`
 
@@ -69,8 +81,10 @@ steps:
 It finds every receipt in the workspace, writes the comment to the job summary, uploads
 each receipt's directory (traces, logs, mismatches) as the `quint-connect-KEY-ATTEMPT`
 artifact, creates or updates one comment on same-repository pull requests, and fails the
-step when `README.md`'s block is stale. Without the README markers, the README part does
-nothing.
+step when `README.md`'s block is stale. When the `readme` file does not exist or has no
+markers, the step adds a warning annotation naming the file and leaves it alone. The
+block is Markdown and HTML: next to a `README.rst`, keep it in a Markdown file such as
+`contracts/README.md` and set `readme` to it.
 
 | Input | Default | |
 | --- | --- | --- |
@@ -151,7 +165,11 @@ and per test: outcomes, completeness, steps replayed, imported modules (with
 `attest`), each mutant's detecting trace with its differences, and `findings`: for a
 failed history its state, action, arguments, first differences and mismatch file, and for
 a surviving mutant how many histories it survived. `root` is the session's rootdir, and
-the mismatch paths are relative to it. Beside it, each
+the mismatch paths are relative to it. `config_file` is the configuration file given
+with `-c`, relative to `root` (`null` when pytest found its configuration itself); the
+PR comment's reproduce command repeats it. A `--quint-replay` session rewrites
+`results.json` with mode `replay-only`; rerun the full contract to restore complete
+evidence. Beside it, each
 contract's directory holds the ITF traces, Quint logs and a `mismatch-TEST-CASE.json`
 for every failed history. Upload the whole directory from CI, including on failure.
 

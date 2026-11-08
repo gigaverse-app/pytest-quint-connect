@@ -30,7 +30,7 @@ the command that replays that trace, as it does for a mismatch.
 ## Generated typed drivers
 
 ```bash
-pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
+pytest-quint-connect codegen quint-connect.json  # writes lru_cache_driver.py
 ```
 
 `codegen` runs `quint compile --target json` on the model and writes a module with:
@@ -63,8 +63,10 @@ What this catches, and where:
 | The model or the manifest's actions/observe edited without regenerating | every history fails: the base records a fingerprint of both, and names the command to rerun |
 | A committed generated module is out of date | `pytest-quint-connect codegen … --check` exits 1 with a diff |
 
-The generated module is deterministic and `ruff format`-stable; commit it, and run
-`--check` in CI. It contains no behavior. Which real API each action calls, and how
+The generated module is deterministic and fingerprinted. It starts with `# ruff: noqa`
+and `# fmt: off` lines, so ruff (at any line length and rule selection) and Black leave
+it alone; you need no exclusion for it. Generate it under its default name, commit it,
+and run `codegen --check MANIFEST` in CI. It contains no behavior. Which real API each action calls, and how
 state is read back, stay in your subclass. That code is the trusted part of the
 contract, and mutants are what check it.
 

@@ -56,33 +56,63 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      # pytest-quint-connect installs Quint 0.33.1 with npm on first use.
+      # Any Node.js 22+. pytest-quint-connect installs Quint 0.33.1 with npm on first use.
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      # Where the plugin installs its locked Quint, kept between runs.
-      - uses: actions/cache@v5
+      # Where the plugin installs its locked Quint, kept between runs. pyproject.toml makes the key
+      # match at least one file; the rest change when your pinned pytest-quint-connect can.
+      - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/quint-cache
-          key: quint-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'uv.lock') }}
+          key: quint-${{ runner.os }}-${{ hashFiles('**/requirements*.txt', '**/uv.lock', '**/poetry.lock', '**/pyproject.toml') }}
       - run: python -m pip install -r requirements-dev.txt  # your test dependencies, including pytest-quint-connect
       - name: Check the generated driver against the model
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
-        run: pytest-quint-connect codegen --check tests/contracts/quint-connect.json
+        run: pytest-quint-connect codegen --check contracts/cache/quint-connect.json
       - name: Replay the model's histories against the code
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
-        run: pytest tests/contracts --quint-require-complete --junitxml=.artifacts/quint-connect/junit.xml
+        # The JUnit file goes beside results.json, in the directory the report step uploads.
+        run: >-
+          pytest -c contracts/quint.ini contracts --quint-require-complete
+          --junitxml=contracts/.artifacts/quint-connect/junit.xml
       # Comments on the pull request, uploads every receipt's directory and checks the README block.
       - uses: gigaverse-app/pytest-quint-connect/report@v1
         if: ${{ !cancelled() }}
 ```
 
-Adjust the install step and the paths to your project. With uv, install with
-`uv sync --locked` and prefix both commands with `uv run`. Without the cache, each run
-installs Quint with `npm ci` once; the cache key changes when your lockfile does,
-which is when the plugin's pinned Quint can change.
+Adjust the install step and the paths to your project, and follow its conventions:
+if your workflows pin Actions to commit SHAs, pin these too (the report action's `v1`
+is `gh api repos/gigaverse-app/pytest-quint-connect/commits/v1 --jq .sha`). With uv,
+install with `uv sync --locked` and prefix both commands with `uv run`. Through tox,
+run them as a tox environment that passes the cache directory through, since tox
+hides the environment from tests:
+
+```ini
+[testenv:contracts]
+pass_env = PYTEST_QUINT_CONNECT_CACHE, QUINT
+commands =
+    pytest-quint-connect codegen --check contracts/cache/quint-connect.json
+    pytest -c contracts/quint.ini contracts --quint-require-complete --junitxml=contracts/.artifacts/quint-connect/junit.xml
+```
+
+nox passes the environment through unless a session restricts it.
+
+Without the cache, each run installs Quint with `npm ci` once. The plugin keeps each
+Quint pin in its own directory under the cache, so a stale cache costs one install,
+never a wrong Quint.
+
+### Keep contracts out of the main suite
+
+The layout above keeps each contract in `contracts/NAME/` with one `contracts/quint.ini`
+that is used only through `-c`. Make sure your main test command does not collect
+`contracts/`: set `testpaths` in its configuration (for example `testpaths = tests`),
+or add `--ignore=contracts`. Otherwise the main run collects the contract tests
+without their configuration, and they fail to import. `-c` also makes `contracts/`
+the rootdir: node ids, the artifacts directory and the printed `reproduce:` commands
+are relative to it or say so.
 
 ## 3. Make it required
 
@@ -116,9 +146,15 @@ belongs, fill it once from a local run, and commit it:
 printf '<!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:end -->
 ' >> README.md
-pytest tests/contracts --quint-require-complete
+pytest -c contracts/quint.ini contracts --quint-require-complete
 pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md
 ```
+
+The block is Markdown and HTML. In a `README.rst` or another format the markers would
+show as text, so keep the block in a Markdown file such as `contracts/README.md`, link
+it from your README, and point the step at it with `readme: contracts/README.md`. When
+the file is missing or has no markers, the step leaves it alone and adds a warning
+annotation naming it.
 
 From then on the step fails when the block no longer matches the receipts, and
 prints the same command to refresh it. A run that skipped a contract the block lists
@@ -155,8 +191,11 @@ CI:
 Download the trace and replay it locally:
 
 ```bash
-pytest tests/contracts/test_cache_contract.py::test_cache --quint-replay path/to/sample-5.itf.json
+pytest -c contracts/quint.ini contracts/cache/test_cache_contract.py::test_cache --quint-replay path/to/sample-5.itf.json
 ```
+
+A replay rewrites `results.json` with status `replay-only`. Rerun the whole contract
+before you refresh the README block or trust the receipt again.
 
 ## Repositories with a parallel test suite
 

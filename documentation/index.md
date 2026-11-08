@@ -3,30 +3,59 @@ title: pytest-quint-connect documentation
 description: Model-based testing for Python under pytest. Quint generates histories from your specification and pytest replays them against your implementation.
 ---
 
-![pytest-quint-connect](../docs/assets/banner.svg)
+![pytest-quint-connect logo and the tagline "Model-based testing for Python under pytest"](../docs/assets/banner.svg)
 
 # Model-based testing for Python under pytest
 
-[Quint](https://quint.sh) generates histories from your specification;
-pytest-quint-connect replays every step against your real Python implementation
-and compares the state you read back with the state the model expects.
+Write the rules of a stateful API once, as a small [Quint](https://quint.sh) model.
+pytest-quint-connect replays the histories Quint generates from it against your real
+code, and fails when the code disagrees.
+
+## Set it up with your coding agent
+
+Paste this into Claude Code, Codex, Cursor or another coding agent, in your repository:
+
+```text
+Add pytest-quint-connect to this repository. Fetch https://pytest-quint-connect.readthedocs.io/en/latest/agent-setup.md and follow it.
+```
+
+The agent picks one part of your code that keeps state, writes its rules down as a
+short model, connects the model to the code, adds deliberate bugs the check must
+catch, adds a CI job, and reports what it verified. **You review the model.** It is
+the specification. An agent can write a wrong model, which then checks the wrong
+rules, so read it before you merge. The tests themselves run without AI, in CI, on
+every change, the split Quint's authors describe in
+[Reliable Software in the LLM Era](https://quint.sh/posts/llm_era) and
+[Quint Connect](https://quint.sh/posts/quint_connect). The agent follows
+[this procedure](../skills/pytest-quint-connect/SKILL.md); to do it by hand, follow the
+[tutorial](../docs/tutorial.md).
+
+## In plain words
+
+- **Model**: a short Quint file that says what your API should do: its operations,
+  and what you should be able to read back after each one.
+- **History**: a sequence of operations generated from the model, with the expected
+  state after each step. Some are scenarios you name; the rest are sampled from a fixed seed.
+- **Driver**: a few lines of Python that apply each step to your real code and read
+  its state back. It never computes the answer.
+- **Mutant**: a deliberately broken version of your code. Every run must catch it,
+  which proves the check can fail.
+
+Hand-written tests check the cases someone thought of, and a change can rewrite them
+along with the code. A contract checks every generated history against rules kept
+apart from the code. So a change by a person or a coding agent is judged against the
+rules, not against tests the same change may have edited.
 
 This is a community Python integration in the spirit of
 [Quint Connect](https://github.com/quint-co/quint-connect) (Rust) and
 [Quint's model-based testing guide](https://quint.sh/docs/model-based-testing).
 It is not an official Quint project and is not endorsed by its maintainers.
 
-**Why it matters now:** coding agents change code faster than anyone can review it.
-Write your high-level rules once as a small Quint model you can test in the abstract;
-pytest-quint-connect connects your implementation to it and replays the model's
-histories on every run. Every change, by a person or an agent, is checked against
-the rules, not against tests the same change may have rewritten.
-
 [Why use it](../docs/why.md){ .md-button .md-button--primary }
 [Tutorial: your first contract](../docs/tutorial.md){ .md-button }
 [Run it in CI](../docs/ci.md){ .md-button }
 
-## Start
+## Start by hand
 
 Install the plugin, plus Node.js 22+ with npm. On first use the plugin installs
 its locked Quint 0.33.1 into a per-user cache; pass `--quint PATH` or set `QUINT`
@@ -34,7 +63,7 @@ to use your own.
 
 ```bash
 pip install pytest-quint-connect
-pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
+pytest-quint-connect codegen quint-connect.json  # writes lru_cache_driver.py
 ```
 
 Declare the contract in a test module, subclass the generated driver base in
