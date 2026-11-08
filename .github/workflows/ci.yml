@@ -224,6 +224,9 @@ jobs:
             .github/workflows/pr-title.yml
             .github/workflows/release-please.yml
             .github/workflows/release.yml
+            .github/workflows/dry-lint.yml
+            .github/workflows/dry-lint-judge.yml
+            .github/workflows/dry-lint-audit.yml
           head-sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
   gate:

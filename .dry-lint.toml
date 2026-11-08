@@ -1,0 +1,7 @@
+# Uses dry-lint's default tracked-file scope; review include/exclude before changing it.
+# Strict CI refuses incomplete judging; sweep can use a larger one-off budget.
+# The organization's TypeSafe judge (Jev), recall-first for agent-written code.
+preset = "agent"
+
+[budget]
+usd = 0.25
