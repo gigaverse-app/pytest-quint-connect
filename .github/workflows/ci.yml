@@ -45,6 +45,12 @@ jobs:
         uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
         with:
           config: .github/test-lanes.json
+      # GitHub often omits a run's pull_requests link. This marker binds the run to its PR and head, so the push
+      # after a squash merge can use this run's receipts and pytest-selective can advance its base between pushes.
+      # CI-esta matches the exact name.
+      - name: "PR evidence #${{ github.event.pull_request.number }} head ${{ github.event.pull_request.head.sha }}"
+        if: github.event_name == 'pull_request'
+        run: 'true'
       # Everything the tests lane executes or reads (tests/.gv-dependencies.yaml), bound into each receipt.
       - id: inputs
         run: echo "paths=$(jq -c . .github/validation-inputs.json)" >> "$GITHUB_OUTPUT"
