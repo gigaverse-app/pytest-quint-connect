@@ -32,7 +32,7 @@ instead of silently weakening a check.
 | `actions` | yes | Every action name a trace may contain, mapped to the implementation boundary it drives. An undeclared action in a trace fails; a declared action no history reaches fails the `coverage` case. |
 | `bounds` | yes | `seed`, `max_samples`, `max_steps` and `n_traces` for `quint run`. `n_traces` sampled histories become `sample-0` … `sample-N-1`. The seed is also passed to `quint test`. |
 | `witnesses` | no | Names of `run …Test` definitions. Each must produce exactly one trace and becomes a `witness-NAME` case. |
-| `mutants` | no | Planted bugs: deliberate faults your driver factory builds from `context.mutant`. Each becomes a `mutant-NAME` case that must be caught. An entry is a name, or an object with a `description`; see [mutants](#mutants). |
+| `mutants` | no | Planted fake bugs: deliberate faults your driver factory builds from `context.mutant`. Each becomes a `mutant-NAME` case that must be caught. An entry is a name, or an object with a `description`; see [mutants](#mutants). |
 | `bugs_found` | no | Real bugs this contract found and that were fixed, each optionally re-checked by a mutant; see [bugs found](#bugs-found). |
 | `convention` | no | `event` (default) or `mbt`; see [drivers](drivers.md#step-conventions). |
 | `event`, `action_field` | no | For the event convention: the state variable holding the step record (default `event`) and its action-name field (default `op`). |
@@ -49,8 +49,9 @@ instead of silently weakening a check.
 
 ## Mutants
 
-Reports call mutants *planted bugs* and explain the term on hover: deliberately broken
-copies of the code, each of which must make some history diverge. A `mutants` entry is
+A mutant is a planted fake bug: a deliberately broken copy of the code, used only during
+the test run. Each must make some history diverge, which proves the tests are meaningful.
+Reports say "mutants" and explain the term on hover. A `mutants` entry is
 a bare name or an object:
 
 ```json
@@ -95,10 +96,10 @@ it. Reports lead with these:
 | `mutant` | no | A declared mutant that reintroduces the bug. Every history is replayed through it, and the receipt records which diverged. |
 
 Unknown fields are rejected, `mutant` must name a declared mutant, and two bugs cannot
-name the same one. The report then says, for example, "planted bug
+name the same one. The report then says, for example, "mutant
 `shard-leaks-before-rejection` reintroduces it: 16 of 21 histories diverge". The count is what the run
 proves; the rest of the entry is your account, shown as written. Record only bugs that
-were really fixed. Without a `mutant` the report says no planted bug re-checks it.
+were really fixed. Without a `mutant` the report says no mutant re-checks it.
 
 Model and historical paths are relative to the manifest. Edit the model, manifest
 and driver together when behavior changes; review an intended weakening openly

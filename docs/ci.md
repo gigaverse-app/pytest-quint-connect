@@ -157,7 +157,7 @@ caught, actions covered) and, for each failure, the state and action where the c
 diverged, the differing fields and the command that reproduces it locally:
 
 ```text
-### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 30/34 cases passed · 2/2 planted bugs caught
+### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 30/34 cases passed · 2/2 mutants caught
 ... table ...
 lru-cache · witness-evictsLeastRecentlyUsedTest: observed state differs from the model at
 state 3, after fetch(key='a', value=0)
