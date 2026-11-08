@@ -159,6 +159,21 @@ engine came from and how the baseline was reproduced.
 Local hooks and the required PR check prevent new copies. The weekly audit
 records progress against the accepted backlog. [Setup and cleanup workflow](CONTRIBUTING.md#duplication).
 
+<!-- dry-lint-progress:start -->
+<a href="https://github.com/gigaverse-app/dry-lint"><picture><source media="(prefers-color-scheme: dark)" srcset="https://dry-lint-counter.gigaverse-oss.workers.dev/v1/sign.svg?theme=dark&amp;key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;cleaned=0&amp;remaining=5&amp;dismissed=0"><img alt="dry-lint in gigaverse-app/pytest-quint-connect: new duplicates kept out of its pull requests, 0 old duplicates cleaned up, 5 remaining" src="https://dry-lint-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;cleaned=0&amp;remaining=5&amp;dismissed=0" width="100%"></picture></a>
+
+**Reviewed duplication debt** · Counts from the committed baselines.
+
+| Accepted pairs | Remaining | Retired | Dismissed |
+| :-- | --: | --: | --: |
+| Functions | 5 | 0 | 0 |
+| Models | Not initialized | — | — |
+
+[Accepted backlog](.dry-lint/baseline.json) · [Weekly audit](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/dry-lint-audit.yml)
+
+Retired means a side was removed, or (functions only) the judge now finds the pair separate. It is not a count of refactors. Dismissals stay separate; an uninitialized model baseline is unknown.
+<!-- dry-lint-progress:end -->
+
 ## Related projects
 
 | Project | What it does |

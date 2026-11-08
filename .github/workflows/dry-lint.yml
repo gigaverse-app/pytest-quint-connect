@@ -34,46 +34,6 @@ jobs:
           comment: 'true'
           comment-on-clean: 'true'
 
-  # TEMPORARY (adoption PR only): the judge key exists only in Actions, so the initial accepted baseline is
-  # generated here by dry-lint's own `sweep --init` with the repository's judge, uploaded for review, then
-  # committed and this job removed. It never runs once .dry-lint/baseline.json exists.
-  bootstrap-baseline:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@v7
-      - name: Initialize the accepted baseline with a complete judged sweep
-        env:
-          TYPESAFE_AI_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
-          REPOSITORY_ID: ${{ github.repository_id }}
-        run: |
-          if [[ -f .dry-lint/baseline.json ]]; then
-            echo "Baseline already committed; nothing to initialize."
-            exit 0
-          fi
-          if [[ -z "$TYPESAFE_AI_API_KEY" ]]; then
-            echo "::error::The organization TYPESAFE_API_KEY secret is not available to this repository."
-            exit 1
-          fi
-          uvx --no-config --python 3.13 --from 'dry-lint @ git+https://github.com/gigaverse-app/dry-lint@v1' \
-            dry-lint sweep --init --budget-usd 5 --readme README.md \
-            --repository "$GITHUB_REPOSITORY" --repository-id "$REPOSITORY_ID" \
-            --report "$RUNNER_TEMP/init-report.json" --output "$RUNNER_TEMP/init-report.md"
-          cp "$RUNNER_TEMP"/init-report.* .dry-lint/
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: dry-lint-initial-baseline
-          path: |
-            .dry-lint/
-            README.md
-          include-hidden-files: true
-          if-no-files-found: ignore
-
   audit:
     # Manual full validation also exercises the scheduled ratchet before its first merge.
     if: github.event_name == 'workflow_dispatch'
