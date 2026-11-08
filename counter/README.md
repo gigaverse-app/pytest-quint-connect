@@ -39,8 +39,10 @@ npx wrangler dev   # the Worker and its Durable Object, locally
 - **Deploys:** [`.github/workflows/counter.yml`](../.github/workflows/counter.yml). A push to `main` that changes
   `counter/` runs the tests, then `wrangler deploy`, then checks the Worker answers. Nothing else deploys it.
 - **The token:** a Cloudflare API token from the `Edit Cloudflare Workers` template, limited to the `Gigaverse OSS`
-  account, stored as `CLOUDFLARE_API_TOKEN` on this repository's `counter` environment. dry-lint's `counter`
-  environment holds one for the same account.
+  account, stored as `CLOUDFLARE_API_TOKEN` on this repository's `counter` environment, which only `main` may deploy
+  from. Without it, the workflow tests the counter and warns that it did not deploy.
+- **By hand:** a maintainer signed in with `npx wrangler login` to an account that can see `Gigaverse OSS` deploys
+  with `npm ci && npx wrangler deploy` in `counter/`. The first deployment (November 8, 2026) was made this way.
 
 The Durable Object's data stays with the Worker named `pytest-quint-connect-counter`; deleting that Worker deletes the
 counts. Columns are only ever added (`worker.js` adds any missing one at zero when the Durable Object starts), and

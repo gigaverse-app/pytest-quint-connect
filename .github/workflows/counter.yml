@@ -45,18 +45,25 @@ jobs:
         with:
           node-version: 22
       - name: A token to deploy with
+        id: token
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error::Add a CLOUDFLARE_API_TOKEN secret to this repository's 'counter' environment (counter/README.md, Where it runs)."
-            exit 1
+            # Until the environment has a token, a maintainer deploys with `npx wrangler deploy` (counter/README.md).
+            echo "::warning::Not deployed: this repository's 'counter' environment has no CLOUDFLARE_API_TOKEN. Deploy by hand (counter/README.md, Where it runs) or add the token."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
-      - run: npx wrangler deploy
+      - if: steps.token.outputs.present == 'true'
+        run: npm ci
+      - if: steps.token.outputs.present == 'true'
+        run: npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       - name: The deployed counter answers
+        if: steps.token.outputs.present == 'true'
         run: |
           counter=https://pytest-quint-connect-counter.gigaverse-oss.workers.dev
           curl -fsS "$counter/v1/totals?deployed=$GITHUB_SHA" | node -e 'JSON.parse(require("fs").readFileSync(0)).pulls >= 0 || process.exit(1)'
