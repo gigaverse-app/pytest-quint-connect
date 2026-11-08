@@ -95,7 +95,8 @@ def test_receipt_text_cannot_break_the_comment(tmp_path: Path) -> None:
     path.write_text(json.dumps(receipt), encoding="utf-8")
     comment = render_comment(load([path]), repository=REPO)
     assert "`evil'\\| </sub><img src=x>`" in comment
-    assert all(line.count("|") - line.count("\\|") in (0, 8) for line in comment.splitlines() if line.startswith("|"))
+    # Every table row keeps its own column count: 4 cells in the contract table, 3 in the tally.
+    assert all(line.count("|") - line.count("\\|") in (4, 5) for line in comment.splitlines() if line.startswith("|"))
 
 
 def test_comment_stays_within_githubs_limit(tmp_path: Path) -> None:

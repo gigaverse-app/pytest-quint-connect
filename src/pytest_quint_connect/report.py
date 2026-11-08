@@ -193,19 +193,21 @@ def _headline(evidence: Evidence) -> str:
 
 
 def _table(rows: list[Row]) -> list[str]:
+    """Four columns, so the table fits a pull-request comment at any width; details sit under each contract."""
     lines = [
-        "| | Contract | Histories | Cases passed | Mutants caught | Actions covered | Quint |",
-        "| :-: | :-- | --: | --: | --: | :-: | :-- |",
+        "| | Contract | Cases passed | Mutants caught |",
+        "| :-: | :-- | --: | --: |",
     ]
     for row in rows:
-        seed = f" · seed {row.seed}" if row.seed is not None else ""
-        covered = {True: "✅", False: "❌", None: "–"}[row.covered]
+        seed = f", seed {row.seed}" if row.seed is not None else ""
+        covered = {True: "every action covered", False: "**an action never reached**", None: "coverage not run"}
+        details = (
+            f"{_plural(row.histories, 'history', 'histories')} ({_plural(row.witnesses, 'witness', 'witnesses')}, "
+            f"{_plural(row.samples, 'sample')}{seed}) · {covered[row.covered]} · Quint {row.quint or 'not run'}"
+        )
         lines.append(
-            f"| {ICON[row.status]} | {_code(row.contract)}<br><sub>{_code(row.test)}</sub> "
-            f"| {row.histories}<br><sub>{_plural(row.witnesses, 'witness', 'witnesses')}"
-            f" · {_plural(row.samples, 'sample')}{seed}</sub> "
-            f"| {row.passed}/{row.cases} | {row.mutants_detected}/{row.mutants} | {covered} "
-            f"| {_code(row.quint or 'not run')} |"
+            f"| {ICON[row.status]} | {_code(row.contract)} {_code(row.test)}<br><sub>{details}</sub> "
+            f"| {row.passed}/{row.cases} | {row.mutants_detected}/{row.mutants} |"
         )
     return lines
 
