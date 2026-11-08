@@ -203,7 +203,15 @@ class RoutingTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(
                     self.selected_files(path),
-                    ("scoped", ["tests/test_codegen.py", "tests/test_ledger.py", "tests/test_report.py"]),
+                    (
+                        "scoped",
+                        [
+                            "tests/test_codegen.py",
+                            "tests/test_ledger.py",
+                            "tests/test_report.py",
+                            "tests/test_scoreboard.py",
+                        ],
+                    ),
                 )
 
     def test_report_action_runs_the_job_that_uses_it(self) -> None:
