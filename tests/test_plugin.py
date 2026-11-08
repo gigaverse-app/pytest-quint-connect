@@ -38,6 +38,14 @@ def receipt(root: Path) -> dict:
     return json.loads((root / ".artifacts/quint-connect/results.json").read_text(encoding="utf-8"))
 
 
+STALE_READ_REGRESSION = {
+    "name": "stale-read",
+    "description": "get() returns the value without refreshing recency",
+    # Test data only: the example's stale-read cache was never shipped, so its committed manifest is not a regression.
+    "regression": {"ref": "example-only", "summary": "reads did not refresh recency"},
+}
+
+
 def edit_manifest(root: Path, **changes: object) -> None:
     path = root / "quint-connect.json"
     data = json.loads(path.read_text())
@@ -56,6 +64,10 @@ def test_complete_run_passes_and_records_evidence(pytester: pytest.Pytester, exa
     assert all(test["complete"] for test in contract["tests"])
     mutation = contract["tests"][0]["mutations"]["stale-read"]
     assert mutation["differences"] and mutation["detected_by"]
+    # An ordinary mutant stops at the first history that catches it.
+    assert "diverged" not in mutation and "histories" not in mutation
+    assert contract["mutants"] == ["stale-read"]
+    assert contract["mutant_specs"] == [json.loads((EXAMPLE / "quint-connect.json").read_text())["mutants"][0]]
     assert set(contract["sha256"]) == {"quint-connect.json", "lru.qnt", "lru_cache.py"}
     cases = ElementTree.parse(example / "junit.xml").getroot().iter("testcase")
     properties = {p.get("name") for case in cases for p in case.iter("property")}
@@ -184,7 +196,9 @@ def test_unreached_declared_action_fails_coverage(pytester: pytest.Pytester, exa
     assert_output(result, "declared actions never reached by any generated history: ['evict']")
 
 
-def test_surviving_mutant_fails(pytester: pytest.Pytester, example: Path) -> None:
+@pytest.mark.parametrize("mutant", ["stale-read", STALE_READ_REGRESSION], ids=["ordinary", "regression"])
+def test_surviving_mutant_fails(pytester: pytest.Pytester, example: Path, mutant: object) -> None:
+    edit_manifest(example, mutants=[mutant])
     pytester.makeconftest(
         (EXAMPLE / "conftest.py").read_text()
         + "\n\n@pytest.fixture\ndef lru_driver():\n    return lambda context: CacheDriver(IMPLEMENTATIONS['list'])\n"
@@ -195,7 +209,30 @@ def test_surviving_mutant_fails(pytester: pytest.Pytester, example: Path) -> Non
     assert receipt(example)["contracts"][0]["tests"][0]["findings"] == {"mutant-stale-read": {"survived": 15}}
 
 
-def test_mutant_setup_error_is_not_detection(pytester: pytest.Pytester, example: Path) -> None:
+def test_regression_mutant_replays_every_history(pytester: pytest.Pytester, example: Path) -> None:
+    edit_manifest(example, mutants=[STALE_READ_REGRESSION])
+    result = pytester.runpytest("-k", "test_lru_cache and mutant")
+    result.assert_outcomes(passed=1)
+    (contract,) = receipt(example)["contracts"]
+    assert contract["mutant_specs"] == [STALE_READ_REGRESSION]
+    mutation = contract["tests"][0]["mutations"]["stale-read"]
+    # Every history ran: the diverging ones are exactly the cases the buggy cache fails when it is the
+    # implementation under test, and the first of them is where the mutant was caught.
+    pytester.runpytest("-k", "test_lru_cache and not mutant and not coverage", "--lru-implementation", "stale-read")
+    failing = [
+        case
+        for case, outcome in receipt(example)["contracts"][0]["tests"][0]["outcomes"].items()
+        if outcome == "failed"
+    ]
+    assert mutation["histories"] == 15
+    assert sorted(mutation["diverged"]) == sorted(failing) and len(failing) == 4
+    assert mutation["detected_by"] == mutation["diverged"][0] == "witness-evictsLeastRecentlyUsedTest"
+    assert (mutation["state"], mutation["action"]) == (3, "fetch")
+
+
+@pytest.mark.parametrize("mutant", ["stale-read", STALE_READ_REGRESSION], ids=["ordinary", "regression"])
+def test_mutant_setup_error_is_not_detection(pytester: pytest.Pytester, example: Path, mutant: object) -> None:
+    edit_manifest(example, mutants=[mutant])
     pytester.makeconftest(
         (EXAMPLE / "conftest.py").read_text()
         + "\n\n@pytest.fixture\ndef lru_driver():\n"

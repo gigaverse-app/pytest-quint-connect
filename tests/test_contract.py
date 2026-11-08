@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from lru_support import MANIFEST
 
-from pytest_quint_connect.contract import ContractError, load_contract
+from pytest_quint_connect.contract import ContractError, Mutant, Regression, load_contract
 
 
 def write(tmp_path: Path, **changes: object) -> Path:
@@ -48,11 +48,48 @@ def test_example_manifest_loads() -> None:
         ({"sources": ["nope.py"]}, "source missing"),
         ({"observe": []}, "observe"),
         ({"attest": {"package": "x"}}, "attest"),
+        ({"mutants": "stale-read"}, "list of names or mutant objects"),
+        ({"mutants": [""]}, "must be a name or an object"),
+        ({"mutants": ["a", {"name": "a", "description": "again"}]}, "repeats"),
+        ({"mutants": [{"name": "a"}]}, "exactly the fields"),
+        ({"mutants": [{"name": "a", "description": "x", "severity": "high"}]}, "exactly the fields"),
+        ({"mutants": [{"name": "a", "description": ""}]}, "non-empty strings"),
+        ({"mutants": [{"name": "a", "description": "x", "regression": {"ref": "abc"}}]}, "regression must be"),
+        (
+            {"mutants": [{"name": "a", "description": "x", "regression": {"ref": "abc", "summary": "s", "url": "u"}}]},
+            "regression must be",
+        ),
     ],
 )
 def test_invalid_manifests_are_rejected(tmp_path: Path, change: dict, message: str) -> None:
     with pytest.raises(ContractError, match=message):
         load_contract(write(tmp_path, **change))
+
+
+def test_mutants_are_names_or_described_objects(tmp_path: Path) -> None:
+    regression = {"ref": "389c5bb", "summary": "reads did not refresh recency"}
+    contract = load_contract(
+        write(
+            tmp_path,
+            mutants=[
+                "plain",
+                {"name": "described", "description": "drops the newest entry"},
+                {"name": "stale-read", "description": "reads skip the recency update", "regression": regression},
+            ],
+        )
+    )
+    assert contract.mutants == ("plain", "described", "stale-read")
+    assert contract.case_ids()[-4:] == ["mutant-plain", "mutant-described", "mutant-stale-read", "coverage"]
+    assert contract.mutant_specs == (
+        Mutant("plain"),
+        Mutant("described", "drops the newest entry"),
+        Mutant("stale-read", "reads skip the recency update", Regression("389c5bb", "reads did not refresh recency")),
+    )
+    assert [mutant.as_json() for mutant in contract.mutant_specs] == [
+        {"name": "plain"},
+        {"name": "described", "description": "drops the newest entry"},
+        {"name": "stale-read", "description": "reads skip the recency update", "regression": regression},
+    ]
 
 
 def test_mbt_convention_without_witnesses_is_allowed(tmp_path: Path) -> None:

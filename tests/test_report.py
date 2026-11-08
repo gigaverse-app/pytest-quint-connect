@@ -2,7 +2,10 @@
 
 The fixtures in data/receipts are results.json files the plugin wrote for the LRU example
 (complete, a stale-read fault, a ``-k`` filtered run and a replay), with the checkout path
-replaced by /repo (scripts/normalize_receipt.py).
+replaced by /repo (scripts/normalize_receipt.py). ``lru-regression.json`` is a complete run with
+the example's manifest marking ``stale-read`` as a regression (``ref: example-only``): the example
+cache was never shipped, so only this test data, not the committed manifest, may call it one.
+The failed, partial and replay fixtures predate ``mutant_specs`` and stand for older receipts.
 """
 
 import json
@@ -192,3 +195,73 @@ def test_cli_collects_receipts_by_glob_and_keeps_their_directories(tmp_path: Pat
     assert status.read_text(encoding="utf-8") == "failed"
     assert len(list(artifact.glob("*/lru-cache/mismatch-x.json"))) == 1
     assert receipt_paths([f"{tmp_path.as_posix()}/nothing/**/results.json"]) == []
+
+
+def catches_section(text: str) -> list[str]:
+    """The bullet lines under the catches heading."""
+    _, _, rest = text.partition("catches**\n\n")
+    return rest.split("\n\n", 1)[0].splitlines()
+
+
+def test_comment_says_what_each_mutant_catches_and_where() -> None:
+    comment = render_comment(evidence("passed"), repository=REPO)
+    # Both test functions caught it in the same place, so they share one line.
+    assert catches_section(comment) == [
+        "- `stale-read`: get() returns the value but does not refresh recency, so a just-read entry can be "
+        "evicted next. Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    ]
+    assert comment.index("| ✅ | `lru-cache`") < comment.index("**What this contract catches**")
+    assert catches_section(render_readme(evidence("passed"))) == catches_section(comment)
+
+
+def test_regression_mutant_leads_with_the_bug_and_its_diverging_histories() -> None:
+    comment = render_comment(evidence("regression"), repository=REPO)
+    (line,) = catches_section(comment)
+    assert line.startswith(
+        "- **Catches the bug fixed in example-only**: reads did not refresh recency (test data: this cache was "
+        "never shipped). 4 of 15 histories diverge when mutant `stale-read` (get() returns the value"
+    )
+    assert line.endswith(
+        "first caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    )
+    assert line in render_readme(evidence("regression"))
+
+
+def test_receipts_without_mutant_specs_still_say_where_each_mutant_was_caught() -> None:
+    # lru-failed.json was written before receipts carried mutant descriptions.
+    assert catches_section(render_comment(evidence("failed"), repository=REPO)) == [
+        "- `stale-read`: Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    ]
+    assert catches_section(render_comment(evidence("partial"), repository=REPO)) == [
+        "- `stale-read`: **Not caught**: not run in this session."
+    ]
+
+
+def test_tests_that_disagree_get_a_line_each_and_a_missed_regression_says_so(tmp_path: Path) -> None:
+    receipt = json.loads((RECEIPTS / "lru-regression.json").read_text(encoding="utf-8"))
+    refactor = receipt["contracts"][0]["tests"][1]
+    refactor["mutations"] = {}
+    refactor["outcomes"]["mutant-stale-read"] = "failed"
+    refactor["findings"] = {"mutant-stale-read": {"survived": 15}}
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    first, second = catches_section(render_comment(load([path]), repository=REPO))
+    assert first.startswith("- **Catches the bug fixed in example-only**") and first.endswith(
+        "<sub>`test_lru_contract.py::test_lru_cache`</sub>"
+    )
+    assert second.startswith("- **Does not catch the bug fixed in example-only**: reads did not refresh recency")
+    assert (
+        "which reintroduces it, survived all 15 histories. <sub>`test_lru_contract.py::test_ordered_refactor`" in second
+    )
+
+
+def test_manifest_text_cannot_inject_markup_or_mentions(tmp_path: Path) -> None:
+    receipt = json.loads((RECEIPTS / "lru-regression.json").read_text(encoding="utf-8"))
+    (spec,) = receipt["contracts"][0]["mutant_specs"]
+    spec["description"] = "<img src=x> pings\n@octocat"
+    spec["regression"]["ref"] = "see [this](javascript:alert(1))"
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    (line,) = catches_section(render_comment(load([path]), repository=REPO))
+    assert "&lt;img src=x&gt; pings &#64;octocat" in line
+    assert "fixed in `see [this](javascript:alert(1))`" in line

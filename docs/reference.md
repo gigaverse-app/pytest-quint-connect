@@ -35,12 +35,15 @@ it never runs Quint or imports the project. Receipts under a plugin `_work` dire
 skipped: they belong to sessions a driver ran inside one history.
 
 - **Comment**: one table row per contract test (histories, cases passed, mutants caught,
-  actions covered), then each failure with its state, action and differences, and a
+  actions covered), then what the contracts catch: each mutant with its description and
+  where it was first caught (trace, state, action), with `regression` mutants first and
+  the number of histories that diverge through them. Then each failure with its state,
+  action and differences, and a
   `pytest 'NODE[CASE]'` command that reproduces it. The command regenerates the same
   histories from the manifest's seed. Statuses stay distinct: `failed`, `interrupted`
   (the session never finished), `partial` (filtered), `not run` (collected, nothing
   selected), `replay-only` and `passed`.
-- **README block**: the same table and a badge, between the lines
+- **README block**: the same table, the same "what this contract catches" list and a badge, between the lines
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->`, which the
   document must already contain. Text outside them is never touched. The block holds no
   commit, run or failure detail, so it changes only when the evidence changes.
@@ -129,7 +132,7 @@ and `^` in arguments.
 | --- | --- |
 | `witness-NAME` | Every state of that witness's trace matches. |
 | `sample-N` | Every state of sampled trace `N` matches. |
-| `mutant-NAME` | Some generated trace, replayed through the mutant, mismatches. |
+| `mutant-NAME` | Some generated trace, replayed through the mutant, mismatches. A `regression` mutant replays every trace and records each that diverged. |
 | `coverage` | Every declared action occurs in some generated trace. |
 | `replay-FILE` | (replay mode only) Every state of the saved trace matches. |
 
@@ -145,12 +148,17 @@ contracts starts, and finalized at the end:
 | `failed` | A case failed or errored, or generation failed. |
 | `running` | The session did not finish. |
 
-Each contract entry records the manifest, bounds, Quint version, the exact Quint
-commands, trace paths, SHA-256 of the manifest, model, historical model and sources,
+Each contract entry records the manifest, bounds, Quint version, `mutants` (names) and
+`mutant_specs` (each mutant as the manifest's object form, with its `description` and
+`regression` when given), the exact Quint commands, trace paths, SHA-256 of the manifest, model, historical model and sources,
 and per test: outcomes, completeness, steps replayed, imported modules (with
 `attest`), each mutant's detecting trace with its differences, and `findings`: for a
 failed history its state, action, arguments, first differences and mismatch file, and for
-a surviving mutant how many histories it survived. `root` is the session's rootdir, and
+a surviving mutant how many histories it survived. A detected mutant's entry in
+`mutations` says where it was first caught: `detected_by` (the case id of the trace),
+`state`, `action`, `arguments` and the differences; a `regression` mutant's entry adds
+`histories` (how many were replayed) and `diverged` (the case ids that mismatched, in
+generation order). `root` is the session's rootdir, and
 the mismatch paths are relative to it. Beside it, each
 contract's directory holds the ITF traces, Quint logs and a `mismatch-TEST-CASE.json`
 for every failed history. Upload the whole directory from CI, including on failure.

@@ -73,7 +73,9 @@ every run must catch, and seeded bounds, so each run regenerates the same histor
     "inspect": "read cache.items() without changing it"
   },
   "witnesses": ["evictsLeastRecentlyUsedTest", "overwriteRefreshesTest", "missKeepsContentsTest"],
-  "mutants": ["stale-read"],
+  "mutants": [
+    {"name": "stale-read", "description": "get() returns the value but does not refresh recency, so a just-read entry can be evicted next"}
+  ],
   "bounds": {"seed": 7, "max_samples": 200, "max_steps": 8, "n_traces": 12},
   "sources": ["lru_cache.py"]
 }

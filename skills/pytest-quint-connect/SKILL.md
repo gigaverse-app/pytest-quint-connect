@@ -27,7 +27,10 @@ Copy the shape of
    expected value in the driver. Return a factory from the driver fixture so each
    history gets fresh state; use other fixtures (database, `tmp_path`) as needed.
 4. **Add mutants** for each property that matters: a deliberately wrong variant built
-   from `context.mutant`. Confirm each is detected. A mutant that survives means the
+   from `context.mutant`, declared as `{"name", "description"}` so reports say what it
+   catches. When a mutant reproduces a real defect that shipped and was fixed, add
+   `"regression": {"ref": "<fix commit or PR>", "summary": "<one line>"}`; never mark an
+   invented fault as a regression. Confirm each is detected. A mutant that survives means the
    observation or the histories cannot see that fault: fix that, do not delete the mutant.
 5. **Declare the test** with `quint_contract(manifest, driver=…)`, list the contract
    in `quint_required_contracts`, and run `pytest --quint-require-complete` in CI with

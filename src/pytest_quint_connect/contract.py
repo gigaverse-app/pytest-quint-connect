@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-__all__ = ["Bounds", "Contract", "ContractError", "load_contract"]
+__all__ = ["Bounds", "Contract", "ContractError", "Mutant", "Regression", "load_contract"]
 
 DEFAULT_QUINT_VERSION = "0.33.1"
 
@@ -53,6 +53,36 @@ class Bounds:
 
 
 @dataclass(frozen=True)
+class Regression:
+    """A real, previously shipped defect that a mutant reproduces: where it was fixed, in one line."""
+
+    ref: str
+    summary: str
+
+
+@dataclass(frozen=True)
+class Mutant:
+    """A deliberate fault the driver factory builds from ``HistoryContext.mutant``.
+
+    ``description`` says what the fault does. A ``regression`` mutant reproduces a shipped
+    defect; every history is replayed through it so the receipt can say how many diverge.
+    """
+
+    name: str
+    description: str | None = None
+    regression: Regression | None = None
+
+    def as_json(self) -> dict[str, Any]:
+        """The manifest's object form, without the fields it left out."""
+        entry: dict[str, Any] = {"name": self.name}
+        if self.description is not None:
+            entry["description"] = self.description
+        if self.regression is not None:
+            entry["regression"] = {"ref": self.regression.ref, "summary": self.regression.summary}
+        return entry
+
+
+@dataclass(frozen=True)
 class Attestation:
     """Require every imported module of ``package`` to come from ``source``."""
 
@@ -73,7 +103,7 @@ class Contract:
     actions: Mapping[str, str]
     bounds: Bounds
     witnesses: tuple[str, ...]
-    mutants: tuple[str, ...]
+    mutant_specs: tuple[Mutant, ...]
     convention: str
     event: str
     action_field: str
@@ -89,6 +119,11 @@ class Contract:
     sources: tuple[Path, ...]
     attest: Attestation | None
     limits: tuple[str, ...]
+
+    @property
+    def mutants(self) -> tuple[str, ...]:
+        """Mutant names in manifest order: what ``HistoryContext.mutant`` and case ids carry."""
+        return tuple(mutant.name for mutant in self.mutant_specs)
 
     @property
     def directory(self) -> Path:
@@ -153,6 +188,40 @@ def _names(data: Mapping[str, Any], key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _strings(value: object, keys: tuple[str, ...], what: str) -> dict[str, str]:
+    """An object with exactly ``keys``, each a non-empty string."""
+    if not isinstance(value, dict) or set(value) != set(keys):
+        raise ContractError(f"{what} must be an object with exactly the fields {list(keys)}")
+    if not all(isinstance(item, str) and item for item in value.values()):
+        raise ContractError(f"{what}: {', '.join(keys)} must be non-empty strings")
+    return value
+
+
+def _mutant(entry: object) -> Mutant:
+    """A ``mutants`` entry: a name, or ``{"name", "description", "regression"?}``."""
+    if isinstance(entry, str) and entry:
+        return Mutant(entry)
+    if not isinstance(entry, dict):
+        raise ContractError(f"a mutants entry must be a name or an object, got {entry!r}")
+    what = f"mutant {entry.get('name')!r}"
+    fields = _strings({key: item for key, item in entry.items() if key != "regression"}, ("name", "description"), what)
+    regression = None
+    if "regression" in entry:
+        found = _strings(entry["regression"], ("ref", "summary"), f"{what} regression")
+        regression = Regression(found["ref"], found["summary"])
+    return Mutant(fields["name"], fields["description"], regression)
+
+
+def _mutants(data: Mapping[str, Any]) -> tuple[Mutant, ...]:
+    value = data.get("mutants", [])
+    if not isinstance(value, list):
+        raise ContractError("manifest field 'mutants' must be a list of names or mutant objects")
+    mutants = tuple(_mutant(entry) for entry in value)
+    if len({mutant.name for mutant in mutants}) != len(mutants):
+        raise ContractError("manifest field 'mutants' repeats a name")
+    return mutants
+
+
 def _positive(bounds: Mapping[str, Any], key: str, *, minimum: int = 1) -> int:
     value = bounds.get(key)
     if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
@@ -204,7 +273,7 @@ def load_contract(manifest: Path) -> Contract:
         n_traces=_positive(raw_bounds, "n_traces", minimum=0),
     )
     witnesses = _names(data, "witnesses")
-    mutants = _names(data, "mutants")
+    mutants = _mutants(data)
     if not witnesses and bounds.n_traces == 0:
         raise ContractError("a contract needs at least one witness or one sampled trace")
 
@@ -261,7 +330,7 @@ def load_contract(manifest: Path) -> Contract:
         actions=dict(actions),
         bounds=bounds,
         witnesses=witnesses,
-        mutants=mutants,
+        mutant_specs=mutants,
         convention=convention,
         event=_string(data, "event", "event"),
         action_field=_string(data, "action_field", "op"),

@@ -18,10 +18,10 @@
     "faultAfterSuccessFailsTest"
   ],
   "mutants": [
-    "filtered-counts-as-complete",
-    "replay-counts-as-complete",
-    "failed-session-keeps-old-receipt",
-    "require-complete-ignored"
+    {"name": "filtered-counts-as-complete", "description": "a -k run that skipped cases is judged as if every case ran"},
+    {"name": "replay-counts-as-complete", "description": "replaying one saved trace no longer marks the session incomplete"},
+    {"name": "failed-session-keeps-old-receipt", "description": "a failed or still-running session leaves the previous results.json in place"},
+    {"name": "require-complete-ignored", "description": "--quint-require-complete is accepted but never changes the exit code"}
   ],
   "bounds": {"seed": 11, "max_samples": 300, "max_steps": 3, "n_traces": 4},
   "sources": [

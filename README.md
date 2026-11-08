@@ -149,7 +149,8 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
   never runs Quint; a Quint failure is a setup error for every case of that contract.
 - **Mutation controls.** A mutant passes only when some generated history produces
   an observed-state mismatch. An exception while building or running the mutant fails
-  the case: it is not detection.
+  the case: it is not detection. A mutant marked as a `regression` of a shipped bug is
+  replayed through every history, and the report says how many diverge.
 - **Complete or not.** With `--quint-require-complete`, the session fails unless every
   contract in `quint_required_contracts` ran every case and passed. A `-k`-filtered run
   is recorded as `partial`, a replay as `replay-only`; a crash leaves `running`, never
