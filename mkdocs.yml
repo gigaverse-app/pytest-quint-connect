@@ -60,6 +60,9 @@ validation:
     anchors: warn
 extra:
   published_sources:
+  - docs/why.md
+  - docs/tutorial.md
+  - docs/ci.md
   - examples/lru_cache/README.md
   - skills/pytest-quint-connect/SKILL.md
   - docs/manifest.md
@@ -74,6 +77,9 @@ extra:
 nav:
 - Home: index.md
 - Getting started:
+  - Why pytest-quint-connect: docs/why.md
+  - "Tutorial: your first contract": docs/tutorial.md
+  - Run contracts in CI: docs/ci.md
   - "Example: an LRU cache contract": examples/lru_cache/README.md
   - Let your agent set it up: skills/pytest-quint-connect/SKILL.md
 - Write a contract:

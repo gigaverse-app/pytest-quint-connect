@@ -37,7 +37,8 @@ Copy the shape of
    current. Add the `<!-- pytest-quint-connect:start -->` / `<!-- pytest-quint-connect:end -->`
    lines to the README, fill them once with
    `pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md`,
-   and commit the result. See [the action](../../docs/reference.md#github-action).
+   and commit the result
+   ([CI setup](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/ci.md)).
 6. **On a mismatch**, read the reported state, action and field differences, then
    rerun the printed `--quint-replay` command. Decide whether the code or the model is
    wrong; never weaken the model, drop a witness or remove an observed field to pass.

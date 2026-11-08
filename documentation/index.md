@@ -16,8 +16,15 @@ This is a community Python integration in the spirit of
 [Quint's model-based testing guide](https://quint.sh/docs/model-based-testing).
 It is not an official Quint project and is not endorsed by its maintainers.
 
-[Walk through the example](../examples/lru_cache/README.md){ .md-button .md-button--primary }
-[Write a manifest](../docs/manifest.md){ .md-button }
+**Why it matters now:** coding agents change code faster than anyone can review it.
+Write your high-level rules once as a small Quint model you can test in the abstract;
+pytest-quint-connect connects your implementation to it and replays the model's
+histories on every run. Every change, by a person or an agent, is checked against
+the rules, not against tests the same change may have rewritten.
+
+[Why use it](../docs/why.md){ .md-button .md-button--primary }
+[Tutorial: your first contract](../docs/tutorial.md){ .md-button }
+[Run it in CI](../docs/ci.md){ .md-button }
 
 ## Start
 
@@ -26,7 +33,7 @@ its locked Quint 0.33.1 into a per-user cache; pass `--quint PATH` or set `QUINT
 to use your own.
 
 ```bash
-pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"
+pip install pytest-quint-connect
 pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
 ```
 
@@ -65,6 +72,9 @@ flowchart LR
 
 | To | Read |
 | --- | --- |
+| See the benefits, with real output | [Why pytest-quint-connect](../docs/why.md) |
+| Build a contract step by step | [Tutorial](../docs/tutorial.md) |
+| Make it a required CI check | [Run contracts in CI](../docs/ci.md) |
 | Write a manifest | [Contract manifest](../docs/manifest.md) |
 | Write a driver and choose a step convention | [Drivers](../docs/drivers.md) |
 | Know what a passing run does and does not prove | [What a passing run shows](../docs/limits.md) |

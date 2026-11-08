@@ -49,15 +49,6 @@ workflow intentionally does not skip existing uploads: investigate a partial
 release instead of silently treating it as successful. Published versions are
 immutable; fix release defects with a new version and document any yanked release.
 
-## After the first release
-
-Replace the README's provisional Git install command with
-`pip install pytest-quint-connect` for normal releases (use `--pre` only while
-prereleases are the only available versions). Add a live
-PyPI version badge linked to the project page once the package is available.
-Keep the Git source-install alternative. Do not claim PyPI availability or show
-a success badge before verifying the published artifact.
-
 ## Conventional Commits to PyPI
 
 [Release Please](https://github.com/googleapis/release-please-action) owns version

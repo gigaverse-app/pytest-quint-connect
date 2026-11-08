@@ -2,6 +2,7 @@
 
 # pytest-quint-connect
 
+[![PyPI](https://img.shields.io/pypi/v/pytest-quint-connect?logo=pypi&logoColor=white)](https://pypi.org/project/pytest-quint-connect/)
 [![CI](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Quint 0.33.1](https://img.shields.io/badge/Quint-0.33.1-6E56CF)](https://quint.sh)
@@ -14,6 +15,13 @@
 generates histories from your specification; pytest-quint-connect replays every
 step against your real Python implementation and compares the state you read back
 with the state the model expects.
+
+**Why:** coding agents change code faster than anyone can review it. Write your
+high-level rules once as a small Quint model you can test in the abstract;
+pytest-quint-connect connects your implementation to it, so every change, by a
+person or an agent, is checked against the rules rather than against tests the same
+change may have rewritten. [Why, with real output](docs/why.md) ·
+[Tutorial](docs/tutorial.md) · [Run it in CI](docs/ci.md)
 
 [Read the documentation](https://pytest-quint-connect.readthedocs.io/en/latest/) · [Related tools](https://pytest-quint-connect.readthedocs.io/en/latest/ecosystem/)
 
@@ -44,8 +52,11 @@ locked Quint 0.33.1 into a per-user cache. To use your own Quint, pass `--quint 
 or set `QUINT`.
 
 ```bash
-pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"
+pip install pytest-quint-connect
 ```
+
+To try unreleased changes, install from Git instead:
+`pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"`.
 
 Generate a typed driver base from the model, then declare the contract:
 
@@ -152,6 +163,9 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 
 | To | Read |
 | --- | --- |
+| See why, with real output | [docs/why.md](docs/why.md) |
+| Build your first contract step by step | [docs/tutorial.md](docs/tutorial.md) |
+| Make contracts a required CI check | [docs/ci.md](docs/ci.md) |
 | Set it up with an agent | [skills/pytest-quint-connect/SKILL.md](skills/pytest-quint-connect/SKILL.md) |
 | Write a manifest | [docs/manifest.md](docs/manifest.md) |
 | Write a driver and choose a step convention | [docs/drivers.md](docs/drivers.md) |
