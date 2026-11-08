@@ -41,3 +41,7 @@ dependencies:
       - "//src/pytest_quint_connect/toolchain/*.json"
     kind: content
     reason: The release test checks that every recorded version and the bundled Quint lock agree.
+  - readers: ["test_ledger.py"]
+    inputs: ["//docs/assets/sticky-banner*.svg"]
+    kind: content
+    reason: The comment may only name banners the action's own revision ships.

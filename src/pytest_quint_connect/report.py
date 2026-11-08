@@ -415,12 +415,21 @@ def _catches(rows: list[Row]) -> list[str]:
 SPREAD = '<img width="2000" height="1" align="right" alt="">'
 
 
-def _banner(assets: str) -> list[str]:
+# Quinty the starfish stamps approval when every contract passed and traces the failing path when one
+# failed; otherwise (filtered, replayed, interrupted, nothing ran) Quinty inspects the contract.
+BANNERS = {
+    "passed": ("-passed", "every history matched the model"),
+    "failed": ("-failed", "the code left the model's path"),
+}
+
+
+def _banner(assets: str, status: str | None) -> list[str]:
     """The full-width banner, light or dark with the reader's theme, served from the action's own revision."""
+    variant, words = BANNERS.get(status or "", ("", "contract report"))
     return [
         "<picture>",
-        f'  <source media="(prefers-color-scheme: dark)" srcset="{assets}/sticky-banner-dark.svg">',
-        f'  <img alt="pytest-quint-connect" src="{assets}/sticky-banner-light.svg" width="100%">',
+        f'  <source media="(prefers-color-scheme: dark)" srcset="{assets}/sticky-banner{variant}-dark.svg">',
+        f'  <img alt="pytest-quint-connect: {words}" src="{assets}/sticky-banner{variant}-light.svg" width="100%">',
         "</picture>",
         "",
     ]
@@ -460,7 +469,7 @@ def render_comment(
     pull request's history, rendered as the headline tally and carried forward as hidden JSON.
     """
     status = evidence.status
-    lines = _banner(assets) if assets else []
+    lines = _banner(assets, status) if assets else []
     lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
