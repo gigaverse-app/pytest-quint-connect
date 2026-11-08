@@ -14,6 +14,7 @@ pytest --quint-require-complete        # 34 passed: both implementations
 pytest --lru-implementation stale-read # fails with a field-level diff and a replay command
 ```
 
+[The tutorial](../../docs/tutorial.md) builds this example step by step.
 [quint-connect.json](quint-connect.json) declares the contract,
 [conftest.py](conftest.py) the driver, and [test_lru_contract.py](test_lru_contract.py)
 the two contract tests.
