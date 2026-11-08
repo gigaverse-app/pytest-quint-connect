@@ -105,8 +105,12 @@ block is Markdown and HTML: next to a `README.rst`, keep it in a Markdown file s
 `contracts/README.md` and set `readme` to it.
 
 Pin the action to the version of pytest-quint-connect your tests install. It renders
-with its own copy of the code, so another version can render the README block
-differently and fail the check. With commit SHAs, write `report@<sha>  # vX.Y.Z`.
+with its own copy of the code, so another version can lay the README block out
+differently. The block's `<!-- pytest-quint-connect:evidence FINGERPRINT renderer VERSION -->`
+line records what it shows and which version wrote it: when the text differs and the
+versions differ, the check compares fingerprints, so a new layout of the same evidence is
+`current` (with a note to refresh) and only changed evidence is `stale`. A block written
+before that line existed is `unverifiable` until refreshed once. With commit SHAs, write `report@<sha>  # vX.Y.Z`.
 
 | Input | Default | |
 | --- | --- | --- |
