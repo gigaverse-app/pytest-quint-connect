@@ -6,6 +6,7 @@ commit and every failure detail, so it changes only when the evidence changes: a
 can be checked against a fresh run the way ``codegen --check`` checks a generated driver.
 """
 
+import ast
 import difflib
 import glob
 import hashlib
@@ -378,10 +379,17 @@ def _credit(rows: list[Row]) -> list[str]:
     if not found:
         return []
     fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
-    these = "these contracts" if len(_by_contract(rows)) > 1 else "this contract"
-    return [
-        f"<sub>🏅 Earlier, {these} found {_plural(len(found), 'real bug')}, since fixed in {', '.join(fixes)}.</sub>"
+    these = "These contracts" if len(_by_contract(rows)) > 1 else "This contract"
+    lines = [
+        "> [!TIP]",
+        f"> **🏅 {these} found {_plural(len(found), 'real bug')}, since fixed in {', '.join(fixes)}.**",
     ]
+    shown = found[:5]
+    for _, bug in shown:
+        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')} (fixed in {_ref(bug.get('fixed_in'))})")
+    if len(found) > len(shown):
+        lines.append(f"> - …and {len(found) - len(shown)} more, in the table below")
+    return [*lines, ""]
 
 
 def _collapsible(summary: str, body: list[str], *, expanded: bool = False) -> list[str]:
@@ -424,43 +432,179 @@ def _directory(row: Row, repository: Path) -> str | None:
     return None if Path(shown).is_absolute() else shown
 
 
-def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
-    finding = failure.finding
-    lines = [f"**{_code(row.contract)}** · {_code(failure.case)}"]
-    if "survived" in finding:
-        survived = finding["survived"]
-        lines.append(
-            f": the mutant (a planted fake bug) survived all {survived} histories; no observation differed from the model."
-        )
-    elif "state" in finding:
-        action = _call(finding.get("action"), finding.get("arguments"))
-        lines.append(f": observed state differs from the model at state {finding['state']}, after {action}")
-        details = [f"\n- {_code(line)}" for line in finding.get("differences", [])]
-        extra = int(finding.get("difference_count", 0)) - len(details)
-        if extra > 0:
-            details.append(f"\n- and {_plural(extra, 'more difference')}")
-        if finding.get("mismatch"):
-            details.append(f"\n\n<sub>Full mismatch in the run's artifact: {_code(finding['mismatch'])}</sub>")
-        lines += details
-    else:
-        lines.append(": failed; see the job log.")
+def _reproduce(row: Row, failure: Failure, repository: Path) -> str:
+    """The command that reruns exactly this case; it regenerates the same histories from the manifest's seed."""
     # Run from the session's rootdir; a configuration chosen with -c must be named again.
     config = f"-c {shlex.quote(row.config_file)} " if row.config_file else ""
     command = f"pytest {config}" + shlex.quote(f"{row.test}[{failure.case}]")
     directory = _directory(row, repository)
     if directory and directory != ".":
         command = f"cd {shlex.quote(directory)}\n{command}"
-    command = command.replace("```", "'''")
-    return [
-        "".join(lines),
+    return command.replace("```", "'''")
+
+
+def _clearest(failures: list[Failure]) -> Failure:
+    """The failure to read first: a named witness before a random sample, then the shortest path to it."""
+
+    def rank(failure: Failure) -> tuple[int, int, str]:
+        state = failure.finding.get("state")
+        return (
+            0 if failure.case.startswith("witness-") else 1,
+            state if isinstance(state, int) else 10**9,
+            failure.case,
+        )
+
+    return min(failures, key=rank)
+
+
+_DIFFERENCE = re.compile(r"^(?P<field>.*?): (?P<reason>[^;]*); expected: (?P<expected>.*?); actual: (?P<actual>.*)$")
+
+
+def _differences(finding: dict[str, Any]) -> list[str]:
+    """What the code observed against what the model expects, one row per differing field."""
+    rows, loose = [], []
+    for line in finding.get("differences", []):
+        match = _DIFFERENCE.match(str(line))
+        if match:
+            rows.append(
+                f"| {_code(match['field'] or '(observation)')} | {_code(match['expected'])} | {_code(match['actual'])} |"
+            )
+        else:
+            loose.append(f"- {_code(line)}")
+    lines = [f"| {SPREAD}Field | Model expects | Code observed |", "| :-- | :-- | :-- |", *rows, ""] if rows else []
+    lines += loose
+    extra = int(finding.get("difference_count", 0)) - len(rows) - len(loose)
+    if extra > 0:
+        lines.append(f"<sub>…and {_plural(extra, 'more difference')}.</sub>")
+    if finding.get("mismatch"):
+        lines.append(f"<sub>Full mismatch in the run's artifact: {_code(finding['mismatch'])}</sub>")
+    return [*lines, ""]
+
+
+def _what(failure: Failure) -> str:
+    """One line: where this history left the model."""
+    finding = failure.finding
+    if "survived" in finding:
+        return f"the mutant (a planted fake bug) survived all {finding['survived']} histories; no observation differed from the model"
+    if "state" in finding:
+        action = _call(finding.get("action"), finding.get("arguments"))
+        return f"the code left the model at state {finding['state']}, after {action}"
+    return "failed; see the job log"
+
+
+def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
+    """One failing history in full: where it diverged, each differing field, and the command that reruns it."""
+    lines = [f"**{_code(row.contract)}** · {_code(failure.case)}: {_what(failure)}.", ""]
+    if "state" in failure.finding:
+        lines += _differences(failure.finding)
+    return [*lines, "```bash", _reproduce(row, failure, repository), "```", ""]
+
+
+def _failures(rows: list[Row], repository: Path) -> list[str]:
+    """Per contract test: the clearest failure open, the rest folded to one line and a command each."""
+    lines: list[str] = []
+    shown = 0
+    for row in rows:
+        if not row.failures or shown >= MAX_FAILURES:
+            continue
+        first = _clearest(row.failures)
+        lines += _failure(row, first, repository)
+        others = [failure for failure in row.failures if failure is not first][: MAX_FAILURES - shown - 1]
+        shown += 1 + len(others)
+        if others:
+            body = []
+            for failure in others:
+                body += [f"- {_code(failure.case)}: {_what(failure)}.", "", "  ```bash"]
+                body += [f"  {line}" for line in _reproduce(row, failure, repository).splitlines()] + ["  ```", ""]
+            summary = (
+                f"{_plural(len(others), 'more failing history', 'more failing histories')} in {_code_html(row.test)}"
+            )
+            lines += _collapsible(summary, body)
+    total = sum(len(row.failures) for row in rows)
+    if total > shown:
+        lines += [f"…and {total - shown} more; every mismatch is in the run's artifact.", ""]
+    return lines
+
+
+def _code_html(text: object) -> str:
+    """Inline code inside HTML, such as a ``<summary>``, where markdown backticks do not render."""
+    return f"<code>{escape(' '.join(str(text).split()))}</code>"
+
+
+_RESTATED = re.compile(r"^(?P<test>.+?): \d+ case\(s\) did not run or did not pass: (?P<cases>\[.*\])$")
+
+
+def _new_reasons(evidence: Evidence) -> list[str]:
+    """Why the run is incomplete, without the lines that only restate cases already shown as failed."""
+    failed = {(row.test, failure.case) for row in evidence.rows for failure in row.failures}
+    reasons = []
+    for line in evidence.incomplete:
+        match = _RESTATED.match(line)
+        if match:
+            try:
+                cases = ast.literal_eval(match["cases"])
+            except (ValueError, SyntaxError):
+                cases = None
+            if isinstance(cases, list) and all((match["test"], case) in failed for case in cases):
+                continue
+        reasons.append(line)
+    return reasons
+
+
+def _alert(evidence: Evidence, repository: Path) -> list[str]:
+    """One GitHub alert, before anything else, when the run needs a person: what is wrong, and what to run.
+
+    A green run gets none. A red run gets a caution with the clearest failure's command; an incomplete one
+    a warning saying why it is not evidence.
+    """
+    status = evidence.status
+    if status is None or (status == "passed" and evidence.complete):
+        return []
+    if status == "failed":
+        lines = ["> [!CAUTION]"]
+        broken = [row for row in evidence.rows if row.generation_failure]
+        failing = [row for row in evidence.rows if row.failures]
+        if failing:
+            diverged = sum(len(row.failures) for row in failing)
+            contracts = ", ".join(dict.fromkeys(_code(row.contract) for row in failing))
+            lines.append(f"> **{_plural(diverged, 'history', 'histories')} left the model in {contracts}.**")
+            row = failing[0]
+            first = _clearest(row.failures)
+            lines += [">", f"> Start with {_code(first.case)}: {_what(first)}.", ">", "> ```bash"]
+            lines += [f"> {line}" for line in _reproduce(row, first, repository).splitlines()] + ["> ```"]
+        if broken:
+            names = ", ".join(dict.fromkeys(_code(row.contract) for row in broken))
+            lines += [*([">"] if failing else []), f"> **Quint could not generate histories for {names}.**"]
+        if not failing and not broken:
+            lines.append(f"> **{MEANING['failed'][0].upper()}{MEANING['failed'][1:]}.**")
+        return [*lines, ""]
+    lines = ["> [!WARNING]", "> **This run is not complete evidence: nothing failed, but not every case ran.**"]
+    present = [state for state in SEVERITY if state != "passed" and any(row.status == state for row in evidence.rows)]
+    for state in present:
+        lines += [">", f"> {ICON[state]} **{state}**: {MEANING[state]}."]
+    for reason in _new_reasons(evidence)[:5]:
+        lines += [">", f"> {_code(reason, 300)}"]
+    return [*lines, ""]
+
+
+def _glossary() -> list[str]:
+    """What the comment's words and numbers mean, folded at the bottom for whoever needs it."""
+    body = [
+        "- **History**: one run of the Quint model, replayed step by step against the code. *Witnesses* are "
+        "named scenarios replayed exactly as written; *samples* are generated from the manifest's seed.",
+        "- **Case**: one history, one mutant check, or the coverage check of a contract test. A contract passes "
+        "only when every case ran and passed.",
+        f"- **{_term('Mutant')}**: a planted fake bug. Each must make some history diverge, which proves the "
+        "histories would notice that kind of bug.",
+        "- **Disagreement**: a history where the code reached a different state than the model, or a mutant no "
+        "history caught. Crashes and setup errors are not counted. *Fixed* means a later push ran the case and "
+        "it passed.",
+        *(f"- {ICON[state]} **{state}**: {MEANING[state]}." for state in SEVERITY),
         "",
-        "Reproduce (regenerates the same histories from the manifest's seed):",
-        "",
-        "```bash",
-        command,
-        "```",
+        f"Reproduce commands regenerate the same histories from the manifest's seed. [What a passing run proves]({LIMITS}).",
         "",
     ]
+    return _collapsible("<strong>What do these words and numbers mean?</strong>", body)
 
 
 def _missed(catch: Catch) -> str:
@@ -699,7 +843,7 @@ def _says(rows: list[Row]) -> list[str]:
     return lines
 
 
-def _overview(evidence: Evidence, *, green: bool) -> list[str]:
+def _overview(evidence: Evidence, *, green: bool, legend: bool = True) -> list[str]:
     """The contract table, what each status means, then the bugs found and the mutants; the sticky and
     the README block share it.
 
@@ -717,8 +861,9 @@ def _overview(evidence: Evidence, *, green: bool) -> list[str]:
     ]
     summary = f"{ICON[evidence.status or 'passed']} {' · '.join(numbers)}"
     lines = _collapsible(summary, [*_table(evidence.rows), ""], expanded=not green)
+    # The sticky explains statuses in its alert and glossary; the README block, which has neither, here.
     present = [state for state in SEVERITY if state != "passed" and any(row.status == state for row in evidence.rows)]
-    if present:
+    if present and legend:
         lines.append("<br>".join(f"<sub>{ICON[state]} {state}: {MEANING[state]}.</sub>" for state in present))
         lines.append("")
     return [*lines, *_bugs_table(evidence.rows), *_mutants_table(evidence.rows)]
@@ -761,11 +906,30 @@ def _tally(ledger: "Ledger") -> list[str]:
         "| :--: | :--: | :--: |",
         f"| {' | '.join(cells)} |",
         "",
-        f"<sub>Across {_plural(pushes, 'push', 'pushes')}. A disagreement is a history where the code reached a "
-        "different state than the model, or a mutant no history caught; crashes and setup errors are not "
-        "counted.</sub>",
+        f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}; "
+        "what counts as a disagreement is at the bottom.</sub>",
         "",
+        *_fixed(ledger),
     ]
+
+
+MAX_FIXED = 10
+
+
+def _fixed(ledger: "Ledger") -> list[str]:
+    """Which histories this pull request fixed, by name: a count alone does not say what got better."""
+    fixed = [(key, entry) for key, entry in ledger.caught.items() if entry["state"] == "fixed"]
+    if not fixed:
+        return []
+    lines = []
+    for key, entry in sorted(fixed, key=lambda item: (item[1]["found"], item[0]))[:MAX_FIXED]:
+        contract, test, case = (key.split(" · ", 2) + ["", ""])[:3]
+        what = "a mutant no history caught" if entry.get("kind") == "survived" else "the code left the model"
+        when = f"caught in push {entry['found']}" + (f", fixed in push {entry['fixed']}" if entry.get("fixed") else "")
+        lines.append(f"- ✅ {_code(contract)} {_code(case)} in {_code(test)}: {what}; {when}.")
+    if len(fixed) > MAX_FIXED:
+        lines.append(f"- …and {len(fixed) - MAX_FIXED} more.")
+    return [f"**Fixed in this PR** ({_plural(len(fixed), 'history', 'histories')}):", "", *lines, ""]
 
 
 # Where render_comment places the claims, so it can leave them out when the comment would not fit.
@@ -793,11 +957,14 @@ def render_comment(
     lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
-    lines += _credit(evidence.rows)
     lines.append("")
-    if ledger is not None:
+    # What needs a person comes first; bugs the contracts found earlier are credited after it, as history.
+    lines += _alert(evidence, repository)
+    lines += _credit(evidence.rows)
+    # A first push that caught nothing has no story to tell yet; a later push or any catch does.
+    if ledger is not None and (ledger.caught or len(ledger.pushes) > 1):
         lines += _tally(ledger)
-    lines += _overview(evidence, green=_green(evidence, ledger))
+    lines += _overview(evidence, green=_green(evidence, ledger), legend=False)
     weak = [row for row in evidence.rows if row.witnesses_only]
     if weak:
         lines += [f"<sub>⚠️ {_code(row.test)}: {WITNESSES_ONLY}.</sub>" for row in weak] + [""]
@@ -810,16 +977,16 @@ def render_comment(
         for row in {row.contract: row for row in generation}.values():
             reason = _code(row.generation_failure, 400)
             lines += [f"**{_code(row.contract)}**: Quint could not generate histories: {reason}", ""]
-        for row, failure in failures[:MAX_FAILURES]:
-            lines += _failure(row, failure, repository)
-        if len(failures) > MAX_FAILURES:
-            lines += [f"…and {len(failures) - MAX_FAILURES} more; every mismatch is in the run's artifact.", ""]
-    if evidence.incomplete:
+        lines += _failures(evidence.rows, repository)
+    # A failed run's alert names its failures, an incomplete one's its reasons: list only what neither says.
+    reasons = _new_reasons(evidence) if evidence.status == "failed" else []
+    if reasons:
         lines += ["#### Not complete", ""]
-        lines += [f"- {_code(line, 300)}" for line in evidence.incomplete[:MAX_FAILURES]]
+        lines += [f"- {_code(line, 300)}" for line in reasons[:MAX_FAILURES]]
         lines.append("")
     if readme_note:
         lines += [readme_note, ""]
+    lines += _glossary()
     footer = [_plural(evidence.receipts, "receipt")]
     if head:
         footer.append(f"head {_code(head[:12])}")
