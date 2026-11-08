@@ -8,11 +8,13 @@ can be checked against a fresh run the way ``codegen --check`` checks a generate
 
 import difflib
 import glob
+import hashlib
 import json
 import re
 import shlex
 import urllib.parse
 from dataclasses import dataclass, field
+from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -419,12 +421,21 @@ def _catches(rows: list[Row]) -> list[str]:
 SPREAD = '<img width="2000" height="1" align="right" alt="">'
 
 
-def _banner(assets: str) -> list[str]:
+# Quinty the starfish stamps approval when every contract passed and traces the failing path when one
+# failed; otherwise (filtered, replayed, interrupted, nothing ran) Quinty inspects the contract.
+BANNERS = {
+    "passed": ("-passed", "every history matched the model"),
+    "failed": ("-failed", "the code left the model's path"),
+}
+
+
+def _banner(assets: str, status: str | None) -> list[str]:
     """The full-width banner, light or dark with the reader's theme, served from the action's own revision."""
+    variant, words = BANNERS.get(status or "", ("", "contract report"))
     return [
         "<picture>",
-        f'  <source media="(prefers-color-scheme: dark)" srcset="{assets}/sticky-banner-dark.svg">',
-        f'  <img alt="pytest-quint-connect" src="{assets}/sticky-banner-light.svg" width="100%">',
+        f'  <source media="(prefers-color-scheme: dark)" srcset="{assets}/sticky-banner{variant}-dark.svg">',
+        f'  <img alt="pytest-quint-connect: {words}" src="{assets}/sticky-banner{variant}-light.svg" width="100%">',
         "</picture>",
         "",
     ]
@@ -464,7 +475,7 @@ def render_comment(
     pull request's history, rendered as the headline tally and carried forward as hidden JSON.
     """
     status = evidence.status
-    lines = _banner(assets) if assets else []
+    lines = _banner(assets, status) if assets else []
     lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
@@ -519,8 +530,44 @@ def _badge(label: str, message: str, color: str) -> str:
     return f"https://img.shields.io/badge/{part(label)}-{part(message)}-{color}"
 
 
-def render_readme(evidence: Evidence) -> str:
-    """The README block: the same table, with nothing that differs between two runs of the same evidence."""
+COUNTER = "https://pytest-quint-connect-counter.gigaverse-oss.workers.dev"
+_SIGN = re.compile(r"/v1/sign\.svg\?key=([0-9a-f]{64})&amp;name=([^\"&]*)")
+
+
+@dataclass(frozen=True)
+class Sign:
+    """A repository's sign on the global counter: its key (the SHA-256 of its numeric id) and the name it shows."""
+
+    key: str
+    name: str
+
+    @classmethod
+    def of(cls, repository_id: str, name: str) -> "Sign":
+        return cls(hashlib.sha256(f"github-repository:{repository_id}".encode()).hexdigest(), name)
+
+    @classmethod
+    def found(cls, document: str) -> "Sign | None":
+        """The sign an existing block already shows, so a local refresh keeps it without the repository id."""
+        match = _SIGN.search(document)
+        return cls(match.group(1), urllib.parse.unquote(match.group(2))) if match else None
+
+    def picture(self) -> str:
+        query = f"key={self.key}&amp;name={urllib.parse.quote(self.name, safe='')}"
+        alt = f"What pytest-quint-connect's contracts caught in {self.name}'s pull requests"
+        return (
+            f'<a href="{HOME}#impact"><picture>'
+            f'<source media="(prefers-color-scheme: dark)" srcset="{COUNTER}/v1/sign.svg?{query}&amp;theme=dark">'
+            f'<img alt="{escape(alt, quote=True)}" src="{COUNTER}/v1/sign.svg?{query}" width="100%">'
+            "</picture></a>"
+        )
+
+
+def render_readme(evidence: Evidence, sign: Sign | None = None) -> str:
+    """The README block: the same table, with nothing that differs between two runs of the same evidence.
+
+    With ``sign``, the block opens with the repository's live sign from the global counter: what its
+    contracts caught in pull requests. The sign's address never changes, so neither does the block.
+    """
     contracts = sorted({row.contract for row in evidence.rows})
     detected = sum(row.mutants_detected for row in evidence.rows)
     mutants = sum(row.mutants for row in evidence.rows)
@@ -537,6 +584,7 @@ def render_readme(evidence: Evidence) -> str:
     return "\n".join(
         [
             f"<!-- pytest-quint-connect:contracts {','.join(contracts)} -->",
+            *([sign.picture(), ""] if sign else []),
             f'<a href="{HOME}" title="{PLANTED_TIP}"><img alt="{alt}" src="{_badge("Quint contracts", message, color)}"></a>',
             "",
             *_table(evidence.rows),
@@ -570,8 +618,10 @@ class ReadmeCheck:
     diff: str = ""
 
 
-def check_readme(document: str, evidence: Evidence, *, name: str = "README.md") -> ReadmeCheck:
-    expected = embed(document, render_readme(evidence)).replace("\r\n", "\n")
+def check_readme(
+    document: str, evidence: Evidence, *, name: str = "README.md", sign: Sign | None = None
+) -> ReadmeCheck:
+    expected = embed(document, render_readme(evidence, sign)).replace("\r\n", "\n")
     current = document.replace("\r\n", "\n")
     if expected == current:
         return ReadmeCheck("current")

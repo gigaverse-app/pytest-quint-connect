@@ -1,0 +1,70 @@
+name: Deploy the global counter
+# The counter runs on Cloudflare (counter/README.md). A pull request that changes it runs its tests; each push to main
+# that changes it is tested, then deployed, so what is merged is what serves the README signs. Nothing else deploys it.
+on:
+  pull_request:
+    paths: ["counter/**", ".github/workflows/counter.yml"]
+  push:
+    branches: [main]
+    paths: ["counter/**", ".github/workflows/counter.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: counter-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Counter tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: counter
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node --test
+
+  deploy:
+    name: Deploy the counter
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: counter
+    defaults:
+      run:
+        working-directory: counter
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: A token to deploy with
+        id: token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            # Until the environment has a token, a maintainer deploys with `npx wrangler deploy` (counter/README.md).
+            echo "::warning::Not deployed: this repository's 'counter' environment has no CLOUDFLARE_API_TOKEN. Deploy by hand (counter/README.md, Where it runs) or add the token."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.token.outputs.present == 'true'
+        run: npm ci
+      - if: steps.token.outputs.present == 'true'
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: The deployed counter answers
+        if: steps.token.outputs.present == 'true'
+        run: |
+          counter=https://pytest-quint-connect-counter.gigaverse-oss.workers.dev
+          curl -fsS "$counter/v1/totals?deployed=$GITHUB_SHA" | node -e 'JSON.parse(require("fs").readFileSync(0)).pulls >= 0 || process.exit(1)'
+          curl -fsS -o /dev/null -w '%{content_type}\n' "$counter/v1/sign.svg?deployed=$GITHUB_SHA" | grep -q '^image/svg+xml'

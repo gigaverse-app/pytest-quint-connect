@@ -9,6 +9,7 @@ manifest, may claim it.
 The failed, partial and replay fixtures predate ``mutant_specs`` and stand for older receipts.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -231,6 +232,39 @@ def test_comment_reproduce_command_names_an_explicit_config_file(tmp_path: Path)
         "cd contracts\npytest -c quint.ini 'lru/test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
         in comment
     )
+
+
+def test_the_counter_sign_is_keyed_by_the_repository_id_and_survives_a_local_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pytest_quint_connect.report import Sign
+
+    sign = Sign.of("1449617982", "gigaverse-app/pytest-quint-connect")
+    assert sign.key == hashlib.sha256(b"github-repository:1449617982").hexdigest()
+    block = render_readme(evidence("passed"), sign)
+    assert f"/v1/sign.svg?key={sign.key}&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark" in block
+    assert Sign.found(block) == sign
+
+    readme = readme_with_block(tmp_path)
+    receipt = str(RECEIPTS / "lru-passed.json")
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1449617982")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "gigaverse-app/pytest-quint-connect")
+    assert main(["report", receipt, "--readme", str(readme), "--counter-sign"]) == 0
+    assert sign.key in readme.read_text(encoding="utf-8")
+    # A developer's machine has no repository id: the block keeps the sign it shows, and stays current.
+    monkeypatch.delenv("GITHUB_REPOSITORY_ID")
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    assert main(["report", receipt, "--readme", str(readme), "--check"]) == 0
+    assert main(["report", receipt, "--readme", str(readme)]) == 0
+    assert sign.key in readme.read_text(encoding="utf-8")
+
+
+def test_no_sign_without_the_flag_or_an_existing_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/shop")
+    readme = readme_with_block(tmp_path)
+    assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme)]) == 0
+    assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
 
 
 def section(text: str, heading: str) -> list[str]:

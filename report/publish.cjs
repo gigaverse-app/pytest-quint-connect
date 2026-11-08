@@ -119,7 +119,69 @@ async function publish({github, context, core}, env = process.env) {
   });
 }
 
+// The global counter (counter/ in this repository): what every repository's contracts caught in pull requests.
+const COUNTER = 'https://pytest-quint-connect-counter.gigaverse-oss.workers.dev';
+const LEDGER = /<!-- pytest-quint-connect-ledger (\{.*?\}) -->/s;
+// The most recently updated merged pull requests are re-sent on every default-branch run: the counter counts each
+// repository and number once, so a resend changes nothing and a run that failed is caught up by the next.
+const RECENT = 30;
+
+// The counter key: pseudonymous, so a repository's pull requests are tied together but its name never leads to it.
+function counterKey(repositoryId) {
+  return crypto.createHash('sha256').update(`github-repository:${repositoryId}`).digest('hex');
+}
+
+// One merged pull request's tally, from the ledger its sticky carried: what the counter is sent, and nothing else.
+function contribution(key, number, body, version) {
+  const match = (body || '').match(LEDGER);
+  if (!match) return null;
+  let ledger;
+  try { ledger = JSON.parse(match[1]); } catch { return null; }
+  if (!ledger || ledger.schema !== 1) return null;
+  const caught = Object.values(ledger.caught || {});
+  return {
+    repository: key, pull: number, caught: caught.length,
+    fixed: caught.filter(entry => entry.state === 'fixed').length,
+    open: caught.filter(entry => entry.state === 'open').length,
+    pushes: (ledger.pushes || []).length, version: String(version || '').slice(0, 32),
+  };
+}
+
+// On a push to the default branch, send the counter each recently merged pull request's tally. Never fails the job:
+// a send that fails is sent again by the next default-branch run. `share-totals: "false"` sends nothing.
+async function share({github, context, core}, env = process.env, post = fetch) {
+  const branch = context.payload.repository?.default_branch;
+  if (context.eventName !== 'push' || !branch || context.ref !== `refs/heads/${branch}`) return 0;
+  if (['false', '0', 'no'].includes(String(env.QUINT_REPORT_SHARE_TOTALS || 'true').toLowerCase())) return 0;
+  if (!env.GITHUB_REPOSITORY_ID) return 0;
+  const key = counterKey(env.GITHUB_REPOSITORY_ID);
+  const counter = env.QUINT_CONNECT_COUNTER || COUNTER;
+  let counted = 0;
+  try {
+    const {data: pulls} = await github.rest.pulls.list({
+      ...context.repo, state: 'closed', base: branch, sort: 'updated', direction: 'desc', per_page: RECENT,
+    });
+    for (const pull of pulls.filter(p => p.merged_at)) {
+      const found = await findSticky({github, context}, pull.number, env.QUINT_REPORT_STICKY_KEY);
+      const entry = found && contribution(key, pull.number, found.comment.body, env.QUINT_REPORT_VERSION);
+      if (!entry) continue;
+      const response = await post(`${counter}/v1/pulls`, {
+        method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(entry),
+      });
+      if (response.ok && (await response.json()).counted) counted += 1;
+    }
+  } catch (error) {
+    core.warning(`The counter could not be updated (${error.status || error.message}); the next default-branch run retries.`);
+  }
+  core.info(`pytest-quint-connect: ${counted} newly counted pull request(s). This repository's counter key is ${key}; `
+    + `its sign is ${counter}/v1/sign.svg?key=${key}`);
+  return counted;
+}
+
 module.exports = publish;
+module.exports.share = share;
+module.exports.counterKey = counterKey;
+module.exports.contribution = contribution;
 module.exports.publish = publish;
 module.exports.publishSticky = publishSticky;
 module.exports.markerFor = markerFor;
