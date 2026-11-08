@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v0.1.0...v0.2.0) (2026-11-08)
+
+
+### Features
+
+* **codegen:** give camelCase actions and parameters snake_case Python names ([#9](https://github.com/gigaverse-app/pytest-quint-connect/issues/9)) ([2daa87b](https://github.com/gigaverse-app/pytest-quint-connect/commit/2daa87b17bbe78e1d40fcb36aa9b0368cccc47fe))
+
+
+### Bug fixes
+
+* **replay:** name the trace, state and action when a driver raises ([#8](https://github.com/gigaverse-app/pytest-quint-connect/issues/8)) ([8a0017d](https://github.com/gigaverse-app/pytest-quint-connect/commit/8a0017dc2759a1fff5d18dc72d06c2cd6297ef1c))
+
 ## 0.1.0 (2026-11-08)
 
 
