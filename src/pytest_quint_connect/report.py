@@ -173,11 +173,14 @@ def _plural(count: int, word: str, plural: str = "") -> str:
 
 
 def _headline(evidence: Evidence) -> str:
-    """``1 failed, 1 passed``: how many contract tests reached each status, worst first."""
+    """``2 contracts · 1 test failed, 1 passed``: contract tests per status, worst first."""
     if not evidence.rows:
         return "no contract ran in this run"
-    counts = [(status, sum(1 for row in evidence.rows if row.status == status)) for status in SEVERITY]
-    return ", ".join(f"{count} {status}" for status, count in counts if count)
+    counts = [(status, count) for status in SEVERITY if (count := sum(row.status == status for row in evidence.rows))]
+    # Only the first count names its unit: "1 test failed, 1 passed".
+    parts = [f"{_plural(counts[0][1], 'test')} {counts[0][0]}"] + [f"{count} {status}" for status, count in counts[1:]]
+    contracts = len({row.contract for row in evidence.rows})
+    return f"{_plural(contracts, 'contract')} · {', '.join(parts)}"
 
 
 def _table(rows: list[Row]) -> list[str]:

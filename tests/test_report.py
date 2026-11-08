@@ -61,7 +61,7 @@ def test_rows_count_histories_cases_and_mutants() -> None:
 
 def test_comment_explains_each_failure_with_a_reproduce_command() -> None:
     comment = render_comment(evidence("failed"), repository=REPO, head="abc1234", run_url="https://run.example")
-    assert comment.startswith("### ❌ Quint contracts: 1 failed, 1 passed\n")
+    assert comment.startswith("### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed\n")
     assert "observed state differs from the model at state 3, after `fetch(key='a', value=0)`" in comment
     assert "`entries[0].key: values differ; expected: 'b'; actual: 'a'`" in comment
     assert "and 1 more difference" in comment
@@ -75,11 +75,11 @@ def test_comment_explains_each_failure_with_a_reproduce_command() -> None:
 
 def test_comment_says_filtered_and_replayed_runs_are_not_complete() -> None:
     partial = render_comment(evidence("partial"), repository=REPO)
-    assert partial.startswith("### 🟡 Quint contracts: 1 partial, 1 not run")
+    assert partial.startswith("### 🟡 Quint contracts: 1 contract · 1 test partial, 1 not run")
     assert "not complete evidence" in partial and "#### Not complete" in partial
     assert "none of its cases were selected" in partial
     replay = render_comment(evidence("replay"), repository=REPO)
-    assert replay.startswith("### ➖ Quint contracts: 1 not run, 1 replay-only")
+    assert replay.startswith("### ➖ Quint contracts: 1 contract · 1 test not run, 1 replay-only")
     assert "never complete coverage" in replay
 
 
