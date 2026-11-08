@@ -346,7 +346,7 @@ def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_detai
     # Credited prominently, right under the headline, with what it was: history, not a current failure.
     assert comment.split("\n\n", 2)[1].splitlines()[:3] == [
         "> [!TIP]",
-        "> **🏅 This contract found 1 real bug, since fixed in #3.**",
+        "> **🏅 This contract found 1 real bug, fixed in #3.**",
         "> - Valid histories whose step calls one action without any { … } were rejected: Quint records "
         "mbt::actionTaken as step, and the event cross-check refused it (fixed in #3)",
     ]
@@ -464,7 +464,7 @@ def test_comment_says_what_each_mutant_breaks_and_where_it_was_caught() -> None:
 def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_breaks() -> None:
     comment = render_comment(evidence("bug-found"), repository=REPO)
     assert headline(comment) == ["### ✅ Quint contracts: 1 contract · all 34 cases passed · 2/2 mutants caught"]
-    assert "> **🏅 This contract found 1 real bug, since fixed in example-only.**" in comment
+    assert "> **🏅 This contract found 1 real bug, fixed in example-only.**" in comment
     expanded, (row,) = block(comment, "🐞 1 real bug found by this contract")
     assert not expanded and row == (
         "| `lru-cache` | reads did not refresh recency, so a just-read entry could be evicted next (test data: this "
@@ -478,6 +478,23 @@ def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_b
     ]
     assert row in render_readme(evidence("bug-found"))
     assert comment.index("| ✅ | `lru-cache`") < comment.index("<summary>🐞") < comment.index("<summary>🧪")
+
+
+@pytest.mark.parametrize("fixed_in", ["#157", "157", "https://github.com/o/r/pull/157"])
+def test_a_bug_this_pull_request_fixes_is_credited_to_it_and_kept_apart_from_the_tally(
+    tmp_path: Path, fixed_in: str
+) -> None:
+    receipt = json.loads((RECEIPTS / "lru-bug-found.json").read_text(encoding="utf-8"))
+    receipt["contracts"][0]["bugs_found"][0]["fixed_in"] = fixed_in
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    ledger = Ledger(pushes=[{"push": 1, "head": "a", "status": "passed"}, {"push": 2, "head": "b", "status": "passed"}])
+    comment = render_comment(load([path]), repository=REPO, ledger=ledger, pull="157")
+    # Not "since fixed" in what reads as an earlier pull request, beside a tally of 0 fixed in this one.
+    assert "> **🏅 This pull request fixes 1 real bug this contract found.**" in comment
+    assert "They are not disagreements: the tally counts only what this pull request's pushes caught." in comment
+    other = render_comment(load([path]), repository=REPO, ledger=ledger, pull="158")
+    assert "🏅 This contract found 1 real bug, fixed in" in other and "not disagreements" not in other
 
 
 def test_receipts_without_mutant_specs_still_say_where_each_mutant_was_caught() -> None:

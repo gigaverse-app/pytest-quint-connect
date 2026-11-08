@@ -37,7 +37,7 @@ the manifest, model or Quint could not be used. See [drivers](drivers.md#generat
 
 ```text
 pytest-quint-connect report RECEIPT... [--comment PATH] [--readme PATH [--check]]
-    [--title TEXT] [--head SHA] [--run-url URL] [--repository-root DIR]
+    [--title TEXT] [--head SHA] [--run-url URL] [--pull NUMBER] [--repository-root DIR]
     [--status-file PATH] [--artifact-dir DIR] [--ledger FILE] [--assets URL]
 ```
 
@@ -134,7 +134,10 @@ Under "What failed", each failing contract test shows its clearest failure in fu
 every differing field beside the model's expectation (the alert already gave its command),
 and folds the rest into one line and a command each. Bugs the contracts found earlier are
 credited as a tip, one line each, as history rather than current failures: right under the
-headline on a green run, after the failures on a red one. A collapsed glossary at the
+headline on a green run, after the failures on a red one. When a bug's `fixed_in` names
+the pull request the comment is for (`--pull`, which the action passes), the tip says this
+pull request fixes it, and that it is not a disagreement: the tally counts only what the
+pull request's pushes caught, while a found bug is pinned by its mutant. A collapsed glossary at the
 bottom explains the words and statuses.
 
 After the first push, or once anything was caught, the comment carries a full-width tally

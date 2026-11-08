@@ -374,17 +374,36 @@ def _found_bugs(rows: list[Row]) -> list[tuple[str, dict[str, str]]]:
     return [(contract, bug) for contract, members in _by_contract(rows).items() for bug in members[0].bugs_found]
 
 
-def _credit(rows: list[Row]) -> list[str]:
-    """Bugs the contracts found before this run, credited apart from the headline so nobody reads them as open."""
+def _fixed_here(bug: dict[str, str], pull: str) -> bool:
+    """Whether ``bug`` names this pull request (``#N``, ``N`` or its URL) as its fix."""
+    fixed = str(bug.get("fixed_in") or "").strip()
+    return bool(pull) and (fixed.lstrip("#") == pull or fixed.rstrip("/").endswith(f"/pull/{pull}"))
+
+
+def _credit(rows: list[Row], pull: str = "") -> list[str]:
+    """Bugs the contracts found, credited apart from the headline so nobody reads them as open.
+
+    A bug fixed by this very pull request is said to be, with why the disagreement tally does not count it:
+    the tally holds only what this pull request's pushes caught, while a found bug is pinned by a mutant.
+    """
     found = _found_bugs(rows)
     if not found:
         return []
-    fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
-    these = "These contracts" if len(_by_contract(rows)) > 1 else "This contract"
-    lines = [
-        "> [!TIP]",
-        f"> **🏅 {these} found {_plural(len(found), 'real bug')}, since fixed in {', '.join(fixes)}.**",
-    ]
+    these = "these contracts" if len(_by_contract(rows)) > 1 else "this contract"
+    here = sum(1 for _, bug in found if _fixed_here(bug, pull))
+    if here == len(found):
+        title = f"🏅 This pull request fixes {_plural(here, 'real bug')} {these} found."
+    else:
+        fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
+        title = f"🏅 {these.capitalize()} found {_plural(len(found), 'real bug')}, fixed in {', '.join(fixes)}."
+    lines = ["> [!TIP]", f"> **{title}**"]
+    if here:
+        lines += [
+            ">",
+            "> A mutant puts each one back, and every run must catch it. They are not disagreements: the tally"
+            " counts only what this pull request's pushes caught.",
+            ">",
+        ]
     shown = found[:5]
     for _, bug in shown:
         lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')} (fixed in {_ref(bug.get('fixed_in'))})")
@@ -957,11 +976,13 @@ def render_comment(
     readme_note: str = "",
     assets: str = "",
     ledger: "Ledger | None" = None,
+    pull: str = "",
 ) -> str:
     """The pull-request sticky: what ran, what failed, and the command that reproduces each failure.
 
     ``assets`` is the URL of the action's own ``docs/assets`` when its banner exists; ``ledger`` is this
-    pull request's history, rendered as the headline tally and carried forward as hidden JSON.
+    pull request's history, rendered as the headline tally and carried forward as hidden JSON; ``pull`` is
+    its number, so a bug this pull request fixes is credited to it.
     """
     status = evidence.status
     lines = _banner(assets, status) if assets else []
@@ -974,7 +995,7 @@ def render_comment(
     lines += _alert(evidence, repository)
     green = _green(evidence, ledger)
     if green:
-        lines += _credit(evidence.rows)
+        lines += _credit(evidence.rows, pull)
     failures = [(row, failure) for row in evidence.rows for failure in row.failures]
     generation = [row for row in evidence.rows if row.generation_failure]
     if failures or generation:
@@ -992,7 +1013,7 @@ def render_comment(
     if readme_note:
         lines += [readme_note, ""]
     if not green:
-        lines += _credit(evidence.rows)
+        lines += _credit(evidence.rows, pull)
     # A first push that caught nothing has no story to tell yet; a later push or any catch does.
     if ledger is not None and (ledger.caught or len(ledger.pushes) > 1):
         lines += _tally(ledger)

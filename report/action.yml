@@ -90,6 +90,7 @@ runs:
         REPORT_TITLE: ${{ inputs.title }}
         REPORT_PYTHON: ${{ inputs.python-version }}
         REPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        REPORT_PULL: ${{ github.event.pull_request.number }}
         REPORT_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         # The action's own revision renders the report, never the project's installed copy.
         REPORTER_PACKAGE: ${{ github.action_path }}/..
@@ -129,7 +130,7 @@ runs:
         set +e
         uvx --python "$REPORT_PYTHON" --from "$REPORTER_PACKAGE" pytest-quint-connect report "${patterns[@]}" \
           --comment "$workspace/artifact/report.md" --status-file "$workspace/status" --title "$REPORT_TITLE" \
-          --head "$REPORT_HEAD" --run-url "$REPORT_RUN" --repository-root "$GITHUB_WORKSPACE" \
+          --head "$REPORT_HEAD" --run-url "$REPORT_RUN" --pull "$REPORT_PULL" --repository-root "$GITHUB_WORKSPACE" \
           --artifact-dir "$workspace/artifact" "${readme_args[@]}" "${extra_args[@]}" | tee "$workspace/readme.log"
         code=${PIPESTATUS[0]}
         set -e
