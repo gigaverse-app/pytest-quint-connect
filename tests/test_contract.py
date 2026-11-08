@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from lru_support import MANIFEST
 
-from pytest_quint_connect.contract import ContractError, load_contract
+from pytest_quint_connect.contract import Bug, ContractError, Mutant, load_contract
 
 
 def write(tmp_path: Path, **changes: object) -> Path:
@@ -48,11 +48,57 @@ def test_example_manifest_loads() -> None:
         ({"sources": ["nope.py"]}, "source missing"),
         ({"observe": []}, "observe"),
         ({"attest": {"package": "x"}}, "attest"),
+        ({"mutants": "stale-read"}, "list of names or mutant objects"),
+        ({"mutants": [""]}, "must be a name or an object"),
+        ({"mutants": ["a", {"name": "a", "description": "again"}]}, "repeats"),
+        ({"mutants": [{"name": "a"}]}, "must be an object with the fields"),
+        ({"mutants": [{"name": "a", "description": "x", "severity": "high"}]}, "must be an object with the fields"),
+        ({"mutants": [{"name": "a", "description": ""}]}, "non-empty string"),
+        ({"bugs_found": {"summary": "s", "fixed_in": "abc"}}, "list of objects"),
+        ({"bugs_found": [{"summary": "s"}]}, "must be an object with the fields"),
+        (
+            {"bugs_found": [{"summary": "s", "fixed_in": "abc", "severity": "high"}]},
+            "must be an object with the fields",
+        ),
+        ({"bugs_found": [{"summary": "s", "fixed_in": "abc", "mutant": "nope"}]}, "undeclared mutants"),
+        (
+            {"bugs_found": [{"summary": "s", "fixed_in": "a", "mutant": "stale-read"}] * 2},
+            "same mutant",
+        ),
     ],
 )
 def test_invalid_manifests_are_rejected(tmp_path: Path, change: dict, message: str) -> None:
     with pytest.raises(ContractError, match=message):
         load_contract(write(tmp_path, **change))
+
+
+def test_mutants_are_names_or_described_objects(tmp_path: Path) -> None:
+    contract = load_contract(
+        write(tmp_path, mutants=["plain", {"name": "described", "description": "drops the newest"}])
+    )
+    assert contract.mutants == ("plain", "described")
+    assert contract.case_ids()[-3:] == ["mutant-plain", "mutant-described", "coverage"]
+    assert contract.mutant_specs == (Mutant("plain"), Mutant("described", "drops the newest"))
+    assert [mutant.as_json() for mutant in contract.mutant_specs] == [
+        {"name": "plain"},
+        {"name": "described", "description": "drops the newest"},
+    ]
+    assert contract.bugs_found == () and contract.bug_reintroduced_by("plain") is None
+
+
+def test_bugs_found_link_a_fixed_defect_to_the_mutant_that_reintroduces_it(tmp_path: Path) -> None:
+    found = {
+        "summary": "reads did not refresh recency",
+        "fixed_in": "389c5bb",
+        "found_by": "witness evictsLeastRecentlyUsedTest",
+        "regression_test": "tests/test_cache.py::test_read_refreshes_recency",
+        "mutant": "stale-read",
+    }
+    declared_only = {"summary": "a crash on empty input", "fixed_in": "#12"}
+    contract = load_contract(write(tmp_path, bugs_found=[found, declared_only]))
+    assert contract.bugs_found == (Bug(**found), Bug("a crash on empty input", "#12"))
+    assert contract.bug_reintroduced_by("stale-read") == Bug(**found)
+    assert [bug.as_json() for bug in contract.bugs_found] == [found, declared_only]
 
 
 def test_mbt_convention_without_witnesses_is_allowed(tmp_path: Path) -> None:

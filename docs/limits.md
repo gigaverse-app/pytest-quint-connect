@@ -11,6 +11,10 @@ for the histories that were generated. It is not a proof.
 - **Trusted adapters.** The driver's step mapping and observation projection are
   trusted. A projection that omits a field cannot detect a bug in it. Mutants are the
   check on this: keep at least one for each property you rely on.
+- **Declared bugs.** For a found bug with a `mutant`, the receipt proves how many of
+  the generated histories diverge through that mutant under the manifest's seed and
+  bounds. That the mutant is the bug fixed in `fixed_in`, and the rest of the entry,
+  are the manifest author's account, not something the run checks.
 - **Serial histories.** Each history replays one step at a time in one thread.
   Concurrency, interleavings, timing, crashes between steps and asynchronous
   interruption are not modeled unless your driver and model represent them explicitly.
