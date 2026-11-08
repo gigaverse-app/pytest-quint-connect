@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.0.0...v1.1.0) (2026-11-08)
+
+
+### Features
+
+* one-prompt agent setup, and fixes from a real adoption trial ([#27](https://github.com/gigaverse-app/pytest-quint-connect/issues/27)) ([08935f2](https://github.com/gigaverse-app/pytest-quint-connect/commit/08935f217f747718ace3f961868d329c5d0262a6))
+* **report:** show what each contract claims ([#30](https://github.com/gigaverse-app/pytest-quint-connect/issues/30)) ([98621aa](https://github.com/gigaverse-app/pytest-quint-connect/commit/98621aaced6788486cb7d1fe7028834d1bb22642))
+
 ## [1.0.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v0.3.0...v1.0.0) (2026-11-08)
 
 
