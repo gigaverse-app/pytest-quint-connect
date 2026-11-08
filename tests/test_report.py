@@ -648,9 +648,11 @@ def test_a_wide_observation_shows_only_the_fields_each_action_changes(tmp_path: 
     many = {**rejected, "extraExists": True, "extraSecond": {key: 1 for key in shard}}
 
     def widen(contract: dict) -> None:
-        steps = contract["illustrated"]["steps"]
         observations = [start, rejected, rejected, many]
-        contract["illustrated"]["steps"] = [{**step, "observed": seen} for step, seen in zip(steps, observations)]
+        steps = contract["illustrated"]["steps"][: len(observations)]
+        contract["illustrated"]["steps"] = [
+            {**step, "observed": seen} for step, seen in zip(steps, observations, strict=True)
+        ]
 
     block = claims_block(render_comment(edited_passed_receipt(tmp_path, widen), repository=REPO))
     rows = [line for line in block.splitlines() if line.startswith("| `")]
