@@ -58,10 +58,17 @@ the pending release PR; merging that PR is the publishing decision.
 
 | Commit header | Version change |
 | --- | --- |
-| `fix:`, `perf:`, `revert:` | Patch, such as 0.1.2 to 0.1.3 |
-| `feat:` | Minor, such as 0.1.2 to 0.2.0 |
-| `feat!:`, `fix!:`, or a `BREAKING CHANGE:` footer | Minor below 1.0; major at 1.0 and later |
+| `fix:`, `perf:`, `revert:` | Patch, such as 1.2.3 to 1.2.4 |
+| `feat:` | Minor, such as 1.2.3 to 1.3.0 |
+| `feat!:`, `fix!:`, or a `BREAKING CHANGE:` footer | Major, such as 1.2.3 to 2.0.0 |
 | `docs:`, `style:`, `refactor:`, `test:`, `build:`, `ci:`, `chore:` without breaking changes | No release on their own |
+
+Since 1.0.0 the public surface is stable: the pytest options and ini keys, `quint_contract`,
+manifest v1, the `results.json` receipt, the `codegen` and `report` commands, and the
+`report` action's inputs and outputs. Changing any of them incompatibly needs `!` and a
+major release. Release Please moves to a version only from commits; a `Release-As: X.Y.Z`
+footer in a commit message sets the next version explicitly, as the commit that started
+1.0.0 did.
 
 Squash with the checked PR title and retain breaking-change details in the body.
 No automatic publishing happens just because an ordinary feature PR merges.

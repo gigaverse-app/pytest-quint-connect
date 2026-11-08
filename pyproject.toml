@@ -14,7 +14,7 @@ authors = [{name = "Gigaverse"}]
 keywords = ["pytest", "quint", "model-based-testing", "formal-methods", "itf", "specification", "testing"]
 dependencies = ["pytest>=8"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "Framework :: Pytest",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
