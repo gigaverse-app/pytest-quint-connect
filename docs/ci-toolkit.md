@@ -8,21 +8,39 @@ setup, timing evidence, the required gate and the per-run report.
 ## Selection
 
 ```text
-select-tests ──► plan-lanes (.github/test-lanes.json) ──► lanes: {tests, dogfood}
+select-tests ──► plan-lanes (.github/test-lanes.json) ──► lanes: {tests, dogfood, package, routing}
              └─► file selection (same graph) ──► mode: none | scoped | full, files
                     │
 test ×6, minimum-pytest ◄── tests lane, then only the selected test files (scripts/run_ci_tests.py)
-build (always) ─ wheel smoke step ◄── tests lane;  consumer-install ◄── tests lane
+build (uv build, twine, release test, wheel smoke), consumer-install ◄── package lane
 dogfood ◄── dogfood lane
-quality, lint-ci ◄── always (lint, docs links, routing regressions, gate contract)
+routing ◄── routing lane (ci_tests on real Git snapshots)
+quality, lint-ci ◄── always (lint, format, docs links, gate contract, workflow lint)
 Validation gate ◄── every job; a lane job may be skipped only when the planner succeeded and said false
 ```
 
 - **Lanes.** [.github/test-lanes.json](../.github/test-lanes.json) maps each lane to its
-  inputs. `tests` covers the package, the unit and plugin tests, the example and the
-  dogfood files that tests read. `dogfood` covers the package, the example and `dogfood/`.
-  Lockfiles, `pyproject.toml`, any pytest configuration and the CI workflow run every lane.
-  A prose-only change runs no lane, so no tests.
+  inputs. Inputs name executable file types (`*.py`, `*.qnt`, `*.json`), never a whole
+  directory that also holds a README.
+    - `tests`: the package, the unit and plugin tests, the example and the dogfood files that
+      tests read.
+    - `dogfood`: the package, the example and the dogfood contract. Its root is the one
+      dogfood test file rather than `dogfood/`, because pytest-selective selects a lane for
+      any changed file under its roots, including `dogfood/README.md`. A new `dogfood/test_*.py`
+      is therefore unmapped until it is added to the roots, and planning falls back to every lane.
+    - `package`: what `uv build`, `twine check`, the release test and the wheel smoke read: the
+      package, `README.md` and `LICENSE` (pyproject embeds both in the distribution), the
+      release metadata, the smoke script and the example it runs.
+    - `routing`: the routing regressions, their helper and the read declarations.
+
+    Lockfiles, `pyproject.toml`, `pytest.ini` files and the CI workflow and its scripts run
+    every lane. `graph.global_inputs` lists these environment files explicitly; otherwise
+    pytest-selective's built-in policy would treat the Read the Docs
+    `documentation/requirements.{in,txt}` as test dependencies.
+    A documentation-only change (docs pages, other Markdown, `documentation/`, `mkdocs.yml`)
+    runs no lane: no tests, no build, no smoke. Only `quality`, `lint-ci`, the planner, the
+    gate and the separate Documentation workflow run. An edit to `README.md` also rebuilds
+    and checks the package.
 - **Files.** Inside the `tests` lane, pytest-selective runs only the test files that
   import, or declare as read, something the change touched. Inputs that tests read
   without importing them are declared in
@@ -35,7 +53,9 @@ Validation gate ◄── every job; a lane job may be skipped only when the pla
   label takes effect at the next push.
 - **Routing regressions.** [ci_tests/test_routing.py](../ci_tests/test_routing.py) commits
   real changes to a snapshot of this repository. It asserts which lanes and which test
-  files each one selects, using the same pytest-selective revision as the workflow.
+  files each one selects, using the same pytest-selective revision as the workflow,
+  including that a documentation-only commit selects nothing. They run in the `routing`
+  lane, so a documentation-only change does not run them.
 
 ## CI-esta
 
