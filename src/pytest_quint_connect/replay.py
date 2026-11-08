@@ -278,14 +278,21 @@ def imported_modules(contract: Contract) -> dict[str, str]:
 
 
 @contextmanager
-def _work_dir(base: Path | None) -> Iterator[Path]:
+def scratch_directory(prefix: str, base: Path | None = None, *, keep_on_failure: bool = False) -> Iterator[Path]:
+    """A fresh temporary directory, removed when the block ends.
+
+    With ``keep_on_failure`` it survives a block that raises, so logs an error names can still be read.
+    """
     if base is not None:
         base.mkdir(parents=True, exist_ok=True)
-    directory = Path(tempfile.mkdtemp(prefix="quint-history-", dir=base))
+    directory = Path(tempfile.mkdtemp(prefix=prefix, dir=base))
+    failed = True
     try:
         yield directory
+        failed = False
     finally:
-        shutil.rmtree(directory, ignore_errors=True)
+        if not (failed and keep_on_failure):
+            shutil.rmtree(directory, ignore_errors=True)
 
 
 def replay_trace(
@@ -305,7 +312,7 @@ def replay_trace(
     trace = load_trace(path)
     planned = list(steps(trace, contract))
     result = ReplayResult(path)
-    with _work_dir(work_base) as work:
+    with scratch_directory("quint-history-", work_base) as work:
         driver = factory(HistoryContext(contract, path, work, mutant))
         if not isinstance(driver, Driver):
             raise TypeError(f"driver factory returned {type(driver).__name__}, which lacks step() and observe()")

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .contract import Contract
-from .quint import QuintTool, run
+from .quint import QuintError, QuintTool, run
 from .typed import codegen_fingerprint
 
 __all__ = ["CodegenError", "compile_ir", "generate_module"]
@@ -33,24 +33,31 @@ def compile_ir(contract: Contract, tool: QuintTool, logs: Path | None = None) ->
     with tempfile.TemporaryDirectory(prefix="quint-codegen-") as directory:
         out = Path(directory) / "ir.json"
         log = (logs or Path(directory)) / "compile.log"
-        run(
-            [
-                *tool.command,
-                "compile",
-                str(contract.model),
-                "--main",
-                contract.module,
-                "--target",
-                "json",
-                "--flatten=false",
-                "--verbosity",
-                "0",
-                "--out",
-                str(out),
-            ],
-            log,
-            cwd=contract.directory,
-        )
+        compile_command = [
+            *tool.command,
+            "compile",
+            str(contract.model),
+            "--main",
+            contract.module,
+            "--target",
+            "json",
+            "--flatten=false",
+            "--verbosity",
+            "0",
+            "--out",
+            str(out),
+        ]
+        try:
+            run(compile_command, log, cwd=contract.directory)
+        except QuintError:
+            # `quint compile` exits 1 without printing why. When the model is at fault, typecheck
+            # raises instead, with Quint's diagnostic; otherwise the compile failure stands.
+            run(
+                [*tool.command, "typecheck", str(contract.model)],
+                log.with_name("typecheck.log"),
+                cwd=contract.directory,
+            )
+            raise
         ir: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
         return ir
 
