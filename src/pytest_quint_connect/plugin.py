@@ -29,12 +29,28 @@ from .contract import Contract, ContractError, display_path, load_contract
 from .itf import ItfError, load_trace
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
 from .replay import DriverFactory, ReplayMismatch, TraceError, replay_trace, steps
-from .report import WITNESSES_ONLY, witnesses_only
 
 __all__ = ["quint_contract"]
 
 _MARK = "__quint_contract__"
 RECEIPT = "results.json"
+
+WITNESSES_ONLY = (
+    "every mutant was caught only by a named witness; no sampled history caught one. Raise bounds.n_traces "
+    "or max_steps until samples catch them too, or accept knowingly that sampling adds no detection here"
+)
+
+
+def witnesses_only(mutations: dict[str, Any], samples: int) -> bool:
+    """True when sampling ran and caught none of the detected mutants: only the named witnesses did.
+
+    This module writes ``caught_by_sample`` into each receipt, and owns its reading too: the terminal
+    summary and ``report`` both ask here. Receipts written before the field existed lack it, and say
+    nothing either way.
+    """
+    return (
+        samples > 0 and bool(mutations) and all(entry.get("caught_by_sample") is False for entry in mutations.values())
+    )
 
 
 @dataclass(frozen=True)

@@ -50,6 +50,16 @@ uv run --no-project --python 3.14 --with "$SEL" python -m unittest discover -s c
 The audit must report `0 undeclared`. Add a routing case to `ci_tests/test_routing.py`
 when you add a lane input or a new kind of fixture.
 
+pytest loads the plugin in every session, so every module that `plugin.py` imports
+(directly or through the package `__init__.py`) reaches every test file. That set is the
+startup floor, and `floor_budget` in [.github/test-lanes.json](.github/test-lanes.json)
+caps it: CI fails a PR that grows it. Put code that only `report` or `codegen` needs in
+modules the plugin does not import. The selector treats a `conftest.py` that defines a
+`pytest_*` hook as loaded by every session. `scoped_hooks` records that
+`examples/lru_cache/conftest.py` applies only when pytest runs in that directory, and pins
+the reviewed file. After editing that conftest, check that its hooks still apply only
+there, then update its entry to the output of `git hash-object examples/lru_cache/conftest.py`.
+
 For a bug, first add a failing test at the boundary where it appears: a decoder
 collision in `test_itf.py`, a session behavior with `pytester` in `test_plugin.py`.
 ITF fixtures in `tests/data` are real Quint 0.33.1 output; regenerate them with Quint

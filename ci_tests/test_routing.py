@@ -165,8 +165,46 @@ class RoutingTests(unittest.TestCase):
         for path in ("examples/lru_cache/lru.qnt", "examples/lru_cache/quint-connect.json"):
             with self.subTest(path=path):
                 self.assertEqual(self.lanes(path), {"tests", "dogfood", "package"})
-        # Every unit test imports the example's cache, so the whole graph is affected: every lane runs.
-        self.assertEqual(self.lanes("examples/lru_cache/lru_cache.py"), set(self.config.lanes))
+        self.assertEqual(self.lanes("examples/lru_cache/lru_cache.py"), {"tests", "dogfood", "package"})
+
+    def test_the_example_code_selects_only_the_tests_that_load_it(self) -> None:
+        # The example conftest's pytest_addoption applies only when pytest runs in examples/lru_cache
+        # (scoped_hooks), so the example reaches the tests that load it through lru_support, not test_itf.
+        self.assertEqual(
+            self.selected_files("examples/lru_cache/lru_cache_driver.py"),
+            (
+                "scoped",
+                [
+                    "dogfood/test_session_contract.py",
+                    "tests/test_codegen.py",
+                    "tests/test_contract.py",
+                    "tests/test_plugin.py",
+                    "tests/test_replay.py",
+                ],
+            ),
+        )
+        # An edit to the conftest itself no longer matches the reviewed pin, so its hooks count as global again.
+        self.assertEqual(self.selected_files("examples/lru_cache/conftest.py")[0], "full")
+
+    def test_scoped_hooks_pin_the_reviewed_conftest(self) -> None:
+        for path, reviewed in self.files.scoped_hooks.items():
+            with self.subTest(path=path):
+                current = subprocess.check_output(["git", "hash-object", path], cwd=ROOT, text=True).strip()
+                self.assertEqual(
+                    current,
+                    reviewed,
+                    f"{path} changed. Check that its pytest_* hooks still apply only when pytest runs in its "
+                    f"directory, then set scoped_hooks[{path!r}] in .github/test-lanes.json to `git hash-object {path}`.",
+                )
+
+    def test_report_code_stays_out_of_the_plugins_import_closure(self) -> None:
+        # pytest loads the plugin in every session, so whatever it imports reaches every test file.
+        for path in ("src/pytest_quint_connect/report.py", "src/pytest_quint_connect/ledger.py"):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    self.selected_files(path),
+                    ("scoped", ["tests/test_codegen.py", "tests/test_ledger.py", "tests/test_report.py"]),
+                )
 
     def test_report_action_runs_the_job_that_uses_it(self) -> None:
         self.assertEqual(self.lanes("report/action.yml"), {"dogfood"})
@@ -178,9 +216,11 @@ class RoutingTests(unittest.TestCase):
         # The dogfood model is also a unit-test fixture.
         self.assertEqual(self.lanes("dogfood/session.qnt"), {"tests", "dogfood"})
 
-    def test_a_conftest_that_registers_session_plugins_runs_every_lane(self) -> None:
-        # The graph keeps such modules with any selection, so it reports every test file affected.
-        self.assertEqual(self.lanes("dogfood/conftest.py"), set(self.config.lanes))
+    def test_the_dogfood_conftest_runs_the_lanes_that_load_it(self) -> None:
+        # Its fixtures start child pytest sessions; it registers nothing in the parent session. It also
+        # reaches the unit tests because the graph resolves both top-level `conftest` modules (dogfood and
+        # the example are module roots) as one name.
+        self.assertEqual(self.lanes("dogfood/conftest.py"), {"tests", "dogfood"})
 
     def test_pytest_configuration_runs_every_lane(self) -> None:
         for path in ("dogfood/pytest.ini", "examples/lru_cache/pytest.ini"):
