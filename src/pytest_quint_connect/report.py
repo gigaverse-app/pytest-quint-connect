@@ -334,7 +334,7 @@ def _catches(rows: list[Row]) -> list[str]:
         return []
     items: list[str] = []
     for contract, members in contracts.items():
-        prefix = f"{_code(contract)}: " if len(contracts) > 1 else ""
+        prefix = f"**{_code(contract)}** · " if len(contracts) > 1 else ""
         names = [catch.mutant for catch in members[0].catches]
         regressions = {catch.mutant for catch in members[0].catches if catch.regression is not None}
         for name in sorted(names, key=lambda name: name not in regressions):
