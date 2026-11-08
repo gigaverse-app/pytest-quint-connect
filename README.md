@@ -232,7 +232,7 @@ generated, and CI fails when it no longer matches the evidence:
 
 | Contract | <img width="2000" height="1" align="right" alt="">Bug | Fixed in | Regression test |
 | :-- | :-- | :-- | :-- |
-| `session-receipts` | Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it<br><sub>found by the first run of this contract · no planted bug re-checks it</sub> | #3 | `tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays` |
+| `session-receipts` | Valid histories whose step calls one action without any { … } were rejected: Quint records mbt::actionTaken as step, and the event cross-check refused it<br><sub>found by the first run of this contract · no planted bug re-checks it</sub> | #3 | <sub>`tests/test_replay.py`<br>`::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`</sub> |
 
 </details>
 

@@ -335,7 +335,7 @@ def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_detai
         "| `session-receipts` | Valid histories whose step calls one action without any { … } were rejected: Quint "
         "records mbt::actionTaken as step, and the event cross-check refused it<br><sub>found by the first run of "
         "this contract · no planted bug re-checks it</sub> | #3 | "
-        "`tests/test_replay.py::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays` |"
+        "<sub>`tests/test_replay.py`<br>`::test_unbranched_step_is_recorded_under_the_step_name_and_still_replays`</sub> |"
     ]
     expanded, rows = block(comment, "🧪 4 planted bugs, all caught")
     assert not expanded and rows[0] == (
@@ -367,6 +367,9 @@ def test_every_table_spans_the_comment_through_its_widest_column() -> None:
     # narrow screen the spacer shrinks with the comment instead of forcing a scrollbar.
     assert all(header.count(SPREAD) == 1 for header in headers[:3])
     assert 'align="right"' in SPREAD and 'height="1"' in SPREAD
+    # Inline code never wraps, so a whole node id would set its column's minimum width past the comment's
+    # edge: the regression test's file and test sit on separate lines.
+    assert "| <sub>`test_lru_contract.py`<br>`::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`</sub> |" in comment
 
 
 def test_a_red_run_keeps_its_table_open_with_failing_rows_first(tmp_path: Path) -> None:
@@ -436,7 +439,7 @@ def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_b
         "| `lru-cache` | reads did not refresh recency, so a just-read entry could be evicted next (test data: this "
         "cache was never shipped)<br><sub>found by witness evictsLeastRecentlyUsedTest · planted bug `stale-read` "
         "reintroduces it: 4 of 15 histories diverge</sub> | example-only | "
-        "`test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]` |"
+        "<sub>`test_lru_contract.py`<br>`::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`</sub> |"
     )
     # The planted bug that reintroduces it is listed with the others, and says so.
     assert block(comment, "🧪 1 planted bug, caught")[1] == [

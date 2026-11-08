@@ -529,6 +529,17 @@ def _capped(rows: list[str], limit: int) -> list[str]:
     return [*rows[:limit], "", f"…and {len(rows) - limit} more in the receipts."]
 
 
+def _node(node: str) -> str:
+    """A pytest node id in a table cell, small, with its file and its test on separate lines.
+
+    Inline code never wraps inside a word, so a whole node id would set the column's minimum width and
+    push a full-width table past the comment's edge.
+    """
+    path, separator, name = str(node).rpartition("::")
+    lines = [_code(path), _code(separator + name)] if separator else [_code(node)]
+    return f"<sub>{'<br>'.join(lines)}</sub>"
+
+
 def _bugs_table(rows: list[Row]) -> list[str]:
     """Bugs the contracts found earlier, as their manifests declare them, and what this run re-checks of each."""
     contracts = _by_contract(rows)
@@ -542,7 +553,7 @@ def _bugs_table(rows: list[Row]) -> list[str]:
         checks = [text if test is None else f"{text} in {_code(test)}" for test, text in _per_test(seen)]
         facts = [f"found by {_text(bug['found_by'])}"] if bug.get("found_by") else []
         details = " · ".join([*facts, *checks])
-        regression = _code(bug["regression_test"]) if bug.get("regression_test") else "—"
+        regression = _node(bug["regression_test"]) if bug.get("regression_test") else "—"
         lines.append(
             f"| {_code(contract)} | {_text(bug.get('summary')).rstrip('.')}<br><sub>{details}</sub> "
             f"| {_ref(bug.get('fixed_in'))} | {regression} |"
