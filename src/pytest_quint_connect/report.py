@@ -49,6 +49,8 @@ def _term(text: str) -> str:
 COMMENT_BUDGET = 60_000
 MAX_FAILURES = 20
 MAX_STEPS = 20
+# Changed fields shown per step; a step that changes more says how many it leaves out.
+MAX_CHANGES = 6
 
 # Worst first: the headline names the worst status any contract reached.
 SEVERITY = ("failed", "interrupted", "partial", "not run", "replay-only", "passed")
@@ -594,19 +596,70 @@ def _mutants_table(rows: list[Row]) -> list[str]:
     return _collapsible(f"🧪 {_plural(bugs, 'mutant')} ({fake}), {verdict}", table, expanded=bool(missed))
 
 
+# A field one observation has and the other lacks; Quint records keep their fields, but receipts are data.
+_ABSENT = object()
+
+
+def _record(value: object) -> bool:
+    """A Quint record as ``compare.plain`` writes it: not a variant, nor a tuple, set, map or unserializable."""
+    return isinstance(value, dict) and set(value) != {"tag", "value"} and not any(key.startswith("#") for key in value)
+
+
+def _changes(before: object, after: object, path: str = "") -> list[tuple[str, object, object]]:
+    """The fields that differ between two observations, as ``(path, before, after)``, records opened field by field.
+
+    Anything that is not a record (a list, variant, set, map or scalar) changes as a whole.
+    """
+    # dry-lint: distinct-from src/pytest_quint_connect/compare.py::differences
+    # differences() judges decoded ITF against runtime data by Quint type rules; this lists, for readers, which
+    # fields of the model's own observation one step changed, from receipt JSON, where no runtime value exists.
+    if before == after:
+        return []
+    if not (_record(before) and _record(after)):
+        return [(path or "observation", before, after)]
+    assert isinstance(before, dict) and isinstance(after, dict)
+    found: list[tuple[str, object, object]] = []
+    for key in [*after, *(key for key in before if key not in after)]:
+        found += _changes(before.get(key, _ABSENT), after.get(key, _ABSENT), f"{path}.{key}" if path else str(key))
+    return found
+
+
+def _changed(before: object, after: object) -> str:
+    """One table cell: each changed field as ``path: before → after``, or that nothing changed."""
+    changes = _changes(before, after)
+    if not changes:
+        return "unchanged"
+
+    def shown_value(value: object) -> str:
+        return "absent" if value is _ABSENT else _value(value)
+
+    shown = [_code(f"{path}: {shown_value(old)} → {shown_value(new)}", 160) for path, old, new in changes[:MAX_CHANGES]]
+    if len(changes) > MAX_CHANGES:
+        shown.append(f"and {_plural(len(changes) - MAX_CHANGES, 'more field')}")
+    return "<br>".join(shown)
+
+
 def _steps(illustrated: dict[str, Any]) -> list[str]:
-    """One witness as a table: each action, and the observation the model expects after it."""
+    """One witness as a table: the observation it starts from, then what each action changes in it.
+
+    Showing whole observations would bury the change: a wide observation is cut at the same unchanged
+    prefix in every row.
+    """
     steps = list(illustrated.get("steps", []))
     lines = [
-        f"**Witness {_code(illustrated.get('witness'))}, step by step**: what the model expects the code to show "
-        "after each action.",
+        f"**Witness {_code(illustrated.get('witness'))}, step by step**: the observation the model starts from, "
+        "then what it expects each action to change.",
         "",
         "| State | Action | Model expects |",
         "| --: | :-- | :-- |",
     ]
-    for step in steps[:MAX_STEPS]:
+    previous: object = None
+    for index, step in enumerate(steps[:MAX_STEPS]):
         call = _call(step.get("action"), step.get("arguments"))
-        lines.append(f"| {_code(step.get('state'))} | {call} | {_code(_value(step.get('observed')), 300)} |")
+        observed = step.get("observed")
+        expects = _code(_value(observed), 600) if index == 0 else _changed(previous, observed)
+        lines.append(f"| {_code(step.get('state'))} | {call} | {expects} |")
+        previous = observed
     lines.append("")
     if len(steps) > MAX_STEPS:
         lines += [f"…and {_plural(len(steps) - MAX_STEPS, 'more state')} in the receipt.", ""]
@@ -614,7 +667,7 @@ def _steps(illustrated: dict[str, Any]) -> list[str]:
 
 
 def _says(rows: list[Row]) -> list[str]:
-    """What each contract claims, collapsed: its actions, invariant, witnesses, bounds and one witness's steps.
+    """What each contract claims, in an open block: its actions, invariant, witnesses, bounds and one witness's steps.
 
     A passing run proves the code agrees with the model; this is what a reviewer reads to judge the model.
     """
@@ -640,6 +693,8 @@ def _says(rows: list[Row]) -> list[str]:
                 "",
                 *(_steps(claims.illustrated) if claims.illustrated else []),
             ],
+            # Open: this is what a reviewer reads to judge the model, and a closed block reads as nothing to see.
+            expanded=True,
         )
     return lines
 

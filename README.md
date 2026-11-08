@@ -251,7 +251,7 @@ generated, and CI fails when it no longer matches the evidence:
 
 </details>
 
-<details>
+<details open>
 <summary>What <code>lru-cache</code> says</summary>
 
 **Actions**, and the code each one drives:
@@ -267,20 +267,20 @@ generated, and CI fails when it no longer matches the evidence:
 
 **Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`.
 
-**Witness `evictsLeastRecentlyUsedTest`, step by step**: what the model expects the code to show after each action.
+**Witness `evictsLeastRecentlyUsedTest`, step by step**: the observation the model starts from, then what it expects each action to change.
 
 | State | Action | Model expects |
 | --: | :-- | :-- |
 | `0` | `init(key='', value=0)` | `{ entries: [], lastRead: NoRead }` |
-| `1` | `store(key='a', value=1)` | `{ entries: [{ key: "a", value: 1 }], lastRead: NoRead }` |
-| `2` | `store(key='b', value=2)` | `{ entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }], lastRead: NoRead }` |
-| `3` | `fetch(key='a', value=0)` | `{ entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }], lastRead: Hit(1) }` |
-| `4` | `store(key='c', value=0)` | `{ entries: [{ key: "a", value: 1 }, { key: "c", value: 0 }], lastRead: NoRead }` |
-| `5` | `inspect(key='', value=0)` | `{ entries: [{ key: "a", value: 1 }, { key: "c", value: 0 }], lastRead: NoRead }` |
+| `1` | `store(key='a', value=1)` | `entries: [] → [{ key: "a", value: 1 }]` |
+| `2` | `store(key='b', value=2)` | `entries: [{ key: "a", value: 1 }] → [{ key: "a", value: 1 }, { key: "b", value: 2 }]` |
+| `3` | `fetch(key='a', value=0)` | `entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }] → [{ key: "b", value: 2 }, { key: "a", value: 1 }]`<br>`lastRead: NoRead → Hit(1)` |
+| `4` | `store(key='c', value=0)` | `entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }] → [{ key: "a", value: 1 }, { key: "c", value: 0 }]`<br>`lastRead: Hit(1) → NoRead` |
+| `5` | `inspect(key='', value=0)` | unchanged |
 
 </details>
 
-<details>
+<details open>
 <summary>What <code>session-receipts</code> says</summary>
 
 **Actions**, and the code each one drives:
@@ -295,14 +295,14 @@ generated, and CI fails when it no longer matches the evidence:
 
 **Bounds**: seed `11` · max_samples `300` · max_steps `3` · n_traces `4`.
 
-**Witness `staleSuccessIsReplacedTest`, step by step**: what the model expects the code to show after each action.
+**Witness `staleSuccessIsReplacedTest`, step by step**: the observation the model starts from, then what it expects each action to change.
 
 | State | Action | Model expects |
 | --: | :-- | :-- |
 | `0` | `init(kind='', strict=False)` | `{ exitCode: -1, mode: "none", status: "none" }` |
-| `1` | `session(kind='full', strict=True)` | `{ exitCode: 0, mode: "generate-and-replay", status: "passed" }` |
-| `2` | `session(kind='noQuint', strict=False)` | `{ exitCode: 1, mode: "generate-and-replay", status: "failed" }` |
-| `3` | `inspect(kind='', strict=False)` | `{ exitCode: 1, mode: "generate-and-replay", status: "failed" }` |
+| `1` | `session(kind='full', strict=True)` | `exitCode: -1 → 0`<br>`mode: "none" → "generate-and-replay"`<br>`status: "none" → "passed"` |
+| `2` | `session(kind='noQuint', strict=False)` | `exitCode: 0 → 1`<br>`status: "passed" → "failed"` |
+| `3` | `inspect(kind='', strict=False)` | unchanged |
 
 </details>
 
