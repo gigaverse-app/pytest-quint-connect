@@ -115,9 +115,14 @@ quint_required_contracts = <name>
 
 For each rule that matters, add a mutant: a plausible bug built in the factory from
 `context.mutant` (a subclass that skips one update, a patched function undone in `close()`).
-List their names in the manifest. **Each one must be detected.** A surviving mutant means the
+Declare each in the manifest as `{"name": "…", "description": "…"}`, so reports say what it
+simulates. **Each one must be detected.** A surviving mutant means the
 observation or the histories cannot see that fault: widen `observed` or add a witness. Never
 delete the mutant, drop a witness or remove an observed field to make a run pass.
+
+If the contract surfaces a real bug and it gets fixed, add a `bugs_found` entry to the manifest
+(`summary`, `fixed_in`, and `found_by`, `regression_test` and a `mutant` that reintroduces it when
+you have them). Never record an invented or planted fault as found.
 
 ## 5. Run it
 

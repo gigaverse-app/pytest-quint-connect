@@ -8,11 +8,11 @@ See ``docs/manifest.md`` for every field.
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-__all__ = ["Bounds", "Contract", "ContractError", "load_contract"]
+__all__ = ["Bounds", "Bug", "Contract", "ContractError", "Mutant", "load_contract"]
 
 DEFAULT_QUINT_VERSION = "0.33.1"
 
@@ -22,6 +22,7 @@ _OPTIONAL = {
     "root",
     "witnesses",
     "mutants",
+    "bugs_found",
     "convention",
     "event",
     "action_field",
@@ -52,6 +53,40 @@ class Bounds:
     n_traces: int
 
 
+def _declared(item: object) -> dict[str, Any]:
+    """A manifest object's fields, without the optional ones it left out."""
+    return {key: value for key, value in asdict(item).items() if value is not None}
+
+
+@dataclass(frozen=True)
+class Mutant:
+    """A deliberate fault the driver factory builds from ``HistoryContext.mutant``; ``description`` says what it does."""
+
+    name: str
+    description: str | None = None
+
+    def as_json(self) -> dict[str, Any]:
+        return _declared(self)
+
+
+@dataclass(frozen=True)
+class Bug:
+    """A real defect this contract found and that was fixed: the manifest's ``bugs_found`` entry.
+
+    ``mutant`` names the mutant that reintroduces it. Every history is replayed through that
+    mutant, so the receipt can say how many diverge; the rest of the entry is declared.
+    """
+
+    summary: str
+    fixed_in: str
+    found_by: str | None = None
+    regression_test: str | None = None
+    mutant: str | None = None
+
+    def as_json(self) -> dict[str, Any]:
+        return _declared(self)
+
+
 @dataclass(frozen=True)
 class Attestation:
     """Require every imported module of ``package`` to come from ``source``."""
@@ -73,7 +108,8 @@ class Contract:
     actions: Mapping[str, str]
     bounds: Bounds
     witnesses: tuple[str, ...]
-    mutants: tuple[str, ...]
+    mutant_specs: tuple[Mutant, ...]
+    bugs_found: tuple[Bug, ...]
     convention: str
     event: str
     action_field: str
@@ -89,6 +125,18 @@ class Contract:
     sources: tuple[Path, ...]
     attest: Attestation | None
     limits: tuple[str, ...]
+
+    @property
+    def mutants(self) -> tuple[str, ...]:
+        """Mutant names in manifest order: what ``HistoryContext.mutant`` and case ids carry."""
+        return tuple(mutant.name for mutant in self.mutant_specs)
+
+    def bug_reintroduced_by(self, mutant: str) -> Bug | None:
+        """The found bug this mutant reintroduces, if any: such a mutant replays every history."""
+        # dry-lint: distinct-from src/pytest_quint_connect/report.py::_catch_of
+        # This reads the manifest's declared bugs to decide how a mutant replays; _catch_of reads one test's
+        # recorded mutant outcome from a receipt. Reports are built from receipts only and never load a Contract.
+        return next((bug for bug in self.bugs_found if bug.mutant == mutant), None)
 
     @property
     def directory(self) -> Path:
@@ -153,6 +201,51 @@ def _names(data: Mapping[str, Any], key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _strings(value: object, required: tuple[str, ...], optional: tuple[str, ...], what: str) -> dict[str, str]:
+    """An object with every ``required`` field, no field outside ``optional``, each a non-empty string."""
+    if not isinstance(value, dict) or not set(required) <= set(value) <= {*required, *optional}:
+        allowed = f"; optional {list(optional)}" if optional else ""
+        raise ContractError(f"{what} must be an object with the fields {list(required)}{allowed}")
+    if not all(isinstance(item, str) and item for item in value.values()):
+        raise ContractError(f"{what}: every field must be a non-empty string")
+    return value
+
+
+def _mutant(entry: object) -> Mutant:
+    """A ``mutants`` entry: a name, or ``{"name", "description"}``."""
+    if isinstance(entry, str) and entry:
+        return Mutant(entry)
+    if not isinstance(entry, dict):
+        raise ContractError(f"a mutants entry must be a name or an object, got {entry!r}")
+    return Mutant(**_strings(entry, ("name", "description"), (), f"mutant {entry.get('name')!r}"))
+
+
+def _mutants(data: Mapping[str, Any]) -> tuple[Mutant, ...]:
+    value = data.get("mutants", [])
+    if not isinstance(value, list):
+        raise ContractError("manifest field 'mutants' must be a list of names or mutant objects")
+    mutants = tuple(_mutant(entry) for entry in value)
+    if len({mutant.name for mutant in mutants}) != len(mutants):
+        raise ContractError("manifest field 'mutants' repeats a name")
+    return mutants
+
+
+def _bugs(data: Mapping[str, Any], mutants: tuple[str, ...]) -> tuple[Bug, ...]:
+    """``bugs_found``: each ``{"summary", "fixed_in", "found_by"?, "regression_test"?, "mutant"?}``."""
+    value = data.get("bugs_found", [])
+    if not isinstance(value, list):
+        raise ContractError("manifest field 'bugs_found' must be a list of objects")
+    fields = ("found_by", "regression_test", "mutant")
+    bugs = tuple(Bug(**_strings(entry, ("summary", "fixed_in"), fields, "a bugs_found entry")) for entry in value)
+    claimed = [bug.mutant for bug in bugs if bug.mutant is not None]
+    undeclared = sorted(set(claimed) - set(mutants))
+    if undeclared:
+        raise ContractError(f"bugs_found names undeclared mutants {undeclared}; declare them in 'mutants'")
+    if len(set(claimed)) != len(claimed):
+        raise ContractError("two bugs_found entries name the same mutant")
+    return bugs
+
+
 def _positive(bounds: Mapping[str, Any], key: str, *, minimum: int = 1) -> int:
     value = bounds.get(key)
     if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
@@ -204,7 +297,7 @@ def load_contract(manifest: Path) -> Contract:
         n_traces=_positive(raw_bounds, "n_traces", minimum=0),
     )
     witnesses = _names(data, "witnesses")
-    mutants = _names(data, "mutants")
+    mutants = _mutants(data)
     if not witnesses and bounds.n_traces == 0:
         raise ContractError("a contract needs at least one witness or one sampled trace")
 
@@ -261,7 +354,8 @@ def load_contract(manifest: Path) -> Contract:
         actions=dict(actions),
         bounds=bounds,
         witnesses=witnesses,
-        mutants=mutants,
+        mutant_specs=mutants,
+        bugs_found=_bugs(data, tuple(mutant.name for mutant in mutants)),
         convention=convention,
         event=_string(data, "event", "event"),
         action_field=_string(data, "action_field", "op"),

@@ -2,7 +2,11 @@
 
 The fixtures in data/receipts are results.json files the plugin wrote for the LRU example
 (complete, a stale-read fault, a ``-k`` filtered run and a replay), with the checkout path
-replaced by /repo (scripts/normalize_receipt.py).
+replaced by /repo (scripts/normalize_receipt.py). ``lru-bug-found.json`` is a complete run with
+the example's manifest listing a found bug that ``stale-read`` reintroduces (``fixed_in:
+example-only``): the example cache was never shipped, so only this test data, not the committed
+manifest, may claim it.
+The failed, partial and replay fixtures predate ``mutant_specs`` and stand for older receipts.
 """
 
 import json
@@ -14,7 +18,10 @@ from pytest_quint_connect.cli import main
 from pytest_quint_connect.report import (
     COMMENT_BUDGET,
     END,
+    PLANTED,
+    PLANTED_TIP,
     START,
+    Evidence,
     ReportError,
     check_readme,
     embed,
@@ -119,7 +126,7 @@ def test_readme_block_has_nothing_run_specific() -> None:
     block = render_readme(evidence("passed"))
     assert block == render_readme(evidence("passed"))
     assert "<!-- pytest-quint-connect:contracts lru-cache -->" in block
-    assert "Quint_contracts-1_contract_passed_·_15_histories_·_2%2F2_mutants_caught-brightgreen" in block.replace(
+    assert "Quint_contracts-1_contract_passed_·_15_histories_·_2%2F2_planted_bugs_caught-brightgreen" in block.replace(
         "%C2%B7", "·"
     )
     assert "0123456789abcdef" not in block and "/repo" not in block
@@ -224,3 +231,116 @@ def test_comment_reproduce_command_names_an_explicit_config_file(tmp_path: Path)
         "cd contracts\npytest -c quint.ini 'lru/test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
         in comment
     )
+
+
+def section(text: str, heading: str) -> list[str]:
+    """The list lines under a bold heading that starts with ``heading``."""
+    start = text.index(f"**{heading}")
+    _, _, rest = text[start:].partition("**\n\n")
+    return rest.split("\n\n", 1)[0].splitlines()
+
+
+def planted(text: str) -> list[str]:
+    return section(text, f"{TERM}")
+
+
+TERM = f'[Planted bugs]({PLANTED} "{PLANTED_TIP}")'
+
+
+def test_planted_bugs_are_explained_on_hover_wherever_they_are_counted() -> None:
+    comment = render_comment(evidence("passed"), repository=REPO)
+    assert f'| | Contract | Cases passed | [Planted bugs caught]({PLANTED} "{PLANTED_TIP}") |\n' in comment
+    assert f"**{TERM} this contract catches**" in comment
+    block = render_readme(evidence("passed"))
+    assert f'<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="{PLANTED_TIP}">' in block
+    assert "mutant" not in comment.lower().replace(PLANTED_TIP.lower(), "")
+
+
+def test_comment_says_what_each_planted_bug_breaks_and_where_it_was_caught() -> None:
+    comment = render_comment(evidence("passed"), repository=REPO)
+    # Both test functions caught it in the same place, so they share one line.
+    assert planted(comment) == [
+        "- `stale-read`: get() returns the value but does not refresh recency, so a just-read entry can be "
+        "evicted next. Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    ]
+    assert comment.index("| ✅ | `lru-cache`") < comment.index(f"**{TERM}")
+    assert planted(render_readme(evidence("passed"))) == planted(comment)
+    assert "Bugs this contract found" not in comment and "bug found" not in comment
+
+
+def test_found_bugs_lead_with_what_was_fixed_and_how_many_histories_its_return_breaks() -> None:
+    comment = render_comment(evidence("bug-found"), repository=REPO)
+    assert comment.startswith("### ✅ Quint contracts: 1 contract · 2 tests passed · 1 bug found\n")
+    (line,) = section(comment, "Bugs this contract found")
+    assert line == (
+        "1. **reads did not refresh recency, so a just-read entry could be evicted next (test data: this cache was "
+        "never shipped).** Fixed in example-only · found by witness evictsLeastRecentlyUsedTest · regression test "
+        "`test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`. 4 of 15 histories diverge "
+        f'when [planted bug]({PLANTED} "{PLANTED_TIP}") `stale-read` (get() returns the value but does not refresh '
+        "recency, so a just-read entry can be evicted next) reintroduces it; first caught by "
+        "`witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    )
+    # The planted bug that reintroduces a found bug is reported with it, not again in the planted list.
+    assert f"**{TERM}" not in comment
+    assert line in render_readme(evidence("bug-found"))
+    assert comment.index("| ✅ | `lru-cache`") < comment.index("**Bugs this contract found**")
+
+
+def test_receipts_without_mutant_specs_still_say_where_each_planted_bug_was_caught() -> None:
+    # lru-failed.json was written before receipts carried descriptions or found bugs.
+    assert planted(render_comment(evidence("failed"), repository=REPO)) == [
+        "- `stale-read`: Caught by `witness-evictsLeastRecentlyUsedTest` at state 3, after `fetch(key='a', value=0)`."
+    ]
+    assert planted(render_comment(evidence("partial"), repository=REPO)) == [
+        "- `stale-read`: **Not caught**: not run in this session."
+    ]
+
+
+def edited_bug_receipt(tmp_path: Path, edit) -> Evidence:
+    receipt = json.loads((RECEIPTS / "lru-bug-found.json").read_text(encoding="utf-8"))
+    edit(receipt["contracts"][0])
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    return load([path])
+
+
+def test_a_found_bug_claims_no_more_than_its_planted_bug_shows(tmp_path: Path) -> None:
+    def survive_in_refactor(contract: dict) -> None:
+        refactor = contract["tests"][1]
+        refactor["mutations"] = {}
+        refactor["outcomes"]["mutant-stale-read"] = "failed"
+        refactor["findings"] = {"mutant-stale-read": {"survived": 15}}
+
+    comment = render_comment(edited_bug_receipt(tmp_path, survive_in_refactor), repository=REPO)
+    header, caught, survived = section(comment, "Bugs this contract found")
+    assert header.startswith("1. **reads did not refresh recency") and header.endswith(
+        "witness-evictsLeastRecentlyUsedTest]`."
+    )
+    assert caught.startswith("   - 4 of 15 histories diverge") and caught.endswith(
+        "<sub>`test_lru_contract.py::test_lru_cache`</sub>"
+    )
+    assert (
+        "which reintroduces it: survived all 15 histories. <sub>`test_lru_contract.py::test_ordered_refactor`"
+        in survived
+    )
+
+    def without_mutant(contract: dict) -> None:
+        del contract["bugs_found"][0]["mutant"]
+
+    comment = render_comment(edited_bug_receipt(tmp_path, without_mutant), repository=REPO)
+    (line,) = section(comment, "Bugs this contract found")
+    assert (
+        line.endswith(f'No [planted bug]({PLANTED} "{PLANTED_TIP}") re-checks it.') and "histories diverge" not in line
+    )
+    assert planted(comment)[0].startswith("- `stale-read`: get() returns")
+
+
+def test_manifest_text_cannot_inject_markup_or_mentions(tmp_path: Path) -> None:
+    def inject(contract: dict) -> None:
+        contract["mutant_specs"][0]["description"] = "<img src=x> pings\n@octocat"
+        contract["bugs_found"][0]["fixed_in"] = "see [this](javascript:alert(1))"
+        contract["bugs_found"][0]["summary"] = "**bold** <script>"
+
+    (line,) = section(render_comment(edited_bug_receipt(tmp_path, inject), repository=REPO), "Bugs this contract found")
+    assert "&lt;img src=x&gt; pings &#64;octocat" in line and "&lt;script&gt;" in line
+    assert "Fixed in `see [this](javascript:alert(1))`" in line
