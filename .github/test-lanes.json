@@ -79,7 +79,8 @@
       "inputs": [
         "ci_tests/**",
         "scripts/ci/**",
-        "tests/.gv-dependencies.yaml"
+        "tests/.gv-dependencies.yaml",
+        ".github/workflows/release.yml"
       ]
     }
   },
