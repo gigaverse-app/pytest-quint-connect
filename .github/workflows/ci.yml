@@ -42,7 +42,7 @@ jobs:
           full-roots: tests
 
   quality:
-    name: Lint, docs and routing
+    name: Lint, docs and gate contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -53,17 +53,28 @@ jobs:
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync python scripts/check_docs.py
-      # Routing regressions and the gate check always run: they decide what a skipped lane means.
-      - name: Prove lane and file routing on real Git snapshots
-        run: >-
-          uv run --no-project --python 3.14
-          --with "$(python3 scripts/ci/selector_requirement.py)"
-          python -m unittest discover -s ci_tests -v
+      # Static and cheap, so it always runs: the gate, job conditions and lane file cannot drift apart.
       - name: Check the aggregate gate against the execution lanes
         run: >-
           uv run --no-project --python 3.14
           --with "ci-esta>=1.1.0,<2.0.0"
           ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
+
+  routing:
+    name: Routing regressions
+    needs: select-tests
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).routing) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Prove lane and file routing on real Git snapshots
+        run: >-
+          uv run --no-project --python 3.14
+          --with "$(python3 scripts/ci/selector_requirement.py)"
+          python -m unittest discover -s ci_tests -v
 
   test:
     name: Test (Python ${{ matrix.python }}, ${{ matrix.os }})
@@ -130,7 +141,9 @@ jobs:
   build:
     name: Build and smoke the installed wheel
     needs: select-tests
-    if: ${{ always() && !cancelled() }}
+    if: >-
+      ${{ always() && !cancelled() && (needs.select-tests.result != 'success' ||
+          fromJSON(needs.select-tests.outputs.lanes).package) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -146,7 +159,6 @@ jobs:
       - run: uv run --no-sync python -m pytest tests/test_release.py -q -p no:cacheprovider
       # A fresh environment outside the checkout: pytest discovers the plugin only through the wheel's entry point.
       - name: Installed wheel runs the example contract
-        if: ${{ needs.select-tests.result != 'success' || fromJSON(needs.select-tests.outputs.lanes).tests }}
         run: uv run --no-sync python scripts/smoke_distribution.py dist/pytest_quint_connect-*.whl
       - uses: actions/upload-artifact@v7
         with:
@@ -159,7 +171,7 @@ jobs:
     needs: [select-tests, build]
     if: >-
       ${{ always() && !cancelled() && needs.build.result == 'success' && (needs.select-tests.result != 'success' ||
-          fromJSON(needs.select-tests.outputs.lanes).tests) }}
+          fromJSON(needs.select-tests.outputs.lanes).package) }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -234,7 +246,7 @@ jobs:
     # CI-esta's observer and the branch ruleset both look for this exact name.
     name: Validation gate
     if: ${{ !cancelled() }}
-    needs: [select-tests, quality, test, minimum-pytest, build, consumer-install, dogfood, lint-ci]
+    needs: [select-tests, quality, routing, test, minimum-pytest, build, consumer-install, dogfood, lint-ci]
     runs-on: ubuntu-latest
     steps:
       # The one check to require. A lane job may be skipped only when the planner succeeded and returned false
@@ -243,4 +255,6 @@ jobs:
         with:
           needs: ${{ toJSON(needs) }}
           lanes: ${{ needs.select-tests.outputs.lanes || '{}' }}
-          lane-jobs: '{"test":["tests"],"minimum-pytest":["tests"],"consumer-install":["tests"],"dogfood":["dogfood"]}'
+          lane-jobs: >-
+            {"routing":["routing"],"test":["tests"],"minimum-pytest":["tests"],"build":["package"],
+            "consumer-install":["package"],"dogfood":["dogfood"]}
