@@ -11,7 +11,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--lru-implementation",
         choices=sorted(IMPLEMENTATIONS),
-        default="list",
+        default="stale-read",
         help="which cache the contract checks (stale-read has a deliberate bug)",
     )
 
