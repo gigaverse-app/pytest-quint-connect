@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pytest-quint-connect"
-version = "1.2.0"
+version = "1.2.1"
 description = "Model-based testing for Python: replay Quint-generated histories against real implementations under pytest"
 readme = "README.md"
 requires-python = ">=3.11"
