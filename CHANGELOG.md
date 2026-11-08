@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.1](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.2.0...v1.2.1) (2026-11-08)
+
+
+### Bug fixes
+
+* **ci:** mark PR runs so the push after a merge can reuse their receipts ([#37](https://github.com/gigaverse-app/pytest-quint-connect/issues/37)) ([54776b7](https://github.com/gigaverse-app/pytest-quint-connect/commit/54776b778ed3ba3b7a6192e4f6bb82763c4f55e5))
+* **release:** grant Publish the permissions the CI workflow requests ([#40](https://github.com/gigaverse-app/pytest-quint-connect/issues/40)) ([d9ec685](https://github.com/gigaverse-app/pytest-quint-connect/commit/d9ec685c07ff409d3234db84c081c136810dbb48))
+* **report:** show what each witness step changes, in an open block ([#39](https://github.com/gigaverse-app/pytest-quint-connect/issues/39)) ([53e7785](https://github.com/gigaverse-app/pytest-quint-connect/commit/53e7785b8866041bcd13ee7cb8d6b5b7d1eae881))
+
 ## [1.2.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.1.0...v1.2.0) (2026-11-08)
 
 
