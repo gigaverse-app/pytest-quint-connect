@@ -204,28 +204,8 @@ class _Session:
             run.imported.update(result.imported)
             return
         if case.kind == "mutant":
-            for trace_id, trace in generation.traces.items():
-                try:
-                    replay_trace(
-                        trace,
-                        case.contract,
-                        factory,
-                        mutant=case.name,
-                        work_base=work,
-                        reproduce=self.reproduce(case, trace, case.name),
-                    )
-                except ReplayMismatch as mismatch:
-                    # Only an observed-state mismatch counts as detection. Any other exception
-                    # (a setup error, a crash in the mutant) propagates and fails this case.
-                    run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
-                    item.user_properties.append(("quint_detected_by", trace_id))
-                    return
-            run.findings[case.id] = {"survived": len(generation.traces)}
-            pytest.fail(
-                f"mutant {case.name!r} survived all {len(generation.traces)} generated histories of "
-                f"{case.contract.name!r}: no observation differed from the model",
-                pytrace=False,
-            )
+            self.run_mutant(case, generation, factory, item)
+            return
         if case.kind == "coverage":
             reached: set[str] = set()
             for trace in generation.traces.values():
@@ -239,6 +219,43 @@ class _Session:
                 )
             return
         raise AssertionError(f"unknown case kind {case.kind}")
+
+    def run_mutant(self, case: Case, generation: Generation, factory: DriverFactory, item: pytest.Item) -> None:
+        """Replay histories through the mutant until one is caught, or through all if it reintroduces a found bug.
+
+        Only an observed-state mismatch counts as detection. Any other exception (a setup error, a
+        crash in the mutant) propagates and fails the case.
+        """
+        run = self.runs[case.test]
+        every_history = case.contract.bug_reintroduced_by(case.name) is not None
+        diverged: list[str] = []
+        for trace_id, trace in generation.traces.items():
+            try:
+                replay_trace(
+                    trace,
+                    case.contract,
+                    factory,
+                    mutant=case.name,
+                    work_base=self.artifacts / "_work",
+                    reproduce=self.reproduce(case, trace, case.name),
+                )
+            except ReplayMismatch as mismatch:
+                if not diverged:
+                    # Where it was first caught: the trace id here, its state, action and differences below.
+                    run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
+                    item.user_properties.append(("quint_detected_by", trace_id))
+                diverged.append(trace_id)
+                if not every_history:
+                    return
+        if diverged:
+            run.mutations[case.name].update(histories=len(generation.traces), diverged=diverged)
+            return
+        run.findings[case.id] = {"survived": len(generation.traces)}
+        pytest.fail(
+            f"mutant {case.name!r} survived all {len(generation.traces)} generated histories of "
+            f"{case.contract.name!r}: no observation differed from the model",
+            pytrace=False,
+        )
 
     def save_mismatch(self, case: Case, mismatch: ReplayMismatch) -> Path:
         directory = self.artifacts / case.contract.name
@@ -258,6 +275,8 @@ class _Session:
                 "convention": contract.convention,
                 "witnesses": list(contract.witnesses),
                 "mutants": list(contract.mutants),
+                "mutant_specs": [mutant.as_json() for mutant in contract.mutant_specs],
+                "bugs_found": [bug.as_json() for bug in contract.bugs_found],
                 "limits": list(contract.limits),
             }
             try:
