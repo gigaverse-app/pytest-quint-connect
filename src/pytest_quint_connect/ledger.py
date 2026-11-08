@@ -79,10 +79,12 @@ def advance(previous: Ledger, evidence: "Evidence", *, head: str) -> Ledger:
             key = f"{row.contract} · {row.test} · {failure.case}"
             entry = caught.setdefault(key, {"found": number, "kind": kind, "state": "open"})
             entry["state"] = "open"
+            entry.pop("fixed", None)
         for case in row.passed_cases:
             key = f"{row.contract} · {row.test} · {case}"
-            if key in caught:
-                caught[key]["state"] = "fixed"
+            if key in caught and caught[key]["state"] != "fixed":
+                # The push that first ran it and passed; ledgers written before this field simply lack it.
+                caught[key]["state"], caught[key]["fixed"] = "fixed", number
     pushes.append({"push": number, "head": head, "status": evidence.status or "none"})
     pushes.sort(key=lambda push: push["push"])
     kept = dict(sorted(caught.items(), key=lambda item: (item[1]["state"] != "open", -item[1]["found"]))[:MAX_CAUGHT])

@@ -379,10 +379,17 @@ def _credit(rows: list[Row]) -> list[str]:
     if not found:
         return []
     fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
-    these = "these contracts" if len(_by_contract(rows)) > 1 else "this contract"
-    return [
-        f"<sub>🏅 Earlier, {these} found {_plural(len(found), 'real bug')}, since fixed in {', '.join(fixes)}.</sub>"
+    these = "These contracts" if len(_by_contract(rows)) > 1 else "This contract"
+    lines = [
+        "> [!TIP]",
+        f"> **🏅 {these} found {_plural(len(found), 'real bug')}, since fixed in {', '.join(fixes)}.**",
     ]
+    shown = found[:5]
+    for _, bug in shown:
+        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')} (fixed in {_ref(bug.get('fixed_in'))})")
+    if len(found) > len(shown):
+        lines.append(f"> - …and {len(found) - len(shown)} more, in the table below")
+    return [*lines, ""]
 
 
 def _collapsible(summary: str, body: list[str], *, expanded: bool = False) -> list[str]:
@@ -571,7 +578,10 @@ def _alert(evidence: Evidence, repository: Path) -> list[str]:
         if not failing and not broken:
             lines.append(f"> **{MEANING['failed'][0].upper()}{MEANING['failed'][1:]}.**")
         return [*lines, ""]
-    lines = ["> [!WARNING]", f"> **{ICON[status]} Not complete evidence: {MEANING[status]}.**"]
+    lines = ["> [!WARNING]", "> **This run is not complete evidence: nothing failed, but not every case ran.**"]
+    present = [state for state in SEVERITY if state != "passed" and any(row.status == state for row in evidence.rows)]
+    for state in present:
+        lines += [">", f"> {ICON[state]} **{state}**: {MEANING[state]}."]
     for reason in _new_reasons(evidence)[:5]:
         lines += [">", f"> {_code(reason, 300)}"]
     return [*lines, ""]
@@ -899,7 +909,27 @@ def _tally(ledger: "Ledger") -> list[str]:
         f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}; "
         "what counts as a disagreement is at the bottom.</sub>",
         "",
+        *_fixed(ledger),
     ]
+
+
+MAX_FIXED = 10
+
+
+def _fixed(ledger: "Ledger") -> list[str]:
+    """Which histories this pull request fixed, by name: a count alone does not say what got better."""
+    fixed = [(key, entry) for key, entry in ledger.caught.items() if entry["state"] == "fixed"]
+    if not fixed:
+        return []
+    lines = []
+    for key, entry in sorted(fixed, key=lambda item: (item[1]["found"], item[0]))[:MAX_FIXED]:
+        contract, test, case = (key.split(" · ", 2) + ["", ""])[:3]
+        what = "a mutant no history caught" if entry.get("kind") == "survived" else "the code left the model"
+        when = f"caught in push {entry['found']}" + (f", fixed in push {entry['fixed']}" if entry.get("fixed") else "")
+        lines.append(f"- ✅ {_code(contract)} {_code(case)} in {_code(test)}: {what}; {when}.")
+    if len(fixed) > MAX_FIXED:
+        lines.append(f"- …and {len(fixed) - MAX_FIXED} more.")
+    return [f"**Fixed in this PR** ({_plural(len(fixed), 'history', 'histories')}):", "", *lines, ""]
 
 
 # Where render_comment places the claims, so it can leave them out when the comment would not fit.
@@ -927,9 +957,10 @@ def render_comment(
     lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
-    lines += _credit(evidence.rows)
     lines.append("")
+    # What needs a person comes first; bugs the contracts found earlier are credited after it, as history.
     lines += _alert(evidence, repository)
+    lines += _credit(evidence.rows)
     # A first push that caught nothing has no story to tell yet; a later push or any catch does.
     if ledger is not None and (ledger.caught or len(ledger.pushes) > 1):
         lines += _tally(ledger)

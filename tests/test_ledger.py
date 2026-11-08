@@ -115,3 +115,25 @@ def test_every_banner_the_comment_can_name_exists() -> None:
     for variant in ("", "-passed", "-failed"):
         for theme in ("light", "dark"):
             assert (assets / f"sticky-banner{variant}-{theme}.svg").is_file()
+
+
+def test_the_comment_names_each_history_this_pull_request_fixed() -> None:
+    ledger = advance(advance(Ledger(), evidence("failed"), head="a"), evidence("passed"), head="b")
+    assert {entry["fixed"] for entry in ledger.caught.values()} == {2}
+    comment = render_comment(evidence("passed"), repository=Path("/repo"), ledger=ledger)
+    assert "**Fixed in this PR** (4 histories):" in comment
+    assert (
+        "- ✅ `lru-cache` `witness-evictsLeastRecentlyUsedTest` in `test_lru_contract.py::test_lru_cache`: "
+        "the code left the model; caught in push 1, fixed in push 2." in comment
+    )
+    # A history that fails again is open again, and forgets when it was fixed.
+    reopened = advance(ledger, evidence("failed"), head="c")
+    assert not any("fixed" in entry for entry in reopened.caught.values())
+    assert "**Fixed in this PR**" not in render_comment(evidence("failed"), repository=Path("/repo"), ledger=reopened)
+
+
+def test_a_first_push_that_caught_nothing_shows_no_tally() -> None:
+    quiet = advance(Ledger(), evidence("passed"), head="a")
+    assert "Disagreements caught" not in render_comment(evidence("passed"), repository=Path("/repo"), ledger=quiet)
+    later = advance(quiet, evidence("passed"), head="b")
+    assert "Disagreements caught" in render_comment(evidence("passed"), repository=Path("/repo"), ledger=later)

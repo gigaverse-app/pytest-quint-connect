@@ -82,22 +82,39 @@ def test_comment_explains_each_failure_with_a_reproduce_command() -> None:
     assert comment.startswith(
         "### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 30/34 cases passed · 2/2 mutants caught\n"
     )
-    assert "observed state differs from the model at state 3, after `fetch(key='a', value=0)`" in comment
-    assert "`entries[0].key: values differ; expected: 'b'; actual: 'a'`" in comment
-    assert "and 1 more difference" in comment
+    # The alert, first after the headline, names the clearest failure (the witness, the shortest path) and its command.
+    alert = comment.split("\n\n", 2)[1]
+    assert alert.startswith("> [!CAUTION]\n> **4 histories left the model in `lru-cache`.**")
+    assert "> Start with `witness-evictsLeastRecentlyUsedTest`: the code left the model at state 3" in alert
     assert (
-        "cd examples/lru_cache\npytest 'test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
-        in (comment)
+        "> cd examples/lru_cache\n> pytest 'test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
+        in alert
     )
+    # That failure in full, with the model's expectation beside what the code observed.
+    assert (
+        "`witness-evictsLeastRecentlyUsedTest`: the code left the model at state 3, after `fetch(key='a', value=0)`."
+        in comment
+    )
+    assert "| `entries[0].key` | `'b'` | `'a'` |" in comment
+    assert "…and 1 more difference" in comment
     assert "mismatch-test_lru_cache-witness-evictsLeastRecentlyUsedTest.json" in comment
+    # The other three fold into one block, each with its own command.
+    assert "<summary>3 more failing histories in <code>test_lru_contract.py::test_lru_cache</code></summary>" in comment
+    assert "  pytest 'test_lru_contract.py::test_lru_cache[sample-5]'" in comment
+    # The failed cases are not listed again as "not complete".
+    assert "#### Not complete" not in comment
+    assert "<summary><strong>What do these words and numbers mean?</strong></summary>" in comment
     assert "[run](https://run.example)" in comment and "`abc1234`" in comment
 
 
 def test_comment_says_filtered_and_replayed_runs_are_not_complete() -> None:
     partial = render_comment(evidence("partial"), repository=REPO)
     assert partial.startswith("### 🟡 Quint contracts: 1 contract · 1 test partial, 1 not run")
-    assert "not complete evidence" in partial and "#### Not complete" in partial
-    assert "none of its cases were selected" in partial
+    alert = partial.split("\n\n", 2)[1]
+    assert alert.startswith("> [!WARNING]\n> **This run is not complete evidence")
+    assert "> 🟡 **partial**: some cases were filtered out" in alert
+    assert "none of its cases were selected" in alert
+    assert "did not run or did not pass" in alert  # the session's own reason, which no failure shows
     replay = render_comment(evidence("replay"), repository=REPO)
     assert replay.startswith("### ➖ Quint contracts: 1 contract · 1 test not run, 1 replay-only")
     assert "never complete coverage" in replay
@@ -324,9 +341,13 @@ STALE_READ = "get() returns the value but does not refresh recency, so a just-re
 def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_details() -> None:
     comment = render_comment(dogfood(), repository=REPO)
     # What matters now leads; the bug found earlier is credited apart, as history, not as a current failure.
-    assert headline(comment) == [
-        "### ✅ Quint contracts: 1 contract · all 13 cases passed · 4/4 mutants caught",
-        "<sub>🏅 Earlier, this contract found 1 real bug, since fixed in #3.</sub>",
+    assert headline(comment) == ["### ✅ Quint contracts: 1 contract · all 13 cases passed · 4/4 mutants caught"]
+    # Credited prominently, right under the headline, with what it was: history, not a current failure.
+    assert comment.split("\n\n", 2)[1].splitlines()[:3] == [
+        "> [!TIP]",
+        "> **🏅 This contract found 1 real bug, since fixed in #3.**",
+        "> - Valid histories whose step calls one action without any { … } were rejected: Quint records "
+        "mbt::actionTaken as step, and the event cross-check refused it (fixed in #3)",
     ]
     expanded, rows = block(comment, "✅ 1 contract · 13/13 cases · 4/4 mutants caught · 8 histories")
     assert not expanded and len(rows) == 1 and rows[0].startswith("| ✅ | `session-receipts`")
@@ -431,10 +452,8 @@ def test_comment_says_what_each_mutant_breaks_and_where_it_was_caught() -> None:
 
 def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_breaks() -> None:
     comment = render_comment(evidence("bug-found"), repository=REPO)
-    assert headline(comment) == [
-        "### ✅ Quint contracts: 1 contract · all 34 cases passed · 2/2 mutants caught",
-        "<sub>🏅 Earlier, this contract found 1 real bug, since fixed in example-only.</sub>",
-    ]
+    assert headline(comment) == ["### ✅ Quint contracts: 1 contract · all 34 cases passed · 2/2 mutants caught"]
+    assert "> **🏅 This contract found 1 real bug, since fixed in example-only.**" in comment
     expanded, (row,) = block(comment, "🐞 1 real bug found by this contract")
     assert not expanded and row == (
         "| `lru-cache` | reads did not refresh recency, so a just-read entry could be evicted next (test data: this "
