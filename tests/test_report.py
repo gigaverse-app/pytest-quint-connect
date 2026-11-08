@@ -280,8 +280,9 @@ def test_comment_reproduce_command_names_an_explicit_config_file(tmp_path: Path)
     path = tmp_path / "results.json"
     path.write_text(json.dumps(receipt), encoding="utf-8")
     comment = render_comment(load([path]), repository=REPO)
+    # The alert carries the command for the failure it says to start with.
     assert (
-        "cd contracts\npytest -c quint.ini 'lru/test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
+        "> cd contracts\n> pytest -c quint.ini 'lru/test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'"
         in comment
     )
 
@@ -345,7 +346,7 @@ def test_this_repositorys_contract_reports_green_numbers_and_collapses_its_detai
     # Credited prominently, right under the headline, with what it was: history, not a current failure.
     assert comment.split("\n\n", 2)[1].splitlines()[:3] == [
         "> [!TIP]",
-        "> **🏅 This contract found 1 real bug, since fixed in #3.**",
+        "> **🏅 This contract found 1 real bug, fixed in #3.**",
         "> - Valid histories whose step calls one action without any { … } were rejected: Quint records "
         "mbt::actionTaken as step, and the event cross-check refused it (fixed in #3)",
     ]
@@ -393,7 +394,7 @@ def test_every_table_spans_the_comment_through_its_widest_column() -> None:
     assert "| <sub>`test_lru_contract.py`<br>`::test_lru_cache[witness-evictsLeastRecentlyUsedTest]`</sub> |" in comment
 
 
-def test_a_red_run_keeps_its_table_open_with_failing_rows_first(tmp_path: Path) -> None:
+def test_a_red_run_lists_failing_rows_first(tmp_path: Path) -> None:
     def fail_the_refactor(contract: dict) -> None:
         # The refactor sorts after test_lru_cache: only failing-first ordering puts it on top.
         contract["tests"][1]["outcomes"]["sample-3"] = "failed"
@@ -403,7 +404,9 @@ def test_a_red_run_keeps_its_table_open_with_failing_rows_first(tmp_path: Path) 
         "### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 33/34 cases passed · 2/2 mutants caught"
     ]
     expanded, rows = block(comment, "❌ 1 contract · 33/34 cases · 2/2 mutants caught · 15 histories")
-    assert expanded
+    # The sticky folds the table under the failures; the README block keeps a red table open.
+    assert not expanded
+    assert block(render_readme(edited_passed_receipt(tmp_path, fail_the_refactor)), "❌ 1 contract")[0]
     assert [row.split(" | ")[:2] for row in rows] == [
         [
             "| ❌",
@@ -419,12 +422,20 @@ def test_a_red_run_keeps_its_table_open_with_failing_rows_first(tmp_path: Path) 
     assert_tables_keep_their_columns(comment)
 
 
-def test_an_open_disagreement_keeps_the_table_open() -> None:
+def test_the_comment_folds_its_details_under_what_a_person_must_do() -> None:
+    # The table is detail in the sticky, red or green; the alert and the failures carry what to do.
     ledger = Ledger(caught={"k": {"found": 1, "kind": "mismatch", "state": "open"}})
-    expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=ledger), "✅ 1 contract")
-    assert expanded
-    expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=Ledger()), "✅ 1 contract")
-    assert not expanded
+    for each in (ledger, Ledger()):
+        expanded, _ = block(render_comment(evidence("passed"), repository=REPO, ledger=each), "✅ 1 contract")
+        assert not expanded
+    comment = render_comment(evidence("failed"), repository=REPO)
+    assert "<details open>" not in comment
+    # The command the alert gives is not repeated under the failure it reruns.
+    assert comment.count("pytest 'test_lru_contract.py::test_lru_cache[witness-evictsLeastRecentlyUsedTest]'") == 1
+    assert comment.index("> [!CAUTION]") < comment.index("#### What failed") < comment.index("<summary>❌ 1 contract")
+    assert comment.index("<summary>❌ 1 contract") < comment.index("What do these words")
+    passed = render_comment(evidence("passed"), repository=REPO)
+    assert passed.index("<summary>✅ 1 contract") < passed.index(CLAIMS) < passed.index("What do these words")
 
 
 def test_mutants_are_explained_on_hover_wherever_they_are_counted() -> None:
@@ -453,7 +464,7 @@ def test_comment_says_what_each_mutant_breaks_and_where_it_was_caught() -> None:
 def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_breaks() -> None:
     comment = render_comment(evidence("bug-found"), repository=REPO)
     assert headline(comment) == ["### ✅ Quint contracts: 1 contract · all 34 cases passed · 2/2 mutants caught"]
-    assert "> **🏅 This contract found 1 real bug, since fixed in example-only.**" in comment
+    assert "> **🏅 This contract found 1 real bug, fixed in example-only.**" in comment
     expanded, (row,) = block(comment, "🐞 1 real bug found by this contract")
     assert not expanded and row == (
         "| `lru-cache` | reads did not refresh recency, so a just-read entry could be evicted next (test data: this "
@@ -467,6 +478,23 @@ def test_found_bugs_are_credited_apart_and_say_how_many_histories_their_return_b
     ]
     assert row in render_readme(evidence("bug-found"))
     assert comment.index("| ✅ | `lru-cache`") < comment.index("<summary>🐞") < comment.index("<summary>🧪")
+
+
+@pytest.mark.parametrize("fixed_in", ["#157", "157", "https://github.com/o/r/pull/157"])
+def test_a_bug_this_pull_request_fixes_is_credited_to_it_and_kept_apart_from_the_tally(
+    tmp_path: Path, fixed_in: str
+) -> None:
+    receipt = json.loads((RECEIPTS / "lru-bug-found.json").read_text(encoding="utf-8"))
+    receipt["contracts"][0]["bugs_found"][0]["fixed_in"] = fixed_in
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    ledger = Ledger(pushes=[{"push": 1, "head": "a", "status": "passed"}, {"push": 2, "head": "b", "status": "passed"}])
+    comment = render_comment(load([path]), repository=REPO, ledger=ledger, pull="157")
+    # Not "since fixed" in what reads as an earlier pull request, beside a tally of 0 fixed in this one.
+    assert "> **🏅 This pull request fixes 1 real bug this contract found.**" in comment
+    assert "They are not disagreements: the tally counts only what this pull request's pushes caught." in comment
+    other = render_comment(load([path]), repository=REPO, ledger=ledger, pull="158")
+    assert "🏅 This contract found 1 real bug, fixed in" in other and "not disagreements" not in other
 
 
 def test_receipts_without_mutant_specs_still_say_where_each_mutant_was_caught() -> None:
@@ -570,18 +598,19 @@ def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> 
     assert "Raise bounds.n_traces or max_steps" in comment
 
 
-CLAIMS_OPEN = "<details open>\n<summary>What <code>lru-cache</code> says</summary>"
+CLAIMS = "<summary>What <code>lru-cache</code> says</summary>"
 
 
 def claims_block(text: str) -> str:
-    start = text.index(CLAIMS_OPEN)
+    start = text.index(CLAIMS)
     return text[start : text.index("\n</details>\n", start)]
 
 
 def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -> None:
     comment = render_comment(evidence("passed"), repository=REPO)
-    # One open block per contract, although two test functions check it.
-    assert comment.count(CLAIMS_OPEN) == 1
+    # One block per contract, although two test functions check it: folded in the sticky, open in the README.
+    assert comment.count(CLAIMS) == 1 and f"<details>\n{CLAIMS}" in comment
+    assert f"<details open>\n{CLAIMS}" in render_readme(evidence("passed"))
     block = claims_block(comment)
     assert (
         "- `init`: construct a fresh cache with capacity 2\n- `store`: cache.put(key, value)\n"
@@ -605,7 +634,7 @@ def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -
     assert rows[5] == "| `5` | `inspect(key='', value=0)` | unchanged |"
     assert len(rows) == 6
     # Verdicts come first; the claims follow them.
-    assert comment.index("<summary>🧪") < comment.index(CLAIMS_OPEN)
+    assert comment.index("<summary>🧪") < comment.index(CLAIMS)
     assert claims_block(render_readme(evidence("passed"))) == block
 
 
