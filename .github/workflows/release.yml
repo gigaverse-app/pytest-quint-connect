@@ -22,10 +22,14 @@ jobs:
   checks:
     needs: validate-tag
     uses: ./.github/workflows/ci.yml
-    # A called workflow gets no more than this; the contracts job asks for the report comment's permission.
+    # A called workflow gets no more than this, and GitHub refuses to start the run (startup_failure, nothing
+    # published) when any called job asks for more. Grant the union of ci.yml's job permissions: the contracts
+    # job's report comment, and select-tests reading earlier runs' jobs and checks as lane evidence.
     permissions:
       contents: read
       pull-requests: write
+      actions: read
+      checks: read
   publish:
     needs: checks
     runs-on: ubuntu-latest
