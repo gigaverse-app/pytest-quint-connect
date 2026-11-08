@@ -27,6 +27,7 @@ from .report import (
     receipt_paths,
     render_comment,
     render_readme,
+    renderer_version,
 )
 
 
@@ -103,7 +104,13 @@ def report(arguments: argparse.Namespace) -> int:
     if arguments.readme:
         readme = Path(arguments.readme)
         document = readme.read_text(encoding="utf-8") if readme.is_file() else ""
-        refresh = f"pytest-quint-connect report {shlex.join(arguments.receipts)} --readme {shlex.quote(str(readme))}"
+        # Refresh with this exact renderer, so the committed block matches what the check renders.
+        version = renderer_version()
+        package = f"pytest-quint-connect=={version}" if version != "unknown" else "pytest-quint-connect"
+        refresh = (
+            f"uvx --from {shlex.quote(package)} pytest-quint-connect report {shlex.join(arguments.receipts)} "
+            f"--readme {shlex.quote(str(readme))}"
+        )
         # The repository's counter sign: requested by the action (its id and name are in the environment),
         # otherwise kept as the block already shows it, so a local refresh changes nothing.
         repository_id, repository = os.environ.get("GITHUB_REPOSITORY_ID"), os.environ.get("GITHUB_REPOSITORY")
@@ -121,8 +128,12 @@ def report(arguments: argparse.Namespace) -> int:
                 note = f"> [!WARNING]\n> The contract block in `{readme}` is stale. Refresh it with `{refresh}`."
                 status = 1
             elif result.state == "unverifiable":
-                print(f"{readme}: not checked: {result.reason}")
-                note = f"<sub>`{readme}` contract block not checked: {result.reason}.</sub>"
+                hint = f" with `{refresh}`" if result.refresh else ""
+                print(f"{readme}: not checked: {result.reason}{hint}")
+                note = f"<sub>`{readme}` contract block not checked: {result.reason}{hint}.</sub>"
+            elif result.reason:
+                print(f"{readme}: the contract block is current: {result.reason} with `{refresh}`")
+                note = f"<sub>`{readme}` contract block is current: {result.reason} with `{refresh}`.</sub>"
             else:
                 print(f"{readme}: the contract block is current")
         else:

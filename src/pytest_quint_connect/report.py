@@ -16,6 +16,7 @@ import shlex
 import urllib.parse
 from dataclasses import dataclass, field
 from html import escape
+from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -1088,6 +1089,58 @@ class Sign:
         )
 
 
+_EVIDENCE = re.compile(r"<!-- pytest-quint-connect:evidence ([0-9a-f]{16}) renderer (\S+) -->")
+
+
+def renderer_version() -> str:
+    try:
+        return metadata.version("pytest-quint-connect")
+    except metadata.PackageNotFoundError:  # a source tree without installation
+        return "unknown"
+
+
+def _caught(catch: Catch) -> dict[str, Any]:
+    """What the block shows of a mutant: never the trace paths a receipt records, which differ by machine."""
+    mutation = catch.mutation or {}
+    shown = {key: mutation.get(key) for key in ("detected_by", "state", "action", "arguments", "histories", "diverged")}
+    return {
+        "mutant": catch.mutant,
+        "description": catch.description,
+        "outcome": catch.outcome,
+        "survived": catch.survived,
+        **shown,
+    }
+
+
+def evidence_fingerprint(evidence: Evidence) -> str:
+    """The facts the README block shows, hashed: the same evidence always gives the same fingerprint, whatever
+    version of the renderer lays it out. The block stores it, so a check compares evidence, not formatting:
+    a release that changes how blocks look never makes an adopter's committed block stale."""
+    rows = []
+    for row in sorted(evidence.rows, key=lambda row: (row.contract, row.test)):
+        claims = row.claims
+        rows.append(
+            {
+                "contract": row.contract,
+                "test": row.test,
+                "status": row.status,
+                "histories": [row.witnesses, row.samples, row.seed],
+                "cases": [row.passed, row.cases],
+                "mutants": [row.mutants_detected, row.mutants, [_caught(catch) for catch in row.catches]],
+                "covered": row.covered,
+                "quint": row.quint,
+                "bugs_found": row.bugs_found,
+                "witnesses_only": row.witnesses_only,
+                "claims": None
+                if claims is None
+                else [claims.actions, claims.invariant, claims.witnesses, claims.bounds, claims.illustrated],
+            }
+        )
+    # Incomplete evidence is never checked against a block, so only a complete run needs a stable fingerprint.
+    canonical = json.dumps(rows, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
 def render_readme(evidence: Evidence, sign: Sign | None = None) -> str:
     """The README block: the same table, with nothing that differs between two runs of the same evidence.
 
@@ -1106,6 +1159,7 @@ def render_readme(evidence: Evidence, sign: Sign | None = None) -> str:
     return "\n".join(
         [
             f"<!-- pytest-quint-connect:contracts {','.join(contracts)} -->",
+            f"<!-- pytest-quint-connect:evidence {evidence_fingerprint(evidence)} renderer {renderer_version()} -->",
             *([sign.picture(), ""] if sign else []),
             f'<a href="{HOME}" title="{MUTANTS_TIP}"><img alt="{alt}" src="{_badge("Quint contracts", message, color)}"></a>',
             "",
@@ -1137,6 +1191,8 @@ class ReadmeCheck:
     state: str
     reason: str = ""
     diff: str = ""
+    # Refreshing the block with this renderer would settle the reason (an older block, an older layout).
+    refresh: bool = False
 
 
 def check_readme(
@@ -1144,7 +1200,8 @@ def check_readme(
 ) -> ReadmeCheck:
     expected = embed(document, render_readme(evidence, sign)).replace("\r\n", "\n")
     current = document.replace("\r\n", "\n")
-    if expected == current:
+    # The renderer's version is provenance, not content: a release that renders the same text stays current.
+    if _EVIDENCE.sub("", expected) == _EVIDENCE.sub("", current):
         return ReadmeCheck("current")
     listed = _LISTED.search(current)
     previous = set(filter(None, listed.group(1).split(","))) if listed else set()
@@ -1156,6 +1213,24 @@ def check_readme(
             else "not every contract ran every case and passed in this run"
         )
         return ReadmeCheck("unverifiable", why)
+    # The text differs. A block another renderer version wrote is judged by the evidence it records, not its
+    # layout: a release that lays out the same evidence differently must not fail every adopter's check.
+    recorded = _EVIDENCE.search(current.partition(START)[2].partition(END)[0])
+    if recorded is None:
+        return ReadmeCheck(
+            "unverifiable",
+            "the block was written before pytest-quint-connect recorded the evidence a block shows, so a newer "
+            "layout cannot be told from changed evidence; refresh it once",
+            refresh=True,
+        )
+    fingerprint, written_by = recorded.groups()
+    if written_by != renderer_version() and fingerprint == evidence_fingerprint(evidence):
+        return ReadmeCheck(
+            "current",
+            f"it shows this run's evidence in the layout of pytest-quint-connect {written_by}; "
+            f"{renderer_version()} lays it out differently, so refresh it to update its look",
+            refresh=True,
+        )
     diff = "".join(
         difflib.unified_diff(
             current.splitlines(keepends=True), expected.splitlines(keepends=True), name, f"{name} (from receipts)"
