@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .contract import display_path
+
 START = "<!-- pytest-quint-connect:start -->"
 END = "<!-- pytest-quint-connect:end -->"
 _LISTED = re.compile(r"<!-- pytest-quint-connect:contracts (.*?) -->")
@@ -205,8 +207,8 @@ def _directory(row: Row, repository: Path) -> str | None:
     """The receipt's rootdir relative to the repository, when the session ran inside it."""
     if not row.root:
         return None
-    root, base = Path(row.root).resolve(), repository.resolve()
-    return root.relative_to(base).as_posix() if root.is_relative_to(base) else None
+    shown = display_path(Path(row.root), repository)
+    return None if Path(shown).is_absolute() else shown
 
 
 def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:

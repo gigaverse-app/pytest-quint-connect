@@ -112,7 +112,7 @@ class Contract:
     def fingerprints(self) -> dict[str, str]:
         result = {}
         for path in self.provenance_files():
-            result[_display(path, self.root)] = hashlib.sha256(path.read_bytes()).hexdigest()
+            result[display_path(path, self.root)] = hashlib.sha256(path.read_bytes()).hexdigest()
         return result
 
     def check_historical(self) -> None:
@@ -126,7 +126,11 @@ class Contract:
             )
 
 
-def _display(path: Path, root: Path) -> str:
+def display_path(path: Path, root: Path) -> str:
+    """``path`` relative to ``root`` in POSIX form when it lies inside ``root``, else absolute.
+
+    Receipts and reports name files this way so they read the same on every machine.
+    """
     try:
         return path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:

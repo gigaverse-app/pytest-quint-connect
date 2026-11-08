@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from .contract import Contract, ContractError, load_contract
+from .contract import Contract, ContractError, display_path, load_contract
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
 from .replay import DriverFactory, ReplayMismatch, replay_trace
 
@@ -197,7 +197,7 @@ class _Session:
                         for difference in mismatch.diff[:3]
                     ],
                     "difference_count": len(mismatch.diff),
-                    "mismatch": self.relative(saved),
+                    "mismatch": display_path(saved, self.root),
                 }
                 raise
             run.steps[case.id] = len(result.actions)
@@ -247,10 +247,6 @@ class _Session:
         path = directory / f"mismatch-{stem}-{case.id}.json"
         path.write_text(json.dumps(mismatch.as_json(), indent=2) + "\n", encoding="utf-8")
         return path
-
-    def relative(self, path: Path) -> str:
-        """``path`` relative to the rootdir when it lies inside it, so receipts read the same on every machine."""
-        return path.relative_to(self.root).as_posix() if path.is_relative_to(self.root) else path.as_posix()
 
     def receipt(self, status: str) -> dict[str, Any]:
         contracts = []
