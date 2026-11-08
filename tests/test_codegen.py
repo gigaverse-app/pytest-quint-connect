@@ -148,6 +148,59 @@ def test_parameter_that_no_event_field_carries_is_rejected(tmp_path: Path, quint
         generate_module(contract, compile_ir(contract, quint), output=tmp_path / "x.py")
 
 
+def camel_case_fetch(directory: Path, *extra_actions: str) -> Path:
+    """The LRU example with `fetch(key)` renamed to `fetchEntry(lookupKey)`; the event field stays `key`."""
+    manifest = copy_example(directory)
+    model = directory / "lru.qnt"
+    model.write_text(
+        model.read_text()
+        .replace("action fetch(key: str): bool = {", "action fetchEntry(lookupKey: str): bool = {")
+        .replace("e => e.key == key)", "e => e.key == lookupKey)")
+        .replace("without(observed.entries, key).append", "without(observed.entries, lookupKey).append")
+        .replace(
+            'event\' = { op: "fetch", key: key, value: 0 }', 'event\' = { op: "fetchEntry", key: lookupKey, value: 0 }'
+        )
+        .replace("fetch(", "fetchEntry("),
+        encoding="utf-8",
+    )
+    document = json.loads(manifest.read_text())
+    document["actions"] = {
+        ("fetchEntry" if name == "fetch" else name): boundary for name, boundary in document["actions"].items()
+    } | dict.fromkeys(extra_actions, "")
+    manifest.write_text(json.dumps(document), encoding="utf-8")
+    return manifest
+
+
+def test_camel_case_actions_and_parameters_get_python_names(tmp_path: Path, quint) -> None:
+    contract = load_contract(camel_case_fetch(tmp_path))
+    output = tmp_path / "camel_driver.py"
+    source = generate_module(contract, compile_ir(contract, quint), output=output)
+    assert "    def fetch_entry(self, lookup_key: str) -> None:" in source
+    # The trace still names the Quint action and event field; only the Python side is renamed.
+    assert '"fetchEntry": ("fetch_entry", (("lookup_key", "key"),)),' in source
+    output.write_text(source, encoding="utf-8")
+    calls = []
+
+    class Driver(load_module(output).LruCacheDriver):
+        def init(self) -> None: ...
+        def store(self, key: str, value: int) -> None: ...
+        def inspect(self) -> None: ...
+        def observe(self) -> dict:
+            return {}
+
+        def fetch_entry(self, lookup_key: str) -> None:
+            calls.append(lookup_key)
+
+    Driver().step(step("fetchEntry", {"key": "a", "value": 0}, None))
+    assert calls == ["a"]
+
+
+def test_actions_whose_python_names_collide_are_rejected(tmp_path: Path, quint) -> None:
+    contract = load_contract(camel_case_fetch(tmp_path, "fetch_entry"))
+    with pytest.raises(CodegenError, match="'fetch_entry' maps to the reserved or duplicate method name 'fetch_entry'"):
+        generate_module(contract, compile_ir(contract, quint), output=tmp_path / "x.py")
+
+
 @pytest.fixture
 def generated(tmp_path: Path, quint) -> tuple[ModuleType, Path]:
     manifest = copy_example(tmp_path)
