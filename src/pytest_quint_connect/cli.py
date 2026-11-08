@@ -4,12 +4,12 @@ import argparse
 import difflib
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 from .codegen import CodegenError, compile_ir, generate_module
 from .contract import ContractError, load_contract
 from .quint import QuintError, resolve_quint
+from .replay import scratch_directory
 
 
 def default_output(manifest: Path, module: str) -> Path:
@@ -19,9 +19,10 @@ def default_output(manifest: Path, module: str) -> Path:
 def codegen(arguments: argparse.Namespace) -> int:
     contract = load_contract(Path(arguments.manifest))
     output = Path(arguments.output) if arguments.output else default_output(contract.manifest, contract.module)
-    with tempfile.TemporaryDirectory(prefix="quint-codegen-") as directory:
-        tool = resolve_quint(contract.quint_version, Path(directory), arguments.quint or os.environ.get("QUINT"))
-        ir = compile_ir(contract, tool, Path(directory))
+    # Kept when generation fails, so the log an error names still exists.
+    with scratch_directory("quint-codegen-", keep_on_failure=True) as logs:
+        tool = resolve_quint(contract.quint_version, logs, arguments.quint or os.environ.get("QUINT"))
+        ir = compile_ir(contract, tool, logs)
     source = generate_module(contract, ir, output=output, class_name=arguments.class_name)
     if arguments.check:
         current = output.read_text(encoding="utf-8") if output.is_file() else ""

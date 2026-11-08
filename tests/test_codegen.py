@@ -140,6 +140,21 @@ def test_parameter_is_bound_to_the_event_field_the_action_assigns_it_to(tmp_path
     assert '"fetch": ("fetch", (("name", "key"),)),' in source
 
 
+def test_a_model_error_is_reported_with_quints_diagnostic_and_an_existing_log(
+    tmp_path: Path, quint, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = copy_example(tmp_path)
+    model = tmp_path / "lru.qnt"
+    # `next` is a Quint built-in; `quint compile` alone exits 1 and prints nothing.
+    model.write_text(model.read_text().replace("pure val CAPACITY = 2", "pure val next = 2\n  pure val CAPACITY = 2"))
+    assert main(["codegen", str(manifest), "--quint", str(quint.executable)]) == 2
+    error = capsys.readouterr().err
+    assert "QNT101" in error and "Built-in name 'next' is redefined" in error
+    log = Path(error.split("see ", 1)[1].split(": ", 1)[0])
+    assert log.name == "typecheck.log" and "QNT101" in log.read_text(encoding="utf-8")
+    assert not (tmp_path / "lru_cache_driver.py").exists()
+
+
 def test_parameter_that_no_event_field_carries_is_rejected(tmp_path: Path, quint) -> None:
     manifest = copy_example(tmp_path)
     rename_fetch_parameter(tmp_path / "lru.qnt", carried='"constant"')
