@@ -46,7 +46,7 @@ Use published major-version tags for established Actions (for example
 `actions/checkout@v7`). Do not replace them with commit hashes unless asked.
 
 ALWAYS use the `v1` major-version tag for dry-lint: `gigaverse-app/dry-lint@v1` for the
-Action, `@v1` for CLI installs, and `rev: v1` for pre-commit hooks. Do not use commit SHAs
+Action and `rev: v1` for pre-commit hooks; install the CLI from PyPI as `'dry-lint>=1,<2'`. Do not use commit SHAs
 or minor/patch release pins. The same applies to `gigaverse-app/pytest-selective` and
 `gigaverse-app/ci-esta` actions (`@v1`).
 
