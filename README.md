@@ -1,3 +1,5 @@
+![pytest-quint-connect: Model-based testing for Python under pytest.](https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/banner.png?v=c5c6ae8f72ed)
+
 # pytest-quint-connect
 
 [![CI](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml)
@@ -6,11 +8,14 @@
 [![Typed](https://img.shields.io/badge/typing-py.typed-3776AB)](src/pytest_quint_connect/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Agent skill](https://img.shields.io/badge/Agent_Skill-ready-2563EB)](skills/pytest-quint-connect/SKILL.md)
+[![Documentation](https://readthedocs.org/projects/pytest-quint-connect/badge/?version=latest)](https://pytest-quint-connect.readthedocs.io/en/latest/)
 
 **Model-based testing for Python under pytest.** [Quint](https://quint.sh)
 generates histories from your specification; pytest-quint-connect replays every
 step against your real Python implementation and compares the state you read back
 with the state the model expects.
+
+[Read the documentation](https://pytest-quint-connect.readthedocs.io/en/latest/) · [Related tools](https://pytest-quint-connect.readthedocs.io/en/latest/ecosystem/)
 
 This is a community Python integration in the spirit of
 [Quint Connect](https://github.com/quint-co/quint-connect) (Rust) and

@@ -1,0 +1,103 @@
+# Build and publish these docs
+
+The repository Markdown is the source. `mkdocs.yml` explicitly lists published
+guides; `documentation/hooks.py` adds them to the build without copying prose.
+Internal plans and audits are not added to the site. Links to unpublished source
+files remain GitHub links. Broken local links fail the build.
+
+```bash
+uv venv .venv-docs --python 3.13
+uv pip install --python .venv-docs -r documentation/requirements.txt
+uv run --no-project --python .venv-docs mkdocs build --strict
+uv run --no-project --python .venv-docs python documentation/check_site.py
+uv run --no-project --python .venv-docs mkdocs serve
+```
+
+The **Documentation** workflow builds every PR and main revision with the same
+pinned documentation dependencies as Read the Docs. Review its site artifact
+before merging.
+
+## Read the Docs setup
+
+Import `https://github.com/gigaverse-app/pytest-quint-connect` into Read the Docs Community,
+using project slug `pytest-quint-connect`, English, `main`, and `.readthedocs.yaml`.
+Connect the GitHub integration so pushes rebuild automatically, and enable
+pull request previews. Keep `latest` as the default until a published release
+contains this configuration; then activate that release and choose `stable`.
+Older tags without the configuration cannot build this site.
+
+Verify a successful build, the homepage, search, a guide, a cross-project link,
+`sitemap.xml`, and the page's canonical URL after publishing. The canonical base
+comes from `READTHEDOCS_CANONICAL_URL`; local builds fall back to the public site.
+Material generates page titles, descriptions, canonical links and a sitemap.
+The override adds Open Graph and social summary metadata without analytics.
+
+## Search measurement
+
+The maintainer's Google Search Console URL-prefix property is
+`https://pytest-quint-connect.readthedocs.io/en/latest/`. Its public ownership verification tag
+is in `documentation/overrides/main.html`; keep it present after verification.
+This tag is intended to be public and does not authenticate application requests.
+
+After deploying the tag, verify ownership in Search Console and submit
+`https://pytest-quint-connect.readthedocs.io/en/latest/sitemap.xml`. Inspect indexing,
+impressions, clicks, and tutorial landing pages over time. Property verification
+and sitemap submission do not guarantee that Google indexes or ranks a page.
+No search ranking or traffic improvement has been measured by this publishing change.
+If the canonical domain changes, verify the new property and submit its sitemap.
+
+## Keep the site useful
+
+Publish instructions, API or safety boundaries, and comparisons that help a
+reader make a decision. Use descriptive navigation labels and group pages by
+the reader's task. Getting started comes before advanced reference; contributor
+maintenance belongs in its own section. Avoid filename-derived titles and
+expanded lists of every library or report.
+
+Do not publish completed implementation checklists, extraction or migration
+status ledgers, PR-by-PR progress, or generated run reports as guides. Extract
+any lasting instruction into its existing guide and delete superseded notes.
+Keep the explicit `published_sources` list curated, and check incoming
+links when removing a page.
+
+## Maintain the visual examples
+
+`documentation/assets/` contains the site's SVG identity and teaching images.
+Keep logos vector-based and provide meaningful alternative text for every image.
+Diagrams describe behavior; charts must link the source case study, name units,
+start quantitative bars at zero and preserve measurement limitations.
+
+Refresh product screenshots when the demonstrated interface changes. Run the
+linked example or reporter, capture its real output, and keep the caption clear
+about local rendering and simulated data. Do not manufacture passing results or
+turn a sample screenshot into a current coverage/performance claim. Keep raw run
+logs and JSON outside the source tree; PR validation records own that evidence.
+
+## Canonical branding
+
+Edit `docs/assets/logo.svg` for the project mark and `docs/assets/brand.json` for
+its name, color and tagline. Render the banner, square icon and social card:
+
+```bash
+uv run --no-project --with resvg-py==0.2.6 python scripts/render_brand.py --png
+python scripts/render_brand.py --check
+```
+
+Commit the rendered assets with their sources. MkDocs reads the canonical assets directly at build time; do not keep another logo
+in `documentation/assets`. Its header, favicon, homepage and social previews use
+these files. Content hashes in image URLs refresh cached artwork after an update.
+The README uses an absolute PNG URL, which also
+renders on PyPI. PyPI updates that description on the next package release;
+`pyproject.toml` has no standard logo or icon field.
+
+For GitHub, upload `docs/assets/social-preview.png` in repository **Settings >
+General > Social preview**. It is 1280 × 640 pixels with an opaque background.
+GitHub repositories use their owner's avatar; there is no independent repository
+avatar to set. The social card supplies the project's identity when sharing links.
+See [GitHub's social preview instructions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview)
+and [PyPI project metadata](https://docs.pypi.org/project_metadata/).
+
+The renderer also updates the README banner URL with the PNG content hash, so
+GitHub and package-index image caches pick up an artwork change. Keep the banner
+layout specific to the project when editing `scripts/render_brand.py`; canonical
+assets do not require a shared visual template.

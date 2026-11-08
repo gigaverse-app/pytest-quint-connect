@@ -1,0 +1,11 @@
+{
+  "name": "pytest-quint-connect",
+  "tagline": "Model-based testing for Python under pytest.",
+  "color": "#A78BFA",
+  "repository": "pytest-quint-connect",
+  "accent": "#86EFAC",
+  "banner_lines": [
+    "Quint generates the histories.",
+    "pytest replays them on your code."
+  ]
+}
