@@ -84,6 +84,7 @@ nothing.
 | `post-comment` | `true` | comment on same-repository pull requests |
 | `sticky-key` | `quint-connect` | one comment per key; use distinct keys for separate reporting jobs |
 | `title` | | names the job in its comment |
+| `share-totals` | `true` | on the default branch, add merged pull requests' tallies to [the global counter](#the-global-counter); `false` opts out |
 
 Outputs: `status` (the worst contract status, or `none`), `markdown-path`, and `readme`
 (`current`, `stale`, `unverifiable`, `written`, `absent` or `off`).
@@ -103,6 +104,26 @@ push changes nothing. The tally lives in the comment as hidden JSON
 from the bot-owned comment with this key, so every push extends it. From the command
 line, pass the previous comment as `report --ledger FILE`; an empty or missing file
 starts a new tally.
+
+### The global counter
+
+On a push to the default branch, the action sends each recently merged pull request's final tally to
+pytest-quint-connect's public counter, a [Cloudflare Worker](../counter) at `https://pytest-quint-connect-counter.gigaverse-oss.workers.dev`, which
+adds it to the [sign in the README](../README.md#impact). A contribution holds the repository's counter key, the pull
+request number, the disagreements it caught, how many were fixed before merge, how many were still failing when it
+merged, its pushes, and the plugin version: no code, names, paths or people.
+
+- **Pseudonymous, not anonymous.** The counter key is the SHA-256 of the repository's numeric GitHub id
+  (`GITHUB_REPOSITORY_ID`), never of its name. It ties the repository's pull requests together, but a name does not
+  lead to it, and the counter refuses to look a repository up by name. The default-branch run prints the key.
+- **Counted once.** The counter keys contributions on the repository's key and pull request number, so each run can
+  resend the 30 most recently merged pull requests: a resend changes nothing, and a failed send is caught up by the
+  next run. Sending never fails the job.
+- **The repository's own sign.** While it shares its totals, the README block opens with the repository's sign: what
+  its own contracts caught (`report --counter-sign`, which the action passes).
+- **Opt out** with `share-totals: "false"`. Nothing is sent, and the block shows no sign.
+
+The send needs the job to run on pushes to the default branch, and a token that can read pull requests.
 
 ## ini options
 
