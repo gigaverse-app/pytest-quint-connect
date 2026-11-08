@@ -250,7 +250,9 @@ def test_cli_passes_another_releases_block_and_names_the_pinned_refresh(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     readme = readme_with_block(tmp_path)
-    readme.write_text(embed(readme.read_text(encoding="utf-8"), older_renderer(render_readme(evidence("passed")))))
+    readme.write_text(
+        embed(readme.read_text(encoding="utf-8"), older_renderer(render_readme(evidence("passed")))), encoding="utf-8"
+    )
     comment = tmp_path / "comment.md"
     receipt = str(RECEIPTS / "lru-passed.json")
     assert main(["report", receipt, "--readme", str(readme), "--check", "--comment", str(comment)]) == 0
