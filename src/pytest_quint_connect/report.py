@@ -14,9 +14,12 @@ import shlex
 import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .contract import display_path
+
+if TYPE_CHECKING:
+    from .ledger import Ledger
 
 START = "<!-- pytest-quint-connect:start -->"
 END = "<!-- pytest-quint-connect:end -->"
@@ -71,6 +74,7 @@ class Row:
     generation_failure: str | None = None
     config_file: str | None = None
     failures: list[Failure] = field(default_factory=list)
+    passed_cases: frozenset[str] = frozenset()
 
     @property
     def histories(self) -> int:
@@ -161,6 +165,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     generation_failure=failure,
                     config_file=receipt.get("config_file"),
                     failures=[Failure(case, outcomes[case], findings.get(case, {})) for case in sorted(failed)],
+                    passed_cases=frozenset(case for case, outcome in outcomes.items() if outcome == "passed"),
                 )
             )
     return rows
@@ -188,19 +193,21 @@ def _headline(evidence: Evidence) -> str:
 
 
 def _table(rows: list[Row]) -> list[str]:
+    """Four columns, so the table fits a pull-request comment at any width; details sit under each contract."""
     lines = [
-        "| | Contract | Histories | Cases passed | Mutants caught | Actions covered | Quint |",
-        "| :-: | :-- | --: | --: | --: | :-: | :-- |",
+        "| | Contract | Cases passed | Mutants caught |",
+        "| :-: | :-- | --: | --: |",
     ]
     for row in rows:
-        seed = f" · seed {row.seed}" if row.seed is not None else ""
-        covered = {True: "✅", False: "❌", None: "–"}[row.covered]
+        seed = f", seed {row.seed}" if row.seed is not None else ""
+        covered = {True: "every action covered", False: "**an action never reached**", None: "coverage not run"}
+        details = (
+            f"{_plural(row.histories, 'history', 'histories')} ({_plural(row.witnesses, 'witness', 'witnesses')}, "
+            f"{_plural(row.samples, 'sample')}{seed}) · {covered[row.covered]} · Quint {row.quint or 'not run'}"
+        )
         lines.append(
-            f"| {ICON[row.status]} | {_code(row.contract)}<br><sub>{_code(row.test)}</sub> "
-            f"| {row.histories}<br><sub>{_plural(row.witnesses, 'witness', 'witnesses')}"
-            f" · {_plural(row.samples, 'sample')}{seed}</sub> "
-            f"| {row.passed}/{row.cases} | {row.mutants_detected}/{row.mutants} | {covered} "
-            f"| {_code(row.quint or 'not run')} |"
+            f"| {ICON[row.status]} | {_code(row.contract)} {_code(row.test)}<br><sub>{details}</sub> "
+            f"| {row.passed}/{row.cases} | {row.mutants_detected}/{row.mutants} |"
         )
     return lines
 
@@ -251,6 +258,41 @@ def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
     ]
 
 
+# GitHub sizes a comment's tables to their content. A wide spacer floated into each cell, which GitHub caps
+# at the comment's width, stretches the table across the comment on any screen for one pixel of height.
+# It floats right: GitHub pads a floated image on the side away from its float, and padding past the right
+# edge would give the table a scrollbar. (The same trick as dry-lint's sticky.)
+SPREAD = '<img width="2000" height="1" align="right" alt="">'
+
+
+def _banner(assets: str) -> list[str]:
+    """The full-width banner, light or dark with the reader's theme, served from the action's own revision."""
+    return [
+        "<picture>",
+        f'  <source media="(prefers-color-scheme: dark)" srcset="{assets}/sticky-banner-dark.svg">',
+        f'  <img alt="pytest-quint-connect" src="{assets}/sticky-banner-light.svg" width="100%">',
+        "</picture>",
+        "",
+    ]
+
+
+def _tally(ledger: "Ledger") -> list[str]:
+    """This pull request's disagreements across its pushes, as a table that spans the comment."""
+    caught = len(ledger.caught)
+    cells = [f"{SPREAD}**{count}**" for count in (caught, ledger.fixed, ledger.open)]
+    pushes = len(ledger.pushes)
+    return [
+        "| 🐞 Disagreements caught | ✅ Fixed in this PR | ❗ Still failing |",
+        "| :--: | :--: | :--: |",
+        f"| {' | '.join(cells)} |",
+        "",
+        f"<sub>Across {_plural(pushes, 'push', 'pushes')}. A disagreement is a history where the code reached a "
+        "different state than the model, or a mutant no history caught; crashes and setup errors are not "
+        "counted.</sub>",
+        "",
+    ]
+
+
 def render_comment(
     evidence: Evidence,
     *,
@@ -259,13 +301,22 @@ def render_comment(
     head: str = "",
     run_url: str = "",
     readme_note: str = "",
+    assets: str = "",
+    ledger: "Ledger | None" = None,
 ) -> str:
-    """The pull-request sticky: what ran, what failed, and the command that reproduces each failure."""
+    """The pull-request sticky: what ran, what failed, and the command that reproduces each failure.
+
+    ``assets`` is the URL of the action's own ``docs/assets`` when its banner exists; ``ledger`` is this
+    pull request's history, rendered as the headline tally and carried forward as hidden JSON.
+    """
     status = evidence.status
-    lines = [f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}"]
+    lines = _banner(assets) if assets else []
+    lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
     lines.append("")
+    if ledger is not None:
+        lines += _tally(ledger)
     if evidence.rows:
         lines += _table(evidence.rows)
         lines.append("")
@@ -298,9 +349,12 @@ def render_comment(
     footer.append(f"[what a passing run proves]({LIMITS})")
     lines.append(f'<sub>{" · ".join(footer)} · <a href="{HOME}">pytest-quint-connect</a></sub>')
     body = "\n".join(lines) + "\n"
-    if len(body) > COMMENT_BUDGET:
-        body = body[: COMMENT_BUDGET - 200] + "\n\n…truncated; the full report is in the run's artifact.\n"
-    return body
+    hidden = f"\n{ledger.comment()}\n" if ledger is not None else ""
+    if len(body) + len(hidden) > COMMENT_BUDGET:
+        body = (
+            body[: COMMENT_BUDGET - 200 - len(hidden)] + "\n\n…truncated; the full report is in the run's artifact.\n"
+        )
+    return body + hidden
 
 
 def _badge(label: str, message: str, color: str) -> str:

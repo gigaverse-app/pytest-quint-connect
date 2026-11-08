@@ -70,7 +70,34 @@ def render():
 <text x="80" y="600" font-family="{FONT}" font-size="22" fill="#8B949E">github.com/gigaverse-app/{repository}</text>
 </svg>
 '''
-    return {"docs/assets/banner.svg": banner, "docs/assets/social-preview.svg": social}
+    return {
+        "docs/assets/banner.svg": banner,
+        "docs/assets/social-preview.svg": social,
+        # Adopters' PR comments hot-link these from a released revision: never rename or move them.
+        "docs/assets/sticky-banner-light.svg": sticky_banner(brand, dark=False),
+        "docs/assets/sticky-banner-dark.svg": sticky_banner(brand, dark=True),
+    }
+
+
+def sticky_banner(brand: dict[str, str], *, dark: bool) -> str:
+    """The PR comment's full-width banner: the wordmark, what the comment is, and a replayed trace."""
+    color = escape(brand["color"], quote=True)
+    ground, edge, ink, muted = (
+        ("#0D1117", "#30363D", "#F0F6FC", "#9CA8B7") if dark else ("#FFFFFF", "#D1D9E0", "#1F2328", "#59636E")
+    )
+    wordmark = f'pytest<tspan fill="{color if dark else "#6E56CF"}">-quint-connect</tspan>'
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="640" height="56" viewBox="0 0 640 56" role="img" aria-label="pytest-quint-connect contract report">
+<title>pytest-quint-connect contract report</title>
+<defs><linearGradient id="sticky-glow" x1="0" y1="0" x2="1" y2="0">
+<stop stop-color="{color}" stop-opacity="{0.22 if dark else 0.16}"/><stop offset="0.6" stop-color="{color}" stop-opacity="0"/>
+</linearGradient></defs>
+<rect x="0.5" y="0.5" width="639" height="55" rx="10" fill="{ground}" stroke="{edge}"/>
+<rect x="0.5" y="0.5" width="639" height="55" rx="10" fill="url(#sticky-glow)"/>
+<text x="20" y="34" font-family="{FONT}" font-size="20" font-weight="800" letter-spacing="-0.4" fill="{ink}">{wordmark}</text>
+<text x="252" y="34" font-family="{FONT}" font-size="12" font-weight="600" fill="{muted}">Quint histories, replayed on this pull request</text>
+<g transform="translate(528 4) scale(0.92)">{motif()}</g>
+</svg>
+"""
 
 
 def main():
