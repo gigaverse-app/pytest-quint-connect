@@ -139,6 +139,25 @@ def test_each_history_gets_a_fresh_driver_and_work_dir_and_is_closed_on_failure(
     assert not made[0][1].work_dir.exists() and not made[1][1].work_dir.exists()
 
 
+def test_a_driver_error_names_the_history_and_step_it_happened_in() -> None:
+    with pytest.raises(RuntimeError, match="driver crashed") as caught:
+        replay_trace(
+            WITNESS,
+            CONTRACT,
+            lambda context: Recording(fail_at=3),
+            mutant="stale-read",
+            reproduce="pytest x --quint-replay y",
+        )
+    # The driver's own exception propagates unchanged; the location is a note on it.
+    assert type(caught.value) is RuntimeError and str(caught.value) == "driver crashed"
+    note = "\n".join(caught.value.__notes__)
+    assert "Quint contract 'lru-cache': the driver raised during this history" in note
+    assert f"trace:  {WITNESS}" in note
+    assert "state:  3, applying action fetch(key='a', value=0)" in note
+    assert "mutant: stale-read" in note and "seed:   7" in note
+    assert "reproduce: pytest x --quint-replay y" in note
+
+
 def test_factory_must_return_a_driver() -> None:
     with pytest.raises(TypeError, match="lacks step"):
         replay_trace(SAMPLE, CONTRACT, lambda context: object())

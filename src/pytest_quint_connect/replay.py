@@ -104,20 +104,17 @@ class ReplayMismatch(AssertionError):
         AssertionError.__init__(self, self.render())
 
     def render(self) -> str:
-        lines = [
+        details = [f"  {len(self.diff)} difference(s):"]
+        details.extend("  " + line for difference in self.diff for line in difference.render().splitlines())
+        return _report(
             f"Quint contract {self.contract!r}: implementation state differs from the model",
-            f"  trace:  {self.trace}",
-            f"  state:  {self.state} after action {self.action}({_args(self.arguments)})",
-        ]
-        if self.mutant:
-            lines.append(f"  mutant: {self.mutant}")
-        if self.seed is not None:
-            lines.append(f"  seed:   {self.seed}")
-        lines.append(f"  {len(self.diff)} difference(s):")
-        lines.extend("  " + line for difference in self.diff for line in difference.render().splitlines())
-        if self.reproduce:
-            lines.append(f"  reproduce: {self.reproduce}")
-        return "\n".join(lines)
+            self.trace,
+            f"{self.state} after action {self.action}({_args(self.arguments)})",
+            mutant=self.mutant,
+            seed=self.seed,
+            details=details,
+            reproduce=self.reproduce,
+        )
 
     def __str__(self) -> str:
         return self.render()
@@ -139,6 +136,48 @@ class ReplayMismatch(AssertionError):
             ],
             "reproduce": self.reproduce,
         }
+
+
+def _report(
+    headline: str,
+    trace: Path,
+    state: str,
+    *,
+    mutant: str | None,
+    seed: int | None,
+    details: list[str],
+    reproduce: str | None,
+) -> str:
+    """Where a history failed, in one layout for mismatches and driver errors."""
+    lines = [headline, f"  trace:  {trace}", f"  state:  {state}"]
+    if mutant:
+        lines.append(f"  mutant: {mutant}")
+    if seed is not None:
+        lines.append(f"  seed:   {seed}")
+    lines.extend(details)
+    if reproduce:
+        lines.append(f"  reproduce: {reproduce}")
+    return "\n".join(lines)
+
+
+@contextmanager
+def _locating(contract: Contract, trace: Path, step: Step, mutant: str | None, reproduce: str | None) -> Iterator[None]:
+    """Name the history and step in any exception the driver raises while applying or observing it."""
+    try:
+        yield
+    except Exception as error:
+        error.add_note(
+            _report(
+                f"Quint contract {contract.name!r}: the driver raised during this history",
+                trace,
+                f"{step.index}, applying action {step.action}({_args(step.args)})",
+                mutant=mutant,
+                seed=contract.bounds.seed,
+                details=[],
+                reproduce=reproduce,
+            )
+        )
+        raise
 
 
 def _json(value: Any) -> Any:
@@ -275,8 +314,9 @@ def replay_trace(
                 # A generated base built from an older model or manifest must not drive this one.
                 driver.check_contract(contract)
             for step, expected in planned:
-                driver.step(step)
-                actual = driver.observe()
+                with _locating(contract, path, step, mutant, reproduce):
+                    driver.step(step)
+                    actual = driver.observe()
                 result.imported = imported_modules(contract)
                 result.actions.append(step.action)
                 found = differences(expected, actual)

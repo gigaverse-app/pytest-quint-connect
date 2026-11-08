@@ -130,7 +130,8 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
   an earlier `passed`.
 - **Actionable failures.** A mismatch names the trace, state, action and arguments,
   a field-level expected/actual difference, the seed and a command that replays that
-  exact trace (`--quint-replay`, optionally `--quint-mutant`).
+  exact trace (`--quint-replay`, optionally `--quint-mutant`). An exception from the
+  driver keeps its own type and message and gains the same location as a note.
 
 ## To / Read
 

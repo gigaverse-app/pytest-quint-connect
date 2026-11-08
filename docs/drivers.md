@@ -23,6 +23,10 @@ any other fixture, and its teardown runs after the case, pass or fail.
 empty directory, deleted after the history) and `mutant` (`None`, or the mutant name
 to build).
 
+An exception from `step()` or `observe()` fails the case as itself. The plugin adds a
+note naming the trace, the state and action being applied, the mutant, the seed and
+the command that replays that trace, as it does for a mismatch.
+
 ## Generated typed drivers
 
 ```bash
