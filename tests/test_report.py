@@ -5,6 +5,7 @@ The fixtures in data/receipts are results.json files the plugin wrote for the LR
 replaced by /repo (scripts/normalize_receipt.py).
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -192,3 +193,36 @@ def test_cli_collects_receipts_by_glob_and_keeps_their_directories(tmp_path: Pat
     assert status.read_text(encoding="utf-8") == "failed"
     assert len(list(artifact.glob("*/lru-cache/mismatch-x.json"))) == 1
     assert receipt_paths([f"{tmp_path.as_posix()}/nothing/**/results.json"]) == []
+
+
+def test_the_counter_sign_is_keyed_by_the_repository_id_and_survives_a_local_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pytest_quint_connect.report import Sign
+
+    sign = Sign.of("1449617982", "gigaverse-app/pytest-quint-connect")
+    assert sign.key == hashlib.sha256(b"github-repository:1449617982").hexdigest()
+    block = render_readme(evidence("passed"), sign)
+    assert f"/v1/sign.svg?key={sign.key}&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark" in block
+    assert Sign.found(block) == sign
+
+    readme = readme_with_block(tmp_path)
+    receipt = str(RECEIPTS / "lru-passed.json")
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1449617982")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "gigaverse-app/pytest-quint-connect")
+    assert main(["report", receipt, "--readme", str(readme), "--counter-sign"]) == 0
+    assert sign.key in readme.read_text(encoding="utf-8")
+    # A developer's machine has no repository id: the block keeps the sign it shows, and stays current.
+    monkeypatch.delenv("GITHUB_REPOSITORY_ID")
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    assert main(["report", receipt, "--readme", str(readme), "--check"]) == 0
+    assert main(["report", receipt, "--readme", str(readme)]) == 0
+    assert sign.key in readme.read_text(encoding="utf-8")
+
+
+def test_no_sign_without_the_flag_or_an_existing_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/shop")
+    readme = readme_with_block(tmp_path)
+    assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme)]) == 0
+    assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
