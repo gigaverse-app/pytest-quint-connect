@@ -2,6 +2,7 @@
 
 import posixpath
 import re
+import shutil
 from hashlib import sha256
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -35,6 +36,15 @@ def on_files(files, config):
         config.site_url + f"assets/social-preview.png?v={ASSET_VERSIONS['docs/assets/social-preview.png']}"
     )
     return files
+
+
+def on_post_build(config):
+    # Raw files for agents, at the site root: the setup procedure an agent is told to fetch (the skill
+    # itself, so there is one source), and llms.txt (https://llmstxt.org/), which exclude_docs keeps out of
+    # the page set.
+    site = Path(config.site_dir)
+    shutil.copyfile(ROOT / "skills/pytest-quint-connect/SKILL.md", site / "agent-setup.md")
+    shutil.copyfile(ROOT / "documentation/llms.txt", site / "llms.txt")
 
 
 def on_page_markdown(markdown, page, config, files):

@@ -1,4 +1,4 @@
-"""``pytest-quint-connect``: generate typed driver bases, and report contract receipts."""
+"""``pytest-quint-connect``: typecheck models, generate typed driver bases, and report contract receipts."""
 
 import argparse
 import difflib
@@ -6,12 +6,14 @@ import os
 import shlex
 import shutil
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-from .codegen import CodegenError, compile_ir, generate_module
-from .contract import ContractError, load_contract
+from .codegen import CodegenError, compile_ir, default_output, generate_module
+from .contract import Contract, ContractError, display_path, load_contract
 from .ledger import advance, parse
-from .quint import QuintError, resolve_quint
+from .quint import QuintError, QuintTool, resolve_quint, run
 from .replay import scratch_directory
 from .report import (
     END,
@@ -28,20 +30,41 @@ from .report import (
 )
 
 
-def default_output(manifest: Path, module: str) -> Path:
-    return manifest.parent / f"{module}_driver.py"
+@contextmanager
+def _quint_for(arguments: argparse.Namespace) -> Iterator[tuple[Contract, QuintTool, Path]]:
+    """The manifest's contract and its pinned Quint, with a log directory that survives a failure."""
+    contract = load_contract(Path(arguments.manifest))
+    # Kept when the block fails, so the log an error names still exists.
+    with scratch_directory("quint-codegen-", keep_on_failure=True) as logs:
+        configured = arguments.quint or os.environ.get("QUINT")
+        # On stderr, so `codegen` output and redirected stdout stay as they were.
+        tool = resolve_quint(contract.quint_version, logs, configured, lambda line: print(line, file=sys.stderr))
+        yield contract, tool, logs
+
+
+def typecheck(arguments: argparse.Namespace) -> int:
+    """Typecheck the model with the contract's pinned Quint; Quint's diagnostic is the error."""
+    with _quint_for(arguments) as (contract, tool, logs):
+        run([*tool.command, "typecheck", str(contract.model)], logs / "typecheck.log", cwd=contract.directory)
+    print(f"{display_path(contract.model, Path.cwd())} typechecks with Quint {tool.version}")
+    return 0
 
 
 def codegen(arguments: argparse.Namespace) -> int:
-    contract = load_contract(Path(arguments.manifest))
-    output = Path(arguments.output) if arguments.output else default_output(contract.manifest, contract.module)
-    # Kept when generation fails, so the log an error names still exists.
-    with scratch_directory("quint-codegen-", keep_on_failure=True) as logs:
-        tool = resolve_quint(contract.quint_version, logs, arguments.quint or os.environ.get("QUINT"))
+    with _quint_for(arguments) as (contract, tool, logs):
         ir = compile_ir(contract, tool, logs)
+    output = Path(arguments.output) if arguments.output else default_output(contract)
     source = generate_module(contract, ir, output=output, class_name=arguments.class_name)
     if arguments.check:
-        current = output.read_text(encoding="utf-8") if output.is_file() else ""
+        if not output.is_file():
+            default = "" if arguments.output else f", the default output for module {contract.module}"
+            print(
+                f"{output} does not exist{default}; generate it by running the same command without --check, "
+                "or pass the -o it was generated with",
+                file=sys.stderr,
+            )
+            return 1
+        current = output.read_text(encoding="utf-8")
         if current.replace("\r\n", "\n") == source:
             print(f"{output} is up to date")
             return 0
@@ -56,6 +79,20 @@ def codegen(arguments: argparse.Namespace) -> int:
     output.write_bytes(source.encode("utf-8"))
     print(f"wrote {output}")
     return 0
+
+
+def _warn_no_block(readme: Path) -> None:
+    """A README path without the block is almost always a mistake (README.rst, a typo): say so where it is seen."""
+    found = f"has no {START} line" if readme.is_file() else "does not exist"
+    message = (
+        f"{readme} {found}, so there is no contract block to keep current. Add the {START} and {END} lines "
+        "to a Markdown file (beside a README.rst, a contracts/README.md) and pass it with --readme "
+        "(the report action's readme input), or set the action's readme-mode to off."
+    )
+    print(message)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        # A workflow annotation, so the run summary shows it rather than only the step log.
+        print(f"::warning file={readme},title=pytest-quint-connect README block::{message}")
 
 
 def report(arguments: argparse.Namespace) -> int:
@@ -75,7 +112,7 @@ def report(arguments: argparse.Namespace) -> int:
         else:
             sign = Sign.found(document)
         if not has_markers(document):
-            print(f"{readme}: no {START} block; nothing to keep current")
+            _warn_no_block(readme)
         elif arguments.check:
             result = check_readme(document, evidence, name=str(readme), sign=sign)
             if result.state == "stale":
@@ -163,6 +200,10 @@ def main(argv: list[str] | None = None) -> int:
         "--check", action="store_true", help="exit 1 if the module differs from what would be written"
     )
     generate.set_defaults(handler=codegen)
+    check = commands.add_parser("typecheck", help="typecheck a contract's Quint model with the pinned Quint")
+    check.add_argument("manifest", help="the contract's quint-connect.json")
+    check.add_argument("--quint", help="Quint executable (default: QUINT or the locked install)")
+    check.set_defaults(handler=typecheck)
     arguments = parser.parse_args(argv)
     try:
         return arguments.handler(arguments)

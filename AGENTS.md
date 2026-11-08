@@ -22,7 +22,8 @@ working on pytest-quint-connect itself.
 - **ITF types stay distinct.** Map keys keep their type; lists, tuples and records
   never compare equal (`tests/test_itf.py`). Add a collision test with any decoder change.
 - **Generated code carries types, never behavior.** `codegen` output must stay
-  deterministic, `ruff format`-stable and fingerprinted; regenerate
+  deterministic, fingerprinted and left alone by any consumer's ruff or Black configuration
+  (its `# ruff: noqa` / `# fmt: off` header, `tests/test_codegen.py::test_generated_module_is_stable_under_any_consumer_ruff_config`); regenerate
   `examples/lru_cache/lru_cache_driver.py` and `dogfood/session_driver.py` whenever the generator changes
   (`tests/test_codegen.py::test_committed_generated_drivers_are_current` fails otherwise).
 - **Reports say no more than receipts.** The PR comment and the README block are rendered
