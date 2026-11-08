@@ -1,4 +1,7 @@
-![pytest-quint-connect: Model-based testing for Python under pytest.](https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/banner.png?v=c5c6ae8f72ed)
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/readme-hero-dark.png?v=fbbc73f6a0f1">
+  <img alt="pytest-quint-connect: Quinty the starfish inspects a contract. Model-based testing for Python under pytest." src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/readme-hero-light.png?v=fb4d663f9ca2" width="100%">
+</picture></p>
 
 # pytest-quint-connect
 
@@ -11,17 +14,46 @@
 [![Agent skill](https://img.shields.io/badge/Agent_Skill-ready-2563EB)](skills/pytest-quint-connect/SKILL.md)
 [![Documentation](https://readthedocs.org/projects/pytest-quint-connect/badge/?version=latest)](https://pytest-quint-connect.readthedocs.io/en/latest/)
 
-**Model-based testing for Python under pytest.** [Quint](https://quint.sh)
-generates histories from your specification; pytest-quint-connect replays every
-step against your real Python implementation and compares the state you read back
-with the state the model expects.
+**Model-based testing for Python under pytest.** Write the rules of a stateful API
+once, as a small [Quint](https://quint.sh) model. pytest-quint-connect replays the
+histories Quint generates from it against your real code, and fails when the code
+disagrees.
 
-**Why:** coding agents change code faster than anyone can review it. Write your
-high-level rules once as a small Quint model you can test in the abstract;
-pytest-quint-connect connects your implementation to it, so every change, by a
-person or an agent, is checked against the rules rather than against tests the same
-change may have rewritten. [Why, with real output](docs/why.md) ·
-[Tutorial](docs/tutorial.md) · [Run it in CI](docs/ci.md)
+### Set it up with your coding agent
+
+Paste this into Claude Code, Codex, Cursor or another coding agent, in your repository:
+
+```text
+Add pytest-quint-connect to this repository. Fetch https://pytest-quint-connect.readthedocs.io/en/latest/agent-setup.md and follow it.
+```
+
+The agent picks one part of your code that keeps state, writes its rules down as a
+short model, connects the model to the code, adds deliberate bugs the check must
+catch, adds a CI job, and reports what it verified. **You review the model.** It is
+the specification. An agent can write a wrong model, which then checks the wrong
+rules, so read it before you merge. The tests themselves run without AI, in CI, on
+every change. This is the split Quint's authors describe in
+[Reliable Software in the LLM Era](https://quint.sh/posts/llm_era) and
+[Quint Connect](https://quint.sh/posts/quint_connect). To do it by hand, follow the
+[tutorial](docs/tutorial.md).
+
+### In plain words
+
+- **Model**: a short Quint file that says what your API should do: its operations,
+  and what you should be able to read back after each one.
+- **History**: a sequence of operations generated from the model, with the expected
+  state after each step. Some are scenarios you name; the rest are sampled from a fixed seed.
+- **Driver**: a few lines of Python that apply each step to your real code and read
+  its state back. It never computes the answer.
+- **Mutant**: a deliberately broken version of your code. Every run must catch it,
+  which proves the check can fail.
+
+Hand-written tests check the cases someone thought of, and a change can rewrite them
+along with the code. A contract checks every generated history against rules kept
+apart from the code. So a change by a person or a coding agent is judged against the
+rules, not against tests the same change may have edited.
+[Why, with real output](docs/why.md) · [Tutorial](docs/tutorial.md) ·
+[Run it in CI](docs/ci.md)
 
 [Read the documentation](https://pytest-quint-connect.readthedocs.io/en/latest/) · [Related tools](https://pytest-quint-connect.readthedocs.io/en/latest/ecosystem/)
 
@@ -61,7 +93,7 @@ To try unreleased changes, install from Git instead:
 Generate a typed driver base from the model, then declare the contract:
 
 ```bash
-pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
+pytest-quint-connect codegen quint-connect.json  # writes lru_cache_driver.py
 ```
 
 ```python
@@ -115,7 +147,7 @@ README block like [this repository's](#measured) current:
 
 ```yaml
 - run: pytest --quint-require-complete
-- uses: gigaverse-app/pytest-quint-connect/report@v1  # job permission: pull-requests: write
+- uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z  # your installed version; job permission: pull-requests: write
   if: ${{ !cancelled() }}
 ```
 
@@ -168,7 +200,7 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 | See why, with real output | [docs/why.md](docs/why.md) |
 | Build your first contract step by step | [docs/tutorial.md](docs/tutorial.md) |
 | Make contracts a required CI check | [docs/ci.md](docs/ci.md) |
-| Set it up with an agent | [skills/pytest-quint-connect/SKILL.md](skills/pytest-quint-connect/SKILL.md) |
+| Set it up with a coding agent | [the agent setup procedure](skills/pytest-quint-connect/SKILL.md), also served raw at [agent-setup.md](https://pytest-quint-connect.readthedocs.io/en/latest/agent-setup.md) |
 | Write a manifest | [docs/manifest.md](docs/manifest.md) |
 | Write a driver and choose a step convention | [docs/drivers.md](docs/drivers.md) |
 | Know what a passing run does and does not prove | [docs/limits.md](docs/limits.md) |
@@ -182,6 +214,8 @@ generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
+<a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
+
 <a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 mutants caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_mutants_caught-brightgreen"></a>
 
 | | Contract | Cases passed | [Mutants caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") |
@@ -201,6 +235,61 @@ generated, and CI fails when it no longer matches the evidence:
 - `session-receipts` · `replay-counts-as-complete`: replaying one saved trace no longer marks the session incomplete. Caught by `witness-replayIsNeverCompleteTest` at state 2, after `session(kind='replay', strict=True)`.
 - `session-receipts` · `failed-session-keeps-old-receipt`: a failed or still-running session leaves the previous results.json in place. Caught by `witness-staleSuccessIsReplacedTest` at state 2, after `session(kind='noQuint', strict=False)`.
 - `session-receipts` · `require-complete-ignored`: --quint-require-complete is accepted but never changes the exit code. Caught by `witness-filteredRunIsNeverPassedTest` at state 2, after `session(kind='filtered', strict=True)`.
+
+<details>
+<summary>What <code>lru-cache</code> says</summary>
+
+**Actions**, and the code each one drives:
+
+- `init`: construct a fresh cache with capacity 2
+- `store`: cache.put(key, value)
+- `fetch`: cache.get(key), observed as Hit(value) or Miss
+- `inspect`: read cache.items() without changing it
+
+**Invariant** `withinCapacity`, checked while sampling histories.
+
+**Witnesses**, scenarios replayed exactly as written: `evictsLeastRecentlyUsedTest`, `overwriteRefreshesTest`, `missKeepsContentsTest`.
+
+**Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`.
+
+**Witness `evictsLeastRecentlyUsedTest`, step by step**: what the model expects the code to show after each action.
+
+| State | Action | Model expects |
+| --: | :-- | :-- |
+| `0` | `init(key='', value=0)` | `{ entries: [], lastRead: NoRead }` |
+| `1` | `store(key='a', value=1)` | `{ entries: [{ key: "a", value: 1 }], lastRead: NoRead }` |
+| `2` | `store(key='b', value=2)` | `{ entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }], lastRead: NoRead }` |
+| `3` | `fetch(key='a', value=0)` | `{ entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }], lastRead: Hit(1) }` |
+| `4` | `store(key='c', value=0)` | `{ entries: [{ key: "a", value: 1 }, { key: "c", value: 0 }], lastRead: NoRead }` |
+| `5` | `inspect(key='', value=0)` | `{ entries: [{ key: "a", value: 1 }, { key: "c", value: 0 }], lastRead: NoRead }` |
+
+</details>
+
+<details>
+<summary>What <code>session-receipts</code> says</summary>
+
+**Actions**, and the code each one drives:
+
+- `init`: copy examples/lru_cache into a fresh project directory; no receipt yet
+- `session`: run `python -m pytest` in the project with the installed plugin and the options for this kind; read results.json and the exit code
+- `inspect`: read results.json and the last exit code without running anything
+
+**Invariant** `honest`, checked while sampling histories.
+
+**Witnesses**, scenarios replayed exactly as written: `staleSuccessIsReplacedTest`, `filteredRunIsNeverPassedTest`, `replayIsNeverCompleteTest`, `faultAfterSuccessFailsTest`.
+
+**Bounds**: seed `11` · max_samples `300` · max_steps `3` · n_traces `4`.
+
+**Witness `staleSuccessIsReplacedTest`, step by step**: what the model expects the code to show after each action.
+
+| State | Action | Model expects |
+| --: | :-- | :-- |
+| `0` | `init(kind='', strict=False)` | `{ exitCode: -1, mode: "none", status: "none" }` |
+| `1` | `session(kind='full', strict=True)` | `{ exitCode: 0, mode: "generate-and-replay", status: "passed" }` |
+| `2` | `session(kind='noQuint', strict=False)` | `{ exitCode: 1, mode: "generate-and-replay", status: "failed" }` |
+| `3` | `inspect(kind='', strict=False)` | `{ exitCode: 1, mode: "generate-and-replay", status: "failed" }` |
+
+</details>
 
 <sub>Generated by [pytest-quint-connect](https://github.com/gigaverse-app/pytest-quint-connect) from contract receipts; [what a passing run proves](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/limits.md).</sub>
 <!-- pytest-quint-connect:end -->
@@ -239,6 +328,29 @@ records progress against the accepted backlog. [Setup and cleanup workflow](CONT
 
 Retired means a side was removed, or (functions only) the judge now finds the pair separate. It is not a count of refactors. Dismissals stay separate; an uninitialized model baseline is unknown.
 <!-- dry-lint-progress:end -->
+
+## Impact
+
+<a href="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg"><picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?theme=dark">
+<img alt="What pytest-quint-connect's contracts caught in pull requests, across every repository that shares its totals" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg" width="100%">
+</picture></a>
+
+Every repository whose report action shares its totals adds its merged pull requests here: the disagreements its
+contracts caught between the code and its Quint model, and how many were fixed before merge. Repositories are
+counted pseudonymously, and `share-totals: "false"` opts out ([what is sent](docs/reference.md#the-global-counter)).
+
+## Meet Quinty
+
+<p>
+<img src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/quinty/inspector-320.png" alt="Quinty in a deerstalker, inspecting a contract with a magnifier" width="150">
+<img src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/quinty/chef-320.png" alt="Quinty in a chef's hat, stamping approval on a passing contract" width="150">
+<img src="https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/quinty/explorer-320.png" alt="Quinty with a map, tracing the path where the code left the model" width="150">
+</p>
+
+Quinty is a starfish: five arms, a *quint*. On a pull request, Quinty stamps approval when every
+history matched the model, follows the map to the spot where the code left the model when one did
+not, and otherwise inspects the contract.
 
 ## Related projects
 

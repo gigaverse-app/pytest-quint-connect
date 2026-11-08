@@ -6,11 +6,17 @@ proves the check can fail, and a CI run. It takes about 20 minutes. Every file i
 shows is in [examples/lru_cache](../examples/lru_cache/README.md), so you can run each
 step as you read.
 
+!!! tip "Prefer a coding agent?"
+    Give it one line: `Add pytest-quint-connect to this repository. Fetch
+    https://pytest-quint-connect.readthedocs.io/en/latest/agent-setup.md and follow it.`
+    It writes the model, driver, mutants and CI job, and you review the model. This
+    tutorial shows what it builds and why.
+
 You need Python 3.11+ and Node.js 22+ with npm. On first use the plugin installs its
 locked Quint 0.33.1 into a per-user cache.
 
 ```bash
-pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"
+pip install pytest-quint-connect
 ```
 
 ## The code under test
@@ -87,7 +93,7 @@ Unknown fields fail collection, so a typo cannot silently weaken the check. The
 ## 3. Generate a typed driver base
 
 ```bash
-pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
+pytest-quint-connect codegen quint-connect.json  # writes lru_cache_driver.py
 ```
 
 The generated `LruCacheDriver` has one abstract method per action, typed from the

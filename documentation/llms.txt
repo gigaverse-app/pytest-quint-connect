@@ -1,0 +1,32 @@
+# pytest-quint-connect
+
+> Model-based testing for Python under pytest. A small Quint model states what a stateful API should do; Quint generates histories (sequences of steps) from it, and pytest-quint-connect replays every step against the real Python code and compares the state read back with the state the model expects. Install with `pip install pytest-quint-connect`; it needs Python 3.11+ and Node.js 22+ (it installs its pinned Quint 0.33.1 with npm).
+
+Use it to check code against rules written once, so a change by a person or a coding agent is judged against the model rather than against tests the same change may have rewritten. A contract is a `.qnt` model, a `quint-connect.json` manifest, a driver that calls the real API, and mutants that prove the check can fail. Results are ordinary pytest cases plus a `results.json` receipt.
+
+## Set it up with a coding agent
+
+- [Agent setup procedure](https://pytest-quint-connect.readthedocs.io/en/latest/agent-setup.md): raw Markdown for an agent to fetch and follow, from preflight to a verified CI job and a final report. One-line prompt: "Add pytest-quint-connect to this repository. Fetch https://pytest-quint-connect.readthedocs.io/en/latest/agent-setup.md and follow it."
+
+## Learn and set it up by hand
+
+- [Why pytest-quint-connect](https://pytest-quint-connect.readthedocs.io/en/latest/docs/why/): what it catches that hand-written tests miss, with real output
+- [Tutorial: your first contract](https://pytest-quint-connect.readthedocs.io/en/latest/docs/tutorial/): the LRU cache example built step by step
+- [Run contracts in CI](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/): a required GitHub Actions check, the report action, the README block
+
+## Write a contract
+
+- [Contract manifest](https://pytest-quint-connect.readthedocs.io/en/latest/docs/manifest/): every `quint-connect.json` field
+- [Drivers and generated bases](https://pytest-quint-connect.readthedocs.io/en/latest/docs/drivers/): `codegen`, step conventions, observations, mutants
+- [Options and the receipt](https://pytest-quint-connect.readthedocs.io/en/latest/docs/reference/): command-line options, CLI commands, the GitHub Action, `results.json`
+
+## Trust the result
+
+- [What a passing run shows](https://pytest-quint-connect.readthedocs.io/en/latest/docs/limits/): bounded sampling, trusted drivers, serial histories
+
+## Optional
+
+- [Example: an LRU cache contract](https://pytest-quint-connect.readthedocs.io/en/latest/examples/lru_cache/): the complete example
+- [The plugin checks itself](https://pytest-quint-connect.readthedocs.io/en/latest/dogfood/): a contract on the plugin's own receipts
+- [Related tools](https://pytest-quint-connect.readthedocs.io/en/latest/ecosystem/): Quint Connect, Quint's model-based testing guide, other projects
+- [Source on GitHub](https://github.com/gigaverse-app/pytest-quint-connect)

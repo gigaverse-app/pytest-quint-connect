@@ -129,3 +129,60 @@ test('a failed read starts a new tally instead of failing the job', async t => {
   assert.equal(fs.readFileSync(previous, 'utf8'), '');
   assert.match(warnings[0], /starts a new tally/);
 });
+
+function pushFixture({ledgerBody, mergedAt = '2026-11-08T00:00:00Z', ref = 'refs/heads/main'} = {}) {
+  const posted = [];
+  const comments = ledgerBody === undefined ? [] : [bot(ledgerBody)];
+  const github = {rest: {
+    pulls: {list: async () => ({data: [{number: 3, merged_at: mergedAt}, {number: 4, merged_at: null}]})},
+    issues: {listComments: () => {}},
+  }};
+  github.paginate = async () => comments;
+  const context = {repo: {owner: 'owner', repo: 'app'}, eventName: 'push', ref, payload: {repository: {default_branch: 'main'}}};
+  const notes = [];
+  const core = {info: x => notes.push(x), warning: x => notes.push(x)};
+  const env = {GITHUB_REPOSITORY_ID: '42', QUINT_REPORT_STICKY_KEY: 'quint-connect', QUINT_REPORT_VERSION: '1.0.0'};
+  const post = async (url, request) => {
+    posted.push([url, JSON.parse(request.body)]);
+    return {ok: true, json: async () => ({counted: true})};
+  };
+  return {github, context, core, env, post, posted, notes, run: () => publish.share({github, context, core}, env, post)};
+}
+
+function stickyWith(ledger) {
+  const marker = publish.markerFor('quint-connect');
+  const snapshot = '<!-- pytest-quint-connect-snapshot:{"head":"abc","run":1,"attempt":1} -->';
+  return `### report\n<!-- pytest-quint-connect-ledger ${JSON.stringify(ledger)} -->\n\n${snapshot}\n${marker}`;
+}
+
+const LEDGER = {schema: 1, pushes: [{push: 1}, {push: 2}], caught: {
+  a: {found: 1, kind: 'mismatch', state: 'fixed'}, b: {found: 1, kind: 'survived', state: 'open'},
+}};
+
+test('a default-branch push sends each merged pull request\'s tally, keyed by the repository id hash', async () => {
+  const f = pushFixture({ledgerBody: stickyWith(LEDGER)});
+  assert.equal(await f.run(), 1);
+  const [[url, entry]] = f.posted;
+  assert.equal(url, 'https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/pulls');
+  assert.deepEqual(entry, {repository: publish.counterKey('42'), pull: 3, caught: 2, fixed: 1, open: 1, pushes: 2, version: '1.0.0'});
+  assert.match(publish.counterKey('42'), /^[0-9a-f]{64}$/);
+  assert.match(f.notes.join('\n'), /counter key is [0-9a-f]{64}/);
+});
+
+test('nothing is sent off the default branch, when opted out, or without a ledger', async () => {
+  assert.equal(await pushFixture({ledgerBody: stickyWith(LEDGER), ref: 'refs/heads/feature'}).run(), 0);
+  const optedOut = pushFixture({ledgerBody: stickyWith(LEDGER)});
+  optedOut.env.QUINT_REPORT_SHARE_TOTALS = 'false';
+  assert.equal(await optedOut.run(), 0);
+  assert.equal(optedOut.posted.length, 0);
+  const none = pushFixture();
+  assert.equal(await none.run(), 0);
+  assert.equal(none.posted.length, 0);
+});
+
+test('a counter that cannot be reached never fails the job', async () => {
+  const f = pushFixture({ledgerBody: stickyWith(LEDGER)});
+  const failing = async () => { throw new Error('offline'); };
+  assert.equal(await publish.share({github: f.github, context: f.context, core: f.core}, f.env, failing), 0);
+  assert.match(f.notes.join('\n'), /next default-branch run retries/);
+});

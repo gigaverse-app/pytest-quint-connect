@@ -27,7 +27,7 @@ from .typed import ActionDriver
 try:
     __version__ = version("pytest-quint-connect")
 except PackageNotFoundError:  # running from a source tree without installation
-    __version__ = "0.3.0"
+    __version__ = "1.1.0"
 
 __all__ = [
     "ActionDriver",

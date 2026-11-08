@@ -10,6 +10,16 @@
 | `--quint-replay TRACE` | Replay one saved `.itf.json` through exactly one selected contract test instead of generating. Never complete coverage. |
 | `--quint-mutant NAME` | With `--quint-replay`: replay through that mutant. |
 
+## `pytest-quint-connect typecheck`
+
+```text
+pytest-quint-connect typecheck MANIFEST [--quint PATH]
+```
+
+Typechecks the contract's model with its pinned Quint (the locked install, `--quint` or
+`QUINT`), so `quint` need not be on `PATH`. Exit 2 shows Quint's diagnostic, with the
+file and line. Run it while writing a model, before `codegen`.
+
 ## `pytest-quint-connect codegen`
 
 ```text
@@ -17,9 +27,11 @@ pytest-quint-connect codegen MANIFEST [-o OUTPUT] [--class-name NAME] [--quint P
 ```
 
 Writes a typed driver base for the contract (default output: `MODULE_driver.py` beside
-the manifest). `--check` writes nothing and exits 1 with a diff if the file differs
-from what would be generated. Exit 2 means the manifest, model or Quint could not be
-used. See [drivers](drivers.md#generated-typed-drivers).
+the manifest, where `MODULE` is the manifest's `module`). Prefer the default: then
+`codegen --check MANIFEST` in CI compares the same file without repeating `-o`.
+`--check` writes nothing and exits 1 with a diff if the file differs from what would be
+generated, or with the path it looked for when that file does not exist. Exit 2 means
+the manifest, model or Quint could not be used. See [drivers](drivers.md#generated-typed-drivers).
 
 ## `pytest-quint-connect report`
 
@@ -38,13 +50,19 @@ skipped: they belong to sessions a driver ran inside one history.
   actions covered), then the bugs the contracts found (summary, fix, how found, regression
   test, and how many histories diverge when its mutant reintroduces it), then each
   other mutant (planted fake bug) with its description and where it was first caught (trace,
-  state, action). "Mutants" links to an explanation that shows on hover. Then each failure with its state,
+  state, action). "Mutants" links to an explanation that shows on hover. Then, collapsed
+  under "What `NAME` says", what each contract claims, so a reviewer can judge the model
+  itself: each declared action and the code it drives, the invariant, the witnesses, the
+  bounds, and, when it declares witnesses, the first one step by step (each action and the observation the model
+  expects after it, read from its generated trace; at most 20 states). Receipts from
+  earlier plugin versions lack these fields and show no such block. When the comment would exceed
+  GitHub's limit, these blocks are left out first. Then each failure with its state,
   action and differences, and a
   `pytest 'NODE[CASE]'` command that reproduces it. The command regenerates the same
   histories from the manifest's seed. Statuses stay distinct: `failed`, `interrupted`
   (the session never finished), `partial` (filtered), `not run` (collected, nothing
   selected), `replay-only` and `passed`.
-- **README block**: the same table, the same bugs-found and mutant lists and a badge, between the lines
+- **README block**: the same table, the same bugs-found and mutant lists, the same claims and a badge, between the lines
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->`, which the
   document must already contain. Text outside them is never touched. The block holds no
   commit, run or failure detail, so it changes only when the evidence changes.
@@ -66,15 +84,21 @@ permissions:
 steps:
   # ... checkout, Node.js 22+, Python, then:
   - run: pytest --quint-require-complete
-  - uses: gigaverse-app/pytest-quint-connect/report@v1
+  - uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z  # the installed pytest-quint-connect version
     if: ${{ !cancelled() }}
 ```
 
 It finds every receipt in the workspace, writes the comment to the job summary, uploads
 each receipt's directory (traces, logs, mismatches) as the `quint-connect-KEY-ATTEMPT`
 artifact, creates or updates one comment on same-repository pull requests, and fails the
-step when `README.md`'s block is stale. Without the README markers, the README part does
-nothing.
+step when `README.md`'s block is stale. When the `readme` file does not exist or has no
+markers, the step adds a warning annotation naming the file and leaves it alone. The
+block is Markdown and HTML: next to a `README.rst`, keep it in a Markdown file such as
+`contracts/README.md` and set `readme` to it.
+
+Pin the action to the version of pytest-quint-connect your tests install. It renders
+with its own copy of the code, so another version can render the README block
+differently and fail the check. With commit SHAs, write `report@<sha>  # vX.Y.Z`.
 
 | Input | Default | |
 | --- | --- | --- |
@@ -84,6 +108,7 @@ nothing.
 | `post-comment` | `true` | comment on same-repository pull requests |
 | `sticky-key` | `quint-connect` | one comment per key; use distinct keys for separate reporting jobs |
 | `title` | | names the job in its comment |
+| `share-totals` | `true` | on the default branch, add merged pull requests' tallies to [the global counter](#the-global-counter); `false` opts out |
 
 Outputs: `status` (the worst contract status, or `none`), `markdown-path`, and `readme`
 (`current`, `stale`, `unverifiable`, `written`, `absent` or `off`).
@@ -103,6 +128,26 @@ push changes nothing. The tally lives in the comment as hidden JSON
 from the bot-owned comment with this key, so every push extends it. From the command
 line, pass the previous comment as `report --ledger FILE`; an empty or missing file
 starts a new tally.
+
+### The global counter
+
+On a push to the default branch, the action sends each recently merged pull request's final tally to
+pytest-quint-connect's public counter, a [Cloudflare Worker](../counter) at `https://pytest-quint-connect-counter.gigaverse-oss.workers.dev`, which
+adds it to the [sign in the README](../README.md#impact). A contribution holds the repository's counter key, the pull
+request number, the disagreements it caught, how many were fixed before merge, how many were still failing when it
+merged, its pushes, and the plugin version: no code, names, paths or people.
+
+- **Pseudonymous, not anonymous.** The counter key is the SHA-256 of the repository's numeric GitHub id
+  (`GITHUB_REPOSITORY_ID`), never of its name. It ties the repository's pull requests together, but a name does not
+  lead to it, and the counter refuses to look a repository up by name. The default-branch run prints the key.
+- **Counted once.** The counter keys contributions on the repository's key and pull request number, so each run can
+  resend the 30 most recently merged pull requests: a resend changes nothing, and a failed send is caught up by the
+  next run. Sending never fails the job.
+- **The repository's own sign.** While it shares its totals, the README block opens with the repository's sign: what
+  its own contracts caught (`report --counter-sign`, which the action passes).
+- **Opt out** with `share-totals: "false"`. Nothing is sent, and the block shows no sign.
+
+The send needs the job to run on pushes to the default branch, and a token that can read pull requests.
 
 ## ini options
 
@@ -168,10 +213,17 @@ and per test: outcomes, completeness, steps replayed, imported modules (with
 failed history its state, action, arguments, first differences and mismatch file, and for
 a surviving mutant how many histories it survived. A detected mutant's entry in
 `mutations` says where it was first caught: `detected_by` (the case id of the trace),
-`state`, `action`, `arguments` and the differences; the entry of a mutant named by a found bug adds
+`state`, `action`, `arguments` and the differences, and `caught_by_sample`: whether a sampled
+history caught it too (witnesses replay first; samples then replay until one does). When
+every detected mutant has `caught_by_sample: false`, the session summary and the PR comment
+say that only the named witnesses catch the mutants; the entry of a mutant named by a found bug adds
 `histories` (how many were replayed) and `diverged` (the case ids that mismatched, in
 generation order). `root` is the session's rootdir, and
-the mismatch paths are relative to it. Beside it, each
+the mismatch paths are relative to it. `config_file` is the configuration file given
+with `-c`, relative to `root` (`null` when pytest found its configuration itself); the
+PR comment's reproduce command repeats it. A `--quint-replay` session rewrites
+`results.json` with mode `replay-only`; rerun the full contract to restore complete
+evidence. Beside it, each
 contract's directory holds the ITF traces, Quint logs and a `mismatch-TEST-CASE.json`
 for every failed history. Upload the whole directory from CI, including on failure.
 
