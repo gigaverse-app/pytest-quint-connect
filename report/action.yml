@@ -13,8 +13,10 @@ inputs:
     default: '**/.artifacts/quint-connect/results.json'
   readme:
     description: >-
-      Document holding the contract block, between the lines <!-- pytest-quint-connect:start --> and
-      <!-- pytest-quint-connect:end -->. Without those lines this is a no-op.
+      Markdown document holding the contract block, between the lines <!-- pytest-quint-connect:start --> and
+      <!-- pytest-quint-connect:end -->. When the file is missing or lacks those lines, the step adds a warning
+      annotation naming it and leaves it alone. With a README.rst, keep the block in a Markdown file such as
+      contracts/README.md.
     default: README.md
   readme-mode:
     description: >-

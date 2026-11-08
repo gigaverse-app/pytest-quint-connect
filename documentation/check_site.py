@@ -1,12 +1,16 @@
 """Check the rendered publication contract, including canonical URLs and search."""
 
 import json
+import re
 import struct
 from hashlib import sha256
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
+
+# The published documentation's default version, which llms.txt and the agent prompt name.
+LATEST = "https://pytest-quint-connect.readthedocs.io/en/latest/"
 
 
 class Metadata(HTMLParser):
@@ -70,7 +74,29 @@ def main():
     search = json.loads((site / "search/search_index.json").read_text(encoding="utf-8"))
     assert len(search["docs"]) >= len(pages), "Search index does not cover the published pages"
     assert not any("/work-in-progress/" in url or "/plans/" in url for url in locations)
-    print(f"Validated {len(pages)} pages: canonical, descriptions, social metadata, sitemap, search")
+    check_agent_files(root, site)
+    print(f"Validated {len(pages)} pages: canonical, descriptions, social metadata, sitemap, search, agent files")
+
+
+def check_agent_files(root, site):
+    """The raw files agents are pointed at: the setup procedure and llms.txt, at the site root."""
+    setup = site / "agent-setup.md"
+    assert setup.is_file(), "agent-setup.md missing from the site root"
+    assert setup.read_bytes() == (root / "skills/pytest-quint-connect/SKILL.md").read_bytes(), "stale agent-setup.md"
+    # Served raw, so no link rewriting reaches it: every link must be absolute.
+    for target in re.findall(r"\]\(([^)\s]+)\)", setup.read_text(encoding="utf-8")):
+        assert urlsplit(target).scheme == "https", f"agent-setup.md: relative link {target}"
+    llms = site / "llms.txt"
+    assert llms.is_file(), "llms.txt missing from the site root"
+    text = llms.read_text(encoding="utf-8")
+    assert text.startswith("# pytest-quint-connect\n\n> "), "llms.txt: needs an H1 and a blockquote summary"
+    assert "## Optional" in text and "/agent-setup.md" in text
+    # Links into the published documentation must name a page or file this build produced.
+    for target in re.findall(r"\]\((https://[^)\s]+)\)", text):
+        if target.startswith(LATEST):
+            relative = target[len(LATEST) :]
+            built = site / relative if relative.endswith(".md") else site / relative / "index.html"
+            assert built.is_file(), f"llms.txt: {target} is not in the built site"
 
 
 if __name__ == "__main__":

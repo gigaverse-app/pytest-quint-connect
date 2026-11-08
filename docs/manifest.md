@@ -44,7 +44,7 @@ instead of silently weakening a check.
 | `historical`, `historical_sha256` | no | A frozen model kept as evidence (for example the model of a fixed bug) and its SHA-256. Any edit fails every case of the contract. |
 | `root` | no | Directory, relative to the manifest, that `sources` and `attest.source` are relative to. Default: the manifest's directory. |
 | `sources` | no | Implementation files whose hashes go into the receipt. A missing file fails collection. |
-| `attest` | no | `{"package": "name", "source": "dir"}`: after every step, every imported module of `package` must come from `source`, so a stale installed copy cannot stand in for the checkout under test. |
+| `attest` | no | `{"package": "name", "source": "dir"}`: after every step, every imported module of `package` must come from `source`, so a stale installed copy cannot stand in for the checkout under test. `source` is the directory that *contains* the package directory, relative to `root`: `"src"` for `src/name/`, `"."` for `name/` at the root. Use it when a runner installs the package non-editably (tox does by default), and put `source` first on the contract config's `pythonpath` so the checkout is what gets imported. |
 | `description`, `limits` | no | Documentation. `limits` is copied into the receipt. |
 
 ## Mutants

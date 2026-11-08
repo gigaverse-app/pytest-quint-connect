@@ -114,11 +114,13 @@ class Row:
     covered: bool | None
     quint: str | None
     generation_failure: str | None = None
+    config_file: str | None = None
     failures: list[Failure] = field(default_factory=list)
     catches: list[Catch] = field(default_factory=list)
     # The manifest's bugs_found, as recorded in the receipt: declared facts, shared by the contract's tests.
     bugs_found: list[dict[str, str]] = field(default_factory=list)
     passed_cases: frozenset[str] = frozenset()
+    witnesses_only: bool = False
     # None for receipts written before they recorded the manifest's actions and invariant.
     claims: Claims | None = None
 
@@ -172,6 +174,22 @@ def load(paths: list[Path]) -> Evidence:
     return Evidence(sorted(rows, key=lambda row: (row.contract, row.test)), len(paths), incomplete)
 
 
+def witnesses_only(mutations: dict[str, Any], samples: int) -> bool:
+    """True when sampling ran and caught none of the detected mutants: only the named witnesses did.
+
+    Receipts written before ``caught_by_sample`` existed lack it, and say nothing either way.
+    """
+    return (
+        samples > 0 and bool(mutations) and all(entry.get("caught_by_sample") is False for entry in mutations.values())
+    )
+
+
+WITNESSES_ONLY = (
+    "every mutant was caught only by a named witness; no sampled history caught one. Raise bounds.n_traces "
+    "or max_steps until samples catch them too, or accept knowingly that sampling adds no detection here"
+)
+
+
 def _rows(receipt: dict[str, Any]) -> list[Row]:
     rows = []
     for contract in receipt.get("contracts", []):
@@ -222,6 +240,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     covered={"passed": True, "failed": False}.get(outcomes.get("coverage", "")),
                     quint=contract.get("quint"),
                     generation_failure=failure,
+                    config_file=receipt.get("config_file"),
                     failures=[Failure(case, outcomes[case], findings.get(case, {})) for case in sorted(failed)],
                     catches=[
                         Catch(
@@ -235,6 +254,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     ],
                     bugs_found=list(contract.get("bugs_found", [])),
                     passed_cases=frozenset(case for case, outcome in outcomes.items() if outcome == "passed"),
+                    witnesses_only=witnesses_only(test.get("mutations", {}), samples),
                     claims=claims,
                 )
             )
@@ -356,7 +376,9 @@ def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
         lines += details
     else:
         lines.append(": failed; see the job log.")
-    command = "pytest " + shlex.quote(f"{row.test}[{failure.case}]")
+    # Run from the session's rootdir; a configuration chosen with -c must be named again.
+    config = f"-c {shlex.quote(row.config_file)} " if row.config_file else ""
+    command = f"pytest {config}" + shlex.quote(f"{row.test}[{failure.case}]")
     directory = _directory(row, repository)
     if directory and directory != ".":
         command = f"cd {shlex.quote(directory)}\n{command}"
@@ -605,6 +627,9 @@ def render_comment(
         lines.append("<br>".join(f"<sub>{ICON[state]} {state}: {MEANING[state]}.</sub>" for state in present))
         lines.append("")
     lines += _catches(evidence.rows)
+    weak = [row for row in evidence.rows if row.witnesses_only]
+    if weak:
+        lines += [f"<sub>⚠️ {_code(row.test)}: {WITNESSES_ONLY}.</sub>" for row in weak] + [""]
     # What the contracts claim follows their verdicts, and is the first thing left out to fit the budget.
     lines.append(CLAIMS)
     failures = [(row, failure) for row in evidence.rows for failure in row.failures]
