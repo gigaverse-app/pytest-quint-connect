@@ -16,7 +16,7 @@ dependencies:
     inputs: ["data/**"]
     kind: content
     reason: Real Quint 0.33.1 ITF traces and a probe model used as fixtures.
-  - readers: ["test_report.py"]
+  - readers: ["test_report.py", "test_ledger.py"]
     inputs: ["data/receipts/**"]
     kind: content
     reason: Real results.json receipts of the LRU example, rendered as the PR comment and README block.

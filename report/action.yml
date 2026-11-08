@@ -58,6 +58,19 @@ runs:
       if: ${{ steps.runtime.outputs.uv != 'true' }}
       with:
         enable-cache: 'false'
+    # The tally counts what every push of this pull request caught, so read the previous report first.
+    - name: Read the previous report
+      if: ${{ inputs.post-comment == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v9
+      env:
+        QUINT_REPORT_PREVIOUS: ${{ runner.temp }}/quint-connect-${{ inputs.sticky-key }}-previous.md
+        QUINT_REPORT_STICKY_KEY: ${{ inputs.sticky-key }}
+        QUINT_REPORT_ACTION_PATH: ${{ github.action_path }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const {readPrevious} = require(`${process.env.QUINT_REPORT_ACTION_PATH}/publish.cjs`);
+          await readPrevious({github, context, core});
     - name: Render the contract report
       id: render
       shell: bash
@@ -71,6 +84,8 @@ runs:
         REPORT_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         # The action's own revision renders the report, never the project's installed copy.
         REPORTER_PACKAGE: ${{ github.action_path }}/..
+        REPORT_PREVIOUS: ${{ runner.temp }}/quint-connect-${{ inputs.sticky-key }}-previous.md
+        LOCAL_REVISION: ${{ github.repository }}/${{ github.sha }}
       run: |
         workspace="$(mktemp -d "$RUNNER_TEMP/quint-report.XXXXXX")"
         mkdir -p "$workspace/artifact"
@@ -88,11 +103,23 @@ runs:
           fi
           if [[ "$README_MODE" == check ]]; then readme_args+=(--check); fi
         fi
+        extra_args=()
+        if [[ -f "$REPORT_PREVIOUS" ]]; then extra_args+=(--ledger "$REPORT_PREVIOUS"); fi
+        # Banner images come from the action's own revision, so a comment never points at assets it lacks:
+        # a released action runs from .../_actions/OWNER/REPO/REF/report, a local one (uses: ./report) from
+        # this repository at this commit.
+        if [[ -f "$GITHUB_ACTION_PATH/../docs/assets/sticky-banner-light.svg" ]]; then
+          revision="$LOCAL_REVISION"
+          if [[ "$GITHUB_ACTION_PATH" =~ /_actions/([^/]+)/([^/]+)/([^/]+)/report/?$ ]]; then
+            revision="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
+          fi
+          extra_args+=(--assets "https://raw.githubusercontent.com/$revision/docs/assets")
+        fi
         set +e
         uvx --python "$REPORT_PYTHON" --from "$REPORTER_PACKAGE" pytest-quint-connect report "${patterns[@]}" \
           --comment "$workspace/artifact/report.md" --status-file "$workspace/status" --title "$REPORT_TITLE" \
           --head "$REPORT_HEAD" --run-url "$REPORT_RUN" --repository-root "$GITHUB_WORKSPACE" \
-          --artifact-dir "$workspace/artifact" "${readme_args[@]}" | tee "$workspace/readme.log"
+          --artifact-dir "$workspace/artifact" "${readme_args[@]}" "${extra_args[@]}" | tee "$workspace/readme.log"
         code=${PIPESTATUS[0]}
         set -e
         if [[ "$code" -gt 1 ]]; then exit "$code"; fi

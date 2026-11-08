@@ -26,7 +26,7 @@ used. See [drivers](drivers.md#generated-typed-drivers).
 ```text
 pytest-quint-connect report RECEIPT... [--comment PATH] [--readme PATH [--check]]
     [--title TEXT] [--head SHA] [--run-url URL] [--repository-root DIR]
-    [--status-file PATH] [--artifact-dir DIR]
+    [--status-file PATH] [--artifact-dir DIR] [--ledger FILE] [--assets URL]
 ```
 
 Reads `results.json` receipts (files or quoted recursive globs, such as
@@ -88,6 +88,17 @@ The comment belongs to the `github-actions[bot]` comment that ends with this key
 marker. A report for an older run or attempt, or for a commit the pull request has moved
 past, never replaces it. A fork pull request's token cannot comment, so it keeps the job
 summary and the artifact.
+
+The comment opens with a full-width tally of the pull request's **disagreements**: a
+history where the code reached a different state than the model, or a mutant that no
+history caught. Crashes and setup errors are not disagreements. A disagreement is
+*caught* on the first push that reports it and *fixed* once a later push runs that case
+and it passes; a case that later fails again is open again, and a case filtered out of a
+push changes nothing. The tally lives in the comment as hidden JSON
+(`<!-- pytest-quint-connect-ledger ... -->`). Before rendering, the action reads it back
+from the bot-owned comment with this key, so every push extends it. From the command
+line, pass the previous comment as `report --ledger FILE`; an empty or missing file
+starts a new tally.
 
 ## ini options
 
