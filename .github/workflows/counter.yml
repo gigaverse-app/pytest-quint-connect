@@ -1,0 +1,63 @@
+name: Deploy the global counter
+# The counter runs on Cloudflare (counter/README.md). A pull request that changes it runs its tests; each push to main
+# that changes it is tested, then deployed, so what is merged is what serves the README signs. Nothing else deploys it.
+on:
+  pull_request:
+    paths: ["counter/**", ".github/workflows/counter.yml"]
+  push:
+    branches: [main]
+    paths: ["counter/**", ".github/workflows/counter.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: counter-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Counter tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: counter
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node --test
+
+  deploy:
+    name: Deploy the counter
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: counter
+    defaults:
+      run:
+        working-directory: counter
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: A token to deploy with
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add a CLOUDFLARE_API_TOKEN secret to this repository's 'counter' environment (counter/README.md, Where it runs)."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: The deployed counter answers
+        run: |
+          counter=https://pytest-quint-connect-counter.gigaverse-oss.workers.dev
+          curl -fsS "$counter/v1/totals?deployed=$GITHUB_SHA" | node -e 'JSON.parse(require("fs").readFileSync(0)).pulls >= 0 || process.exit(1)'
+          curl -fsS -o /dev/null -w '%{content_type}\n' "$counter/v1/sign.svg?deployed=$GITHUB_SHA" | grep -q '^image/svg+xml'

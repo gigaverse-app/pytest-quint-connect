@@ -183,6 +183,8 @@ generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
+<a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
+
 <a href="https://github.com/gigaverse-app/pytest-quint-connect"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 mutants caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_mutants_caught-brightgreen"></a>
 
 | | Contract | Cases passed | Mutants caught |
@@ -228,6 +230,17 @@ records progress against the accepted backlog. [Setup and cleanup workflow](CONT
 
 Retired means a side was removed, or (functions only) the judge now finds the pair separate. It is not a count of refactors. Dismissals stay separate; an uninitialized model baseline is unknown.
 <!-- dry-lint-progress:end -->
+
+## Impact
+
+<a href="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg"><picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?theme=dark">
+<img alt="What pytest-quint-connect's contracts caught in pull requests, across every repository that shares its totals" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg" width="100%">
+</picture></a>
+
+Every repository whose report action shares its totals adds its merged pull requests here: the disagreements its
+contracts caught between the code and its Quint model, and how many were fixed before merge. Repositories are
+counted pseudonymously, and `share-totals: "false"` opts out ([what is sent](docs/reference.md#the-global-counter)).
 
 ## Meet Quinty
 
