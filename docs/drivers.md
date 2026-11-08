@@ -116,3 +116,28 @@ a compiled source mutation, or a post-call corruption of state. Keep them in the
 consumer's code; the plugin only knows their names. A mutant counts as detected only
 when some generated history produces an observed-state mismatch. If building or
 running it raises any other exception, the mutant case fails.
+
+To mutate the real code rather than substitute a fake, patch it in the factory and
+undo the patch in `close()`. The patch then lasts exactly one history, also when that
+history fails:
+
+```python
+from contextlib import ExitStack
+from unittest import mock
+
+MUTANTS = {"one-hop": ("mypkg.graph.reachable", lambda edges, starts: starts)}
+
+
+class Driver(GeneratedBase):
+    def __init__(self, context: HistoryContext) -> None:
+        self._undo = ExitStack()
+        if context.mutant:
+            self._undo.enter_context(mock.patch(*MUTANTS[context.mutant]))
+
+    def close(self) -> None:
+        self._undo.close()
+```
+
+Patch the name where the code under test looks it up (`mypkg.selection.reachable`
+if `selection` did `from .graph import reachable`), or the mutant changes nothing
+and its case fails as undetected.
