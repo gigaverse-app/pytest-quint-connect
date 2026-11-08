@@ -184,11 +184,11 @@ generated, and CI fails when it no longer matches the evidence:
 <!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
 <a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 planted bugs caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_planted_bugs_caught-brightgreen"></a>
 
-| | Contract | Histories | Cases passed | [Planted bugs caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") | Actions covered | Quint |
-| :-: | :-- | --: | --: | --: | :-: | :-- |
-| ✅ | `lru-cache`<br><sub>`test_lru_contract.py::test_lru_cache`</sub> | 15<br><sub>3 witnesses · 12 samples · seed 7</sub> | 17/17 | 1/1 | ✅ | `0.33.1` |
-| ✅ | `lru-cache`<br><sub>`test_lru_contract.py::test_ordered_refactor`</sub> | 15<br><sub>3 witnesses · 12 samples · seed 7</sub> | 17/17 | 1/1 | ✅ | `0.33.1` |
-| ✅ | `session-receipts`<br><sub>`test_session_contract.py::test_session_receipts`</sub> | 8<br><sub>4 witnesses · 4 samples · seed 11</sub> | 13/13 | 4/4 | ✅ | `0.33.1` |
+| | Contract | Cases passed | [Planted bugs caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/main/docs/why.md#proof-that-the-tests-can-fail "Mutants: deliberately broken copies of the code. Each must make some history diverge, proving the contract would notice that kind of bug") |
+| :-: | :-- | --: | --: |
+| ✅ | `lru-cache` `test_lru_contract.py::test_lru_cache`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
+| ✅ | `lru-cache` `test_lru_contract.py::test_ordered_refactor`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
+| ✅ | `session-receipts` `test_session_contract.py::test_session_receipts`<br><sub>8 histories (4 witnesses, 4 samples, seed 11) · every action covered · Quint 0.33.1</sub> | 13/13 | 4/4 |
 
 **Bugs these contracts found**
 

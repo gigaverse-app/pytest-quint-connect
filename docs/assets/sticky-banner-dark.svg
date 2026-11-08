@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="56" viewBox="0 0 640 56" role="img" aria-label="pytest-quint-connect contract report">
+<title>pytest-quint-connect contract report</title>
+<defs><linearGradient id="sticky-glow" x1="0" y1="0" x2="1" y2="0">
+<stop stop-color="#A78BFA" stop-opacity="0.22"/><stop offset="0.6" stop-color="#A78BFA" stop-opacity="0"/>
+</linearGradient></defs>
+<rect x="0.5" y="0.5" width="639" height="55" rx="10" fill="#0D1117" stroke="#30363D"/>
+<rect x="0.5" y="0.5" width="639" height="55" rx="10" fill="url(#sticky-glow)"/>
+<text x="20" y="34" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="-0.4" fill="#F0F6FC">pytest<tspan fill="#A78BFA">-quint-connect</tspan></text>
+<text x="252" y="34" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9CA8B7">Quint histories, replayed on this pull request</text>
+<g transform="translate(528 4) scale(0.92)"><path d="M12 14h68" stroke="#4C3D99" stroke-width="2"/><circle cx="12" cy="14" r="5" fill="#DDD6FE"/><path d="M12 21v8" stroke="#6E56CF" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="7" y="32" width="10" height="10" rx="2" fill="#86EFAC"/><circle cx="29" cy="14" r="5" fill="#DDD6FE"/><path d="M29 21v8" stroke="#6E56CF" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="24" y="32" width="10" height="10" rx="2" fill="#86EFAC"/><circle cx="46" cy="14" r="5" fill="#DDD6FE"/><path d="M46 21v8" stroke="#6E56CF" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="41" y="32" width="10" height="10" rx="2" fill="#86EFAC"/><circle cx="63" cy="14" r="5" fill="#DDD6FE"/><path d="M63 21v8" stroke="#6E56CF" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="58" y="32" width="10" height="10" rx="2" fill="#86EFAC"/><circle cx="80" cy="14" r="5" fill="#DDD6FE"/><path d="M80 21v8" stroke="#6E56CF" stroke-width="1.6" stroke-dasharray="2 2"/><rect x="75" y="32" width="10" height="10" rx="2" fill="#86EFAC"/></g>
+</svg>

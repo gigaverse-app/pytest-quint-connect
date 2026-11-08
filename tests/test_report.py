@@ -101,7 +101,8 @@ def test_receipt_text_cannot_break_the_comment(tmp_path: Path) -> None:
     path.write_text(json.dumps(receipt), encoding="utf-8")
     comment = render_comment(load([path]), repository=REPO)
     assert "`evil'\\| </sub><img src=x>`" in comment
-    assert all(line.count("|") - line.count("\\|") in (0, 8) for line in comment.splitlines() if line.startswith("|"))
+    # Every table row keeps its own column count: 4 cells in the contract table, 3 in the tally.
+    assert all(line.count("|") - line.count("\\|") in (4, 5) for line in comment.splitlines() if line.startswith("|"))
 
 
 def test_comment_stays_within_githubs_limit(tmp_path: Path) -> None:
@@ -217,7 +218,7 @@ TERM = f'[Planted bugs]({PLANTED} "{PLANTED_TIP}")'
 
 def test_planted_bugs_are_explained_on_hover_wherever_they_are_counted() -> None:
     comment = render_comment(evidence("passed"), repository=REPO)
-    assert f'| Cases passed | [Planted bugs caught]({PLANTED} "{PLANTED_TIP}") | Actions covered |' in comment
+    assert f'| | Contract | Cases passed | [Planted bugs caught]({PLANTED} "{PLANTED_TIP}") |\n' in comment
     assert f"**{TERM} this contract catches**" in comment
     block = render_readme(evidence("passed"))
     assert f'<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="{PLANTED_TIP}">' in block

@@ -103,3 +103,29 @@ test('push runs publish nothing', async t => {
   assert.equal(await f.run(), false);
   assert.equal(f.calls.length, 0);
 });
+
+test('the previous report is read from the bot-owned sticky only', async t => {
+  const f = fixture(t);
+  await f.run();
+  const previous = path.join(path.dirname(f.file), 'previous.md');
+  f.env.QUINT_REPORT_PREVIOUS = previous;
+  const github = {rest: {issues: {listComments: () => {}}}, paginate: async () => f.comments};
+  const core = {warning: () => {}};
+  f.comments.push({id: 7, body: f.calls[0][1].body.replace('1 passed', 'a person'), user: {login: 'someone', type: 'User'}});
+  assert.equal(await publish.readPrevious({github, context: f.context, core}, f.env), false);
+  assert.equal(fs.readFileSync(previous, 'utf8'), '');
+  f.comments.push(bot(f.calls[0][1].body));
+  assert.equal(await publish.readPrevious({github, context: f.context, core}, f.env), true);
+  assert.ok(fs.readFileSync(previous, 'utf8').startsWith('### ✅ Quint contracts: 1 passed'));
+});
+
+test('a failed read starts a new tally instead of failing the job', async t => {
+  const f = fixture(t);
+  const previous = path.join(path.dirname(f.file), 'previous.md');
+  f.env.QUINT_REPORT_PREVIOUS = previous;
+  const warnings = [];
+  const github = {rest: {issues: {listComments: () => {}}}, paginate: async () => { throw {status: 403}; }};
+  assert.equal(await publish.readPrevious({github, context: f.context, core: {warning: x => warnings.push(x)}}, f.env), false);
+  assert.equal(fs.readFileSync(previous, 'utf8'), '');
+  assert.match(warnings[0], /starts a new tally/);
+});

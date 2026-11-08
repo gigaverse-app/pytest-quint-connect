@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .codegen import CodegenError, compile_ir, generate_module
 from .contract import ContractError, load_contract
+from .ledger import advance, parse
 from .quint import QuintError, resolve_quint
 from .replay import scratch_directory
 from .report import (
@@ -86,6 +87,12 @@ def report(arguments: argparse.Namespace) -> int:
                 print(f"updated {readme}")
             else:
                 print(f"{readme} is up to date")
+    ledger = None
+    if arguments.ledger is not None:
+        # The previous comment's ledger, extended by this run; a missing file starts the pull request's first.
+        previous = Path(arguments.ledger)
+        text = previous.read_text(encoding="utf-8") if previous.is_file() else ""
+        ledger = advance(parse(text), evidence, head=arguments.head or "local")
     comment = render_comment(
         evidence,
         repository=Path(arguments.repository_root),
@@ -93,6 +100,8 @@ def report(arguments: argparse.Namespace) -> int:
         head=arguments.head,
         run_url=arguments.run_url,
         readme_note=note,
+        assets=arguments.assets,
+        ledger=ledger,
     )
     if arguments.comment:
         Path(arguments.comment).write_bytes(comment.encode("utf-8"))
@@ -125,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
         "--repository-root", default=".", help="sessions under this directory get a cd line in reproduce commands"
     )
     summary.add_argument("--status-file", help="write the worst contract status here")
+    summary.add_argument(
+        "--ledger",
+        help="previous ledger (a file holding the last comment, or empty): count disagreements across pushes",
+    )
+    summary.add_argument("--assets", default="", help="URL of the action's docs/assets, to show its banner")
     summary.add_argument("--artifact-dir", help="copy each receipt's directory (traces, mismatches) here")
     summary.set_defaults(handler=report)
     generate = commands.add_parser("codegen", help="generate a typed driver base class from a contract's Quint model")
