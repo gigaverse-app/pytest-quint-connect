@@ -78,6 +78,7 @@ detection.
 | [LRU cache example](../examples/lru_cache/README.md) | 15 | 1 of 1 |
 | pytest-obligation's report merge | 21 | 6 of 6 |
 | [pytest-selective's test selection](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) | 19 | 3 of 3 |
+| [dry-lint's spending ledger](https://github.com/gigaverse-app/dry-lint/tree/main/contracts/campaign) | 20 | 4 of 4 |
 | [This plugin's own receipts](../dogfood/README.md) | 8 | 4 of 4 |
 
 If the observation or the histories cannot see a fault, its mutant survives and the
