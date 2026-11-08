@@ -9,7 +9,7 @@ A two-entry least-recently-used cache, checked against [lru.qnt](lru.qnt):
 | `StaleReadLRUCache` (reads don't refresh recency) | fails; also the `stale-read` mutant every run must catch |
 
 ```bash
-pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"  # plus Node.js 22+
+pip install pytest-quint-connect  # plus Node.js 22+
 pytest --quint-require-complete        # 34 passed: both implementations
 pytest --lru-implementation stale-read # fails with a field-level diff and a replay command
 ```
