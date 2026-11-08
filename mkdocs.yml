@@ -1,0 +1,92 @@
+site_name: pytest-quint-connect
+site_description: Model-based testing for Python under pytest. Quint generates histories from your specification and
+  pytest replays them against your implementation.
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://pytest-quint-connect.readthedocs.io/en/latest/"]
+repo_url: https://github.com/gigaverse-app/pytest-quint-connect
+repo_name: gigaverse-app/pytest-quint-connect
+edit_uri: ''
+docs_dir: documentation
+site_dir: site
+strict: true
+exclude_docs: '*.py
+
+  *.txt
+
+  *.in
+
+  overrides/
+
+  '
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/icon.png
+  custom_dir: documentation/overrides
+  language: en
+  font: false
+  palette:
+    primary: deep purple
+    accent: green
+  features:
+  - navigation.top
+  - search.suggest
+  - search.highlight
+  - content.code.copy
+plugins:
+- search
+hooks:
+- documentation/hooks.py
+markdown_extensions:
+- admonition
+- attr_list
+- tables
+- pymdownx.details
+- pymdownx.tasklist:
+    custom_checkbox: true
+- pymdownx.highlight
+- pymdownx.superfences:
+    custom_fences:
+      - name: mermaid
+        class: mermaid
+        format: !!python/name:pymdownx.superfences.fence_code_format
+- toc:
+    permalink: true
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+extra:
+  published_sources:
+  - examples/lru_cache/README.md
+  - skills/pytest-quint-connect/SKILL.md
+  - docs/manifest.md
+  - docs/drivers.md
+  - docs/reference.md
+  - docs/limits.md
+  - dogfood/README.md
+  - PROVENANCE.md
+  - CONTRIBUTING.md
+  - docs/ci-toolkit.md
+  - RELEASING.md
+nav:
+- Home: index.md
+- Getting started:
+  - "Example: an LRU cache contract": examples/lru_cache/README.md
+  - Let your agent set it up: skills/pytest-quint-connect/SKILL.md
+- Write a contract:
+  - Contract manifest: docs/manifest.md
+  - Drivers and generated bases: docs/drivers.md
+  - Options and the receipt: docs/reference.md
+- Trust the result:
+  - What a passing run shows: docs/limits.md
+  - The plugin checks itself: dogfood/README.md
+  - Provenance: PROVENANCE.md
+- Related tools: ecosystem.md
+- Contributing:
+  - Development setup: CONTRIBUTING.md
+  - This project's CI toolkit: docs/ci-toolkit.md
+  - Releasing: RELEASING.md
+  - Documentation publishing: publishing.md

@@ -97,6 +97,21 @@ summary and the artifact.
 | `quint_timeout` | Seconds allowed for each Quint command (default 300). |
 | `quint_executable`, `quint_artifacts` | As the command-line options. |
 
+## Beside a parallel test suite
+
+Contract tests refuse to run in pytest-xdist workers ([limits](limits.md)). In a
+repository whose main suite runs with `-n`, keep contracts in their own directory,
+outside the main `testpaths`, and run them as their own CI job:
+
+```bash
+pytest -c contracts/quint.ini contracts --quint-require-complete
+```
+
+A config passed with `-c` holds the contract's `pythonpath` and
+`quint_required_contracts` without adding a `pytest.ini` that collection of the main
+suite could pick up. Tools that fingerprint every conventional pytest config file,
+such as pytest-selective's collection policy, then see no new policy input.
+
 ## Quint installation
 
 Without a configured executable, the plugin copies its bundled `package.json` and

@@ -1,3 +1,5 @@
+![pytest-quint-connect: Model-based testing for Python under pytest.](https://raw.githubusercontent.com/gigaverse-app/pytest-quint-connect/main/docs/assets/banner.png?v=c5c6ae8f72ed)
+
 # pytest-quint-connect
 
 [![CI](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml)
@@ -6,11 +8,14 @@
 [![Typed](https://img.shields.io/badge/typing-py.typed-3776AB)](src/pytest_quint_connect/py.typed)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Agent skill](https://img.shields.io/badge/Agent_Skill-ready-2563EB)](skills/pytest-quint-connect/SKILL.md)
+[![Documentation](https://readthedocs.org/projects/pytest-quint-connect/badge/?version=latest)](https://pytest-quint-connect.readthedocs.io/en/latest/)
 
 **Model-based testing for Python under pytest.** [Quint](https://quint.sh)
 generates histories from your specification; pytest-quint-connect replays every
 step against your real Python implementation and compares the state you read back
 with the state the model expects.
+
+[Read the documentation](https://pytest-quint-connect.readthedocs.io/en/latest/) · [Related tools](https://pytest-quint-connect.readthedocs.io/en/latest/ecosystem/)
 
 This is a community Python integration in the spirit of
 [Quint Connect](https://github.com/quint-co/quint-connect) (Rust) and
@@ -140,7 +145,8 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
   an earlier `passed`.
 - **Actionable failures.** A mismatch names the trace, state, action and arguments,
   a field-level expected/actual difference, the seed and a command that replays that
-  exact trace (`--quint-replay`, optionally `--quint-mutant`).
+  exact trace (`--quint-replay`, optionally `--quint-mutant`). An exception from the
+  driver keeps its own type and message and gains the same location as a note.
 
 ## To / Read
 
@@ -151,7 +157,7 @@ pytest: test_x[witness-…] test_x[sample-N] ──► fresh driver per history 
 | Write a driver and choose a step convention | [docs/drivers.md](docs/drivers.md) |
 | Know what a passing run does and does not prove | [docs/limits.md](docs/limits.md) |
 | Configure options and read the receipt | [docs/reference.md](docs/reference.md) |
-| See it on a production integration | [pytest-obligation's report-merge contract](https://github.com/gigaverse-app/pytest-obligation/tree/main/docs/quint/report-merge) |
+| See it on production integrations | [pytest-obligation's report-merge contract](https://github.com/gigaverse-app/pytest-obligation/tree/main/docs/quint/report-merge), [pytest-selective's selection contract](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) |
 
 ## Measured
 
@@ -175,9 +181,13 @@ generated, and CI fails when it no longer matches the evidence:
   histories, and the stale-read cache fails 4 of 15.
 - [`session-receipts`](dogfood): each step is a real pytest session of the example, and the
   mutants break the plugin's own completeness and receipt logic.
-- pytest-obligation's `merge_reports` contract replays 21 histories (5 witnesses, 16 samples)
-  in 28 cases and catches 6/6 mutants: the same histories, state for state, as the runner it
-  replaced.
+
+Adopters measure their own contracts the same way; these figures come from their CI:
+
+| Contract | Histories | Cases | Mutants detected | Notes |
+| --- | --- | --- | --- | --- |
+| pytest-obligation `merge_reports` | 21 (5 witnesses, 16 samples) | 28 | 6/6 | same 21 histories, state for state, as the runner it replaced |
+| [pytest-selective's selection](https://github.com/gigaverse-app/pytest-selective/tree/main/contracts/selection) | 19 (7 witnesses, 12 samples) | 23 | 3/3 | each step is a real Git commit selected by `affected()`; the mutants drop base-tree edges, stop after direct importers and ignore global inputs |
 
 Quint 0.33.1, TypeScript backend. See [PROVENANCE.md](PROVENANCE.md) for where the
 engine came from and how the baseline was reproduced.

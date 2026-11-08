@@ -213,6 +213,31 @@ def test_mutant_setup_error_is_not_detection(pytester: pytest.Pytester, example:
     assert receipt(example)["contracts"][0]["tests"][0]["findings"] == {}
 
 
+def test_a_driver_error_reports_where_it_happened_and_how_to_replay_it(
+    pytester: pytest.Pytester, example: Path
+) -> None:
+    pytester.makeconftest(
+        (EXAMPLE / "conftest.py").read_text()
+        + "\n\nclass Crashing(CacheDriver):\n"
+        + "    def fetch(self, key):\n"
+        + "        raise RuntimeError('implementation crashed')\n"
+        + "\n\n@pytest.fixture\ndef lru_driver():\n"
+        + "    return lambda context: Crashing(IMPLEMENTATIONS['list'])\n"
+    )
+    result = pytester.runpytest("-k", "test_lru_cache and witness-evictsLeastRecentlyUsedTest")
+    result.assert_outcomes(failed=1)
+    assert_output(
+        result,
+        "RuntimeError: implementation crashed",
+        "Quint contract 'lru-cache': the driver raised during this history",
+        "witness-evictsLeastRecentlyUsedTest-0.itf.json",
+        "state:  3, applying action fetch(key='a', value=0)",
+        "seed:   7",
+        "reproduce: pytest",
+        "--quint-replay",
+    )
+
+
 def test_driver_fixture_teardown_runs_when_a_history_fails(
     pytester: pytest.Pytester, example: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

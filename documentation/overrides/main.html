@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block extrahead %}{% if page %}
+  <meta name="google-site-verification" content="nMeR7AdZoox-0Z54vKTPjcL_qJDeBoObabtC6T-Hqog" />
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ (page.title ~ ' | ' ~ config.site_name) | e }}">
+  <meta property="og:description" content="{{ (page.meta.description | default(config.site_description, true)) | e }}">
+  <meta property="og:url" content="{{ page.canonical_url | e }}">
+  <meta property="og:image" content="{{ config.extra.brand_social_image | e }}">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="{{ config.site_name | e }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ config.extra.brand_social_image | e }}">
+{% endif %}{% endblock %}
