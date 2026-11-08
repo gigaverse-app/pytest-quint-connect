@@ -13,6 +13,9 @@ FONT = "Segoe UI, Helvetica, Arial, sans-serif"
 
 
 def digest(path):
+    # dry-lint: distinct-from src/pytest_quint_connect/contract.py::Contract.fingerprints
+    # Brand freshness hashes text with normalized line endings, so a CRLF checkout is not stale; the plugin's
+    # receipt fingerprints exact bytes. This script also runs with --no-project, without the package installed.
     content = path.read_bytes() if path.suffix == ".png" else path.read_text(encoding="utf-8").encode("utf-8")
     return sha256(content).hexdigest()
 
