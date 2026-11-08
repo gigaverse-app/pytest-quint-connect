@@ -20,6 +20,13 @@
         "max_steps": 8,
         "n_traces": 12
       },
+      "invariant": "withinCapacity",
+      "actions": {
+        "init": "construct a fresh cache with capacity 2",
+        "store": "cache.put(key, value)",
+        "fetch": "cache.get(key), observed as Hit(value) or Miss",
+        "inspect": "read cache.items() without changing it"
+      },
       "convention": "event",
       "witnesses": [
         "evictsLeastRecentlyUsedTest",
@@ -35,12 +42,13 @@
           "description": "get() returns the value but does not refresh recency, so a just-read entry can be evicted next"
         }
       ],
+      "bugs_found": [],
       "limits": [
         "Three keys, values 0-2, capacity 2, at most 8 steps per sampled history.",
         "Single-threaded; the driver's projection of cache.items() is trusted."
       ],
       "sha256": {
-        "quint-connect.json": "0b9a248d8bdbe864df225d11836bc11be26067facb4b65814f312d1fece75fb9",
+        "quint-connect.json": "27b2049cec26f6ca7ede71b4c525ed84290f8046c46069625b0ec0023a539a4f",
         "lru.qnt": "2bddef08f1c1da6892b6d1e0cf1e5d81f7ed3626bc213433f8e42f123ca18a10",
         "lru_cache.py": "75bbbfdcb4d29bf6a01cce1fd5bc6262e702198b254edb6a7843b5909c794924"
       },
@@ -118,6 +126,152 @@
         "sample-9": "/repo/examples/lru_cache/.artifacts/quint-connect/lru-cache/sample-9.itf.json",
         "sample-10": "/repo/examples/lru_cache/.artifacts/quint-connect/lru-cache/sample-10.itf.json",
         "sample-11": "/repo/examples/lru_cache/.artifacts/quint-connect/lru-cache/sample-11.itf.json"
+      },
+      "illustrated": {
+        "witness": "evictsLeastRecentlyUsedTest",
+        "steps": [
+          {
+            "state": 0,
+            "action": "init",
+            "arguments": {
+              "key": "",
+              "value": 0
+            },
+            "observed": {
+              "entries": [],
+              "lastRead": {
+                "tag": "NoRead",
+                "value": {
+                  "#tup": []
+                }
+              }
+            }
+          },
+          {
+            "state": 1,
+            "action": "store",
+            "arguments": {
+              "key": "a",
+              "value": 1
+            },
+            "observed": {
+              "entries": [
+                {
+                  "key": "a",
+                  "value": 1
+                }
+              ],
+              "lastRead": {
+                "tag": "NoRead",
+                "value": {
+                  "#tup": []
+                }
+              }
+            }
+          },
+          {
+            "state": 2,
+            "action": "store",
+            "arguments": {
+              "key": "b",
+              "value": 2
+            },
+            "observed": {
+              "entries": [
+                {
+                  "key": "a",
+                  "value": 1
+                },
+                {
+                  "key": "b",
+                  "value": 2
+                }
+              ],
+              "lastRead": {
+                "tag": "NoRead",
+                "value": {
+                  "#tup": []
+                }
+              }
+            }
+          },
+          {
+            "state": 3,
+            "action": "fetch",
+            "arguments": {
+              "key": "a",
+              "value": 0
+            },
+            "observed": {
+              "entries": [
+                {
+                  "key": "b",
+                  "value": 2
+                },
+                {
+                  "key": "a",
+                  "value": 1
+                }
+              ],
+              "lastRead": {
+                "tag": "Hit",
+                "value": 1
+              }
+            }
+          },
+          {
+            "state": 4,
+            "action": "store",
+            "arguments": {
+              "key": "c",
+              "value": 0
+            },
+            "observed": {
+              "entries": [
+                {
+                  "key": "a",
+                  "value": 1
+                },
+                {
+                  "key": "c",
+                  "value": 0
+                }
+              ],
+              "lastRead": {
+                "tag": "NoRead",
+                "value": {
+                  "#tup": []
+                }
+              }
+            }
+          },
+          {
+            "state": 5,
+            "action": "inspect",
+            "arguments": {
+              "key": "",
+              "value": 0
+            },
+            "observed": {
+              "entries": [
+                {
+                  "key": "a",
+                  "value": 1
+                },
+                {
+                  "key": "c",
+                  "value": 0
+                }
+              ],
+              "lastRead": {
+                "tag": "NoRead",
+                "value": {
+                  "#tup": []
+                }
+              }
+            }
+          }
+        ]
       },
       "tests": [
         {

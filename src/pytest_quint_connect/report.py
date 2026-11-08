@@ -514,7 +514,7 @@ def _says(rows: list[Row]) -> list[str]:
             "",
             f"**Witnesses**, scenarios replayed exactly as written: {witnesses}.",
             "",
-            f"**Bounds** for sampling: {bounds}.",
+            f"**Bounds**: {bounds}.",
             "",
             *(_steps(claims.illustrated) if claims.illustrated else []),
             "</details>",
