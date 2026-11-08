@@ -72,6 +72,9 @@ Validation gate ◄── every job; a lane job may be skipped only when the pla
 First-attempt pushes to a pull request cancel that pull request's earlier run.
 Reruns, `main` and manual runs keep their own concurrency groups.
 
+To see whether a run reused the tests lane, open the CI-esta comment: it lists reused lanes,
+and the skipped test jobs carry no receipt step of their own.
+
 **Deferred: timing feedback into planning.** CI-esta can restore learned durations
 before planning, to size pytest shards. This suite runs unsharded, so there is nothing
 for the timings to size yet. They are collected now, and can be restored once sharding
