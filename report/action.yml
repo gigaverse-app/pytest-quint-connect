@@ -1,0 +1,136 @@
+name: pytest-quint-connect report
+description: >-
+  Explain every Quint contract run in one updated pull-request comment, keep the README's contract block
+  current, and keep the receipts and mismatches as an artifact. Add it as the step after pytest.
+branding:
+  icon: check-square
+  color: purple
+inputs:
+  receipts:
+    description: >-
+      results.json receipts to report, as files or recursive globs, one per line. The default finds every
+      session's receipt under the default artifacts directory. Nothing matching is reported as "no contract ran".
+    default: '**/.artifacts/quint-connect/results.json'
+  readme:
+    description: >-
+      Document holding the contract block, between the lines <!-- pytest-quint-connect:start --> and
+      <!-- pytest-quint-connect:end -->. Without those lines this is a no-op.
+    default: README.md
+  readme-mode:
+    description: >-
+      check: fail the step when the block no longer matches complete receipts (a run that skipped a contract
+      cannot judge it, and says so). write: rewrite the block in the workspace; committing it is the caller's
+      step. off: ignore the README.
+    default: check
+  post-comment:
+    description: Create or update one comment on same-repository pull requests. Fork PRs keep the job summary and artifact.
+    default: 'true'
+  sticky-key:
+    description: Stable key for this job; use distinct keys for separate reporting jobs on one pull request.
+    default: quint-connect
+  title:
+    description: Names this job at the top of its comment when several jobs report on one pull request.
+    default: ''
+  github-token:
+    description: Token with pull-requests write, for the comment.
+    default: ${{ github.token }}
+  python-version:
+    description: Python for the renderer. It reads receipts only; it never imports the project.
+    default: '3.13'
+outputs:
+  status:
+    description: The worst contract status (failed, interrupted, partial, replay-only, passed), or none.
+    value: ${{ steps.render.outputs.status }}
+  markdown-path:
+    description: The rendered comment, also in the job summary.
+    value: ${{ steps.render.outputs.markdown-path }}
+  readme:
+    description: current, stale, unverifiable, written, absent or off.
+    value: ${{ steps.render.outputs.readme }}
+runs:
+  using: composite
+  steps:
+    - id: runtime
+      shell: bash
+      run: |
+        if command -v uv >/dev/null; then echo 'uv=true' >> "$GITHUB_OUTPUT"; fi
+    - uses: astral-sh/setup-uv@v7
+      if: ${{ steps.runtime.outputs.uv != 'true' }}
+      with:
+        enable-cache: 'false'
+    - name: Render the contract report
+      id: render
+      shell: bash
+      env:
+        RECEIPTS: ${{ inputs.receipts }}
+        README_PATH: ${{ inputs.readme }}
+        README_MODE: ${{ inputs.readme-mode }}
+        REPORT_TITLE: ${{ inputs.title }}
+        REPORT_PYTHON: ${{ inputs.python-version }}
+        REPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        REPORT_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        # The action's own revision renders the report, never the project's installed copy.
+        REPORTER_PACKAGE: ${{ github.action_path }}/..
+      run: |
+        workspace="$(mktemp -d "$RUNNER_TEMP/quint-report.XXXXXX")"
+        mkdir -p "$workspace/artifact"
+        patterns=()
+        while IFS= read -r pattern; do
+          if [[ -n "$pattern" ]]; then patterns+=("$pattern"); fi
+        done <<< "$RECEIPTS"
+        readme_args=()
+        readme_state=off
+        if [[ "$README_MODE" != off && -n "$README_PATH" ]]; then
+          readme_args+=(--readme "$README_PATH")
+          readme_state=absent
+          if [[ -f "$README_PATH" ]] && grep -qF '<!-- pytest-quint-connect:start -->' "$README_PATH"; then
+            readme_state=current
+          fi
+          if [[ "$README_MODE" == check ]]; then readme_args+=(--check); fi
+        fi
+        set +e
+        uvx --python "$REPORT_PYTHON" --from "$REPORTER_PACKAGE" pytest-quint-connect report "${patterns[@]}" \
+          --comment "$workspace/artifact/report.md" --status-file "$workspace/status" --title "$REPORT_TITLE" \
+          --head "$REPORT_HEAD" --run-url "$REPORT_RUN" --repository-root "$GITHUB_WORKSPACE" \
+          --artifact-dir "$workspace/artifact" "${readme_args[@]}" | tee "$workspace/readme.log"
+        code=${PIPESTATUS[0]}
+        set -e
+        if [[ "$code" -gt 1 ]]; then exit "$code"; fi
+        if [[ "$code" -eq 1 ]]; then readme_state=stale
+        elif grep -q 'not checked' "$workspace/readme.log"; then readme_state=unverifiable
+        elif grep -q '^updated ' "$workspace/readme.log"; then readme_state=written
+        fi
+        cat "$workspace/artifact/report.md" >> "$GITHUB_STEP_SUMMARY"
+        {
+          echo "status=$(cat "$workspace/status")"
+          echo "markdown-path=$workspace/artifact/report.md"
+          echo "artifact-path=$workspace/artifact"
+          echo "readme=$readme_state"
+        } >> "$GITHUB_OUTPUT"
+    - name: Keep receipts, traces and mismatches
+      uses: actions/upload-artifact@v7
+      with:
+        name: quint-connect-${{ inputs.sticky-key }}-${{ github.run_attempt }}
+        path: ${{ steps.render.outputs.artifact-path }}
+        include-hidden-files: true
+        if-no-files-found: error
+    - name: Update the pull-request comment
+      if: ${{ inputs.post-comment == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v9
+      env:
+        QUINT_REPORT_MARKDOWN: ${{ steps.render.outputs.markdown-path }}
+        QUINT_REPORT_STICKY_KEY: ${{ inputs.sticky-key }}
+        QUINT_REPORT_ACTION_PATH: ${{ github.action_path }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const publish = require(`${process.env.QUINT_REPORT_ACTION_PATH}/publish.cjs`);
+          await publish({github, context, core});
+    - name: Require a current README contract block
+      if: ${{ steps.render.outputs.readme == 'stale' }}
+      shell: bash
+      env:
+        README_PATH: ${{ inputs.readme }}
+      run: |
+        echo "::error file=$README_PATH::The contract block no longer matches the receipts. The comment and the step above show the command that refreshes it."
+        exit 1

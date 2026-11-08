@@ -115,6 +115,10 @@ class RoutingTests(unittest.TestCase):
     def test_example_feeds_both_lanes(self) -> None:
         self.assertEqual(self.lanes("examples/lru_cache/lru.qnt"), {"tests", "dogfood"})
 
+    def test_report_action_runs_the_job_that_uses_it(self) -> None:
+        self.assertEqual(self.lanes("report/action.yml"), {"dogfood"})
+        self.assertEqual(self.lanes("report/publish.cjs"), {"dogfood"})
+
     def test_dogfood_only_changes_keep_the_dogfood_lane(self) -> None:
         self.assertEqual(self.lanes("dogfood/plugin_mutants.py"), {"dogfood"})
         self.assertEqual(self.lanes("dogfood/test_session_contract.py", delete=True), {"dogfood"})

@@ -90,7 +90,17 @@ def test_behavioral_fault_fails_with_diff_reproduction_and_artifact(pytester: py
         example / ".artifacts/quint-connect/lru-cache/mismatch-test_lru_cache-witness-evictsLeastRecentlyUsedTest.json"
     )
     assert json.loads(saved.read_text())["state"] == 3
-    assert receipt(example)["status"] == "failed"
+    evidence = receipt(example)
+    assert evidence["status"] == "failed"
+    assert evidence["root"] == example.as_posix()
+    finding = evidence["contracts"][0]["tests"][0]["findings"]["witness-evictsLeastRecentlyUsedTest"]
+    assert finding["state"] == 3 and finding["action"] == "fetch"
+    assert finding["arguments"] == {"key": "a", "value": 0}
+    assert finding["differences"][0] == "entries[0].key: values differ; expected: 'b'; actual: 'a'"
+    assert finding["difference_count"] == 4
+    assert finding["mismatch"] == (
+        ".artifacts/quint-connect/lru-cache/mismatch-test_lru_cache-witness-evictsLeastRecentlyUsedTest.json"
+    )
 
 
 def test_saved_trace_replays_exactly_and_is_never_complete(pytester: pytest.Pytester, example: Path) -> None:
@@ -182,6 +192,7 @@ def test_surviving_mutant_fails(pytester: pytest.Pytester, example: Path) -> Non
     result = pytester.runpytest("-k", "test_lru_cache and mutant")
     result.assert_outcomes(failed=1)
     assert_output(result, "mutant 'stale-read' survived all 15 generated histories")
+    assert receipt(example)["contracts"][0]["tests"][0]["findings"] == {"mutant-stale-read": {"survived": 15}}
 
 
 def test_mutant_setup_error_is_not_detection(pytester: pytest.Pytester, example: Path) -> None:
@@ -198,6 +209,8 @@ def test_mutant_setup_error_is_not_detection(pytester: pytest.Pytester, example:
     result.assert_outcomes(failed=1)
     assert_output(result, "deliberate mutation setup failure")
     assert receipt(example)["contracts"][0]["tests"][0]["mutations"] == {}
+    # A crash is not a finding: the report says "see the job log" rather than inventing a cause.
+    assert receipt(example)["contracts"][0]["tests"][0]["findings"] == {}
 
 
 def test_driver_fixture_teardown_runs_when_a_history_fails(

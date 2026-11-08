@@ -1,0 +1,418 @@
+{
+  "tool": "pytest-quint-connect",
+  "status": "failed",
+  "mode": "generate-and-replay",
+  "source_trace": null,
+  "replay_mutant": null,
+  "head": "0123456789abcdef0123456789abcdef01234567",
+  "root": "/repo/examples/lru_cache",
+  "required": [
+    "lru-cache"
+  ],
+  "incomplete_required": [
+    "test_lru_contract.py::test_lru_cache: 4 case(s) did not run or did not pass: ['witness-evictsLeastRecentlyUsedTest', 'sample-5', 'sample-8', 'sample-9']"
+  ],
+  "contracts": [
+    {
+      "name": "lru-cache",
+      "manifest": "/repo/examples/lru_cache/quint-connect.json",
+      "bounds": {
+        "seed": 7,
+        "max_samples": 200,
+        "max_steps": 8,
+        "n_traces": 12
+      },
+      "convention": "event",
+      "witnesses": [
+        "evictsLeastRecentlyUsedTest",
+        "overwriteRefreshesTest",
+        "missKeepsContentsTest"
+      ],
+      "mutants": [
+        "stale-read"
+      ],
+      "limits": [
+        "Three keys, values 0-2, capacity 2, at most 8 steps per sampled history.",
+        "Single-threaded; the driver's projection of cache.items() is trusted."
+      ],
+      "sha256": {
+        "quint-connect.json": "a26895d666e131bd8f739b914c30e8f39d601daafe30f976d4f24c5de3841c2c",
+        "lru.qnt": "2bddef08f1c1da6892b6d1e0cf1e5d81f7ed3626bc213433f8e42f123ca18a10",
+        "lru_cache.py": "75bbbfdcb4d29bf6a01cce1fd5bc6262e702198b254edb6a7843b5909c794924"
+      },
+      "quint": "0.33.1",
+      "commands": [
+        [
+          "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
+          "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
+          "typecheck",
+          "/repo\\examples\\lru_cache\\lru.qnt"
+        ],
+        [
+          "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
+          "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
+          "test",
+          "/repo\\examples\\lru_cache\\lru.qnt",
+          "--main",
+          "lru_cache",
+          "--backend",
+          "typescript",
+          "--seed",
+          "7",
+          "--verbosity",
+          "1",
+          "--match",
+          "^(evictsLeastRecentlyUsedTest|overwriteRefreshesTest|missKeepsContentsTest)$",
+          "--max-samples",
+          "1",
+          "--out-itf",
+          "/repo\\examples\\lru_cache\\.artifacts\\failed\\lru-cache\\witness-{test}-{seq}.itf.json"
+        ],
+        [
+          "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
+          "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
+          "run",
+          "/repo\\examples\\lru_cache\\lru.qnt",
+          "--main",
+          "lru_cache",
+          "--backend",
+          "typescript",
+          "--seed",
+          "7",
+          "--verbosity",
+          "1",
+          "--init",
+          "init",
+          "--step",
+          "step",
+          "--invariant",
+          "withinCapacity",
+          "--max-samples",
+          "200",
+          "--max-steps",
+          "8",
+          "--n-traces",
+          "12",
+          "--out-itf",
+          "/repo\\examples\\lru_cache\\.artifacts\\failed\\lru-cache\\sample-{seq}.itf.json",
+          "--mbt"
+        ]
+      ],
+      "traces": {
+        "witness-evictsLeastRecentlyUsedTest": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/witness-evictsLeastRecentlyUsedTest-0.itf.json",
+        "witness-overwriteRefreshesTest": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/witness-overwriteRefreshesTest-1.itf.json",
+        "witness-missKeepsContentsTest": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/witness-missKeepsContentsTest-2.itf.json",
+        "sample-0": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-0.itf.json",
+        "sample-1": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-1.itf.json",
+        "sample-2": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-2.itf.json",
+        "sample-3": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-3.itf.json",
+        "sample-4": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-4.itf.json",
+        "sample-5": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-5.itf.json",
+        "sample-6": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-6.itf.json",
+        "sample-7": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-7.itf.json",
+        "sample-8": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-8.itf.json",
+        "sample-9": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-9.itf.json",
+        "sample-10": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-10.itf.json",
+        "sample-11": "/repo/examples/lru_cache/.artifacts/failed/lru-cache/sample-11.itf.json"
+      },
+      "tests": [
+        {
+          "test": "test_lru_contract.py::test_lru_cache",
+          "complete": false,
+          "not_passed": [
+            "witness-evictsLeastRecentlyUsedTest",
+            "sample-5",
+            "sample-8",
+            "sample-9"
+          ],
+          "outcomes": {
+            "coverage": "passed",
+            "mutant-stale-read": "passed",
+            "sample-0": "passed",
+            "sample-1": "passed",
+            "sample-10": "passed",
+            "sample-11": "passed",
+            "sample-2": "passed",
+            "sample-3": "passed",
+            "sample-4": "passed",
+            "sample-5": "failed",
+            "sample-6": "passed",
+            "sample-7": "passed",
+            "sample-8": "failed",
+            "sample-9": "failed",
+            "witness-evictsLeastRecentlyUsedTest": "failed",
+            "witness-missKeepsContentsTest": "passed",
+            "witness-overwriteRefreshesTest": "passed"
+          },
+          "steps": {
+            "witness-overwriteRefreshesTest": 6,
+            "witness-missKeepsContentsTest": 4,
+            "sample-0": 9,
+            "sample-1": 9,
+            "sample-2": 9,
+            "sample-3": 9,
+            "sample-4": 9,
+            "sample-6": 9,
+            "sample-7": 9,
+            "sample-10": 9,
+            "sample-11": 9
+          },
+          "mutations": {
+            "stale-read": {
+              "detected_by": "witness-evictsLeastRecentlyUsedTest",
+              "contract": "lru-cache",
+              "trace": "/repo\\examples\\lru_cache\\.artifacts\\failed\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json",
+              "state": 3,
+              "action": "fetch",
+              "arguments": {
+                "key": "a",
+                "value": 0
+              },
+              "mutant": "stale-read",
+              "seed": 7,
+              "expected": {
+                "entries": [
+                  {
+                    "key": "b",
+                    "value": 2
+                  },
+                  {
+                    "key": "a",
+                    "value": 1
+                  }
+                ],
+                "lastRead": {
+                  "tag": "Hit",
+                  "value": 1
+                }
+              },
+              "actual": {
+                "entries": [
+                  {
+                    "key": "a",
+                    "value": 1
+                  },
+                  {
+                    "key": "b",
+                    "value": 2
+                  }
+                ],
+                "lastRead": {
+                  "tag": "Hit",
+                  "value": 1
+                }
+              },
+              "differences": [
+                {
+                  "path": "entries[0].key",
+                  "reason": "values differ",
+                  "expected": "b",
+                  "actual": "a"
+                },
+                {
+                  "path": "entries[0].value",
+                  "reason": "values differ",
+                  "expected": 2,
+                  "actual": 1
+                },
+                {
+                  "path": "entries[1].key",
+                  "reason": "values differ",
+                  "expected": "a",
+                  "actual": "b"
+                },
+                {
+                  "path": "entries[1].value",
+                  "reason": "values differ",
+                  "expected": 1,
+                  "actual": 2
+                }
+              ],
+              "reproduce": "pytest test_lru_contract.py::test_lru_cache --quint-replay '/repo\\examples\\lru_cache\\.artifacts\\failed\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json' --quint-mutant stale-read"
+            }
+          },
+          "imported_modules": {},
+          "findings": {
+            "sample-5": {
+              "state": 5,
+              "action": "fetch",
+              "arguments": {
+                "key": "c",
+                "value": 0
+              },
+              "differences": [
+                "entries[0].key: values differ; expected: 'a'; actual: 'c'",
+                "entries[0].value: values differ; expected: 0; actual: 1",
+                "entries[1].key: values differ; expected: 'c'; actual: 'a'"
+              ],
+              "difference_count": 4,
+              "mismatch": ".artifacts/failed/lru-cache/mismatch-test_lru_cache-sample-5.json"
+            },
+            "sample-8": {
+              "state": 4,
+              "action": "fetch",
+              "arguments": {
+                "key": "a",
+                "value": 0
+              },
+              "differences": [
+                "entries[0].key: values differ; expected: 'b'; actual: 'a'",
+                "entries[0].value: values differ; expected: 0; actual: 1",
+                "entries[1].key: values differ; expected: 'a'; actual: 'b'"
+              ],
+              "difference_count": 4,
+              "mismatch": ".artifacts/failed/lru-cache/mismatch-test_lru_cache-sample-8.json"
+            },
+            "sample-9": {
+              "state": 7,
+              "action": "fetch",
+              "arguments": {
+                "key": "b",
+                "value": 0
+              },
+              "differences": [
+                "entries[0].key: values differ; expected: 'c'; actual: 'b'",
+                "entries[0].value: values differ; expected: 0; actual: 1",
+                "entries[1].key: values differ; expected: 'b'; actual: 'c'"
+              ],
+              "difference_count": 4,
+              "mismatch": ".artifacts/failed/lru-cache/mismatch-test_lru_cache-sample-9.json"
+            },
+            "witness-evictsLeastRecentlyUsedTest": {
+              "state": 3,
+              "action": "fetch",
+              "arguments": {
+                "key": "a",
+                "value": 0
+              },
+              "differences": [
+                "entries[0].key: values differ; expected: 'b'; actual: 'a'",
+                "entries[0].value: values differ; expected: 2; actual: 1",
+                "entries[1].key: values differ; expected: 'a'; actual: 'b'"
+              ],
+              "difference_count": 4,
+              "mismatch": ".artifacts/failed/lru-cache/mismatch-test_lru_cache-witness-evictsLeastRecentlyUsedTest.json"
+            }
+          }
+        },
+        {
+          "test": "test_lru_contract.py::test_ordered_refactor",
+          "complete": true,
+          "not_passed": [],
+          "outcomes": {
+            "coverage": "passed",
+            "mutant-stale-read": "passed",
+            "sample-0": "passed",
+            "sample-1": "passed",
+            "sample-10": "passed",
+            "sample-11": "passed",
+            "sample-2": "passed",
+            "sample-3": "passed",
+            "sample-4": "passed",
+            "sample-5": "passed",
+            "sample-6": "passed",
+            "sample-7": "passed",
+            "sample-8": "passed",
+            "sample-9": "passed",
+            "witness-evictsLeastRecentlyUsedTest": "passed",
+            "witness-missKeepsContentsTest": "passed",
+            "witness-overwriteRefreshesTest": "passed"
+          },
+          "steps": {
+            "witness-evictsLeastRecentlyUsedTest": 6,
+            "witness-overwriteRefreshesTest": 6,
+            "witness-missKeepsContentsTest": 4,
+            "sample-0": 9,
+            "sample-1": 9,
+            "sample-2": 9,
+            "sample-3": 9,
+            "sample-4": 9,
+            "sample-5": 9,
+            "sample-6": 9,
+            "sample-7": 9,
+            "sample-8": 9,
+            "sample-9": 9,
+            "sample-10": 9,
+            "sample-11": 9
+          },
+          "mutations": {
+            "stale-read": {
+              "detected_by": "witness-evictsLeastRecentlyUsedTest",
+              "contract": "lru-cache",
+              "trace": "/repo\\examples\\lru_cache\\.artifacts\\failed\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json",
+              "state": 3,
+              "action": "fetch",
+              "arguments": {
+                "key": "a",
+                "value": 0
+              },
+              "mutant": "stale-read",
+              "seed": 7,
+              "expected": {
+                "entries": [
+                  {
+                    "key": "b",
+                    "value": 2
+                  },
+                  {
+                    "key": "a",
+                    "value": 1
+                  }
+                ],
+                "lastRead": {
+                  "tag": "Hit",
+                  "value": 1
+                }
+              },
+              "actual": {
+                "entries": [
+                  {
+                    "key": "a",
+                    "value": 1
+                  },
+                  {
+                    "key": "b",
+                    "value": 2
+                  }
+                ],
+                "lastRead": {
+                  "tag": "Hit",
+                  "value": 1
+                }
+              },
+              "differences": [
+                {
+                  "path": "entries[0].key",
+                  "reason": "values differ",
+                  "expected": "b",
+                  "actual": "a"
+                },
+                {
+                  "path": "entries[0].value",
+                  "reason": "values differ",
+                  "expected": 2,
+                  "actual": 1
+                },
+                {
+                  "path": "entries[1].key",
+                  "reason": "values differ",
+                  "expected": "a",
+                  "actual": "b"
+                },
+                {
+                  "path": "entries[1].value",
+                  "reason": "values differ",
+                  "expected": 1,
+                  "actual": 2
+                }
+              ],
+              "reproduce": "pytest test_lru_contract.py::test_ordered_refactor --quint-replay '/repo\\examples\\lru_cache\\.artifacts\\failed\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json' --quint-mutant stale-read"
+            }
+          },
+          "imported_modules": {},
+          "findings": {}
+        }
+      ]
+    }
+  ]
+}

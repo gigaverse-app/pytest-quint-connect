@@ -39,7 +39,8 @@
       "inputs": [
         "src/**",
         "dogfood/**",
-        "examples/lru_cache/**"
+        "examples/lru_cache/**",
+        "report/**"
       ]
     }
   },
