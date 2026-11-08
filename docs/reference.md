@@ -56,11 +56,13 @@ skipped: they belong to sessions a driver ran inside one history.
   step that first caught it. When every contract passed every case and caught every
   mutant, the contract table starts collapsed too; otherwise it stays open, as does the
   mutants table when one was not caught. Tables span the comment's width. "Mutants" links
-  to an explanation that shows on hover. Then, collapsed
+  to an explanation that shows on hover. Then, in an open block
   under "What `NAME` says", what each contract claims, so a reviewer can judge the model
   itself: each declared action and the code it drives, the invariant, the witnesses, the
-  bounds, and, when it declares witnesses, the first one step by step (each action and the observation the model
-  expects after it, read from its generated trace; at most 20 states). Receipts from
+  bounds, and, when it declares witnesses, the first one step by step, read from its generated
+  trace: the observation the model starts from, then for each action only the fields it is
+  expected to change (`path: before → after`, at most six per step, or `unchanged`), for at
+  most 20 states. Receipts from
   earlier plugin versions lack these fields and show no such block. When the comment would exceed
   GitHub's limit, these blocks are left out first. Then each failure with its state,
   action and differences, and a

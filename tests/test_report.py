@@ -551,7 +551,7 @@ def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> 
     assert "Raise bounds.n_traces or max_steps" in comment
 
 
-CLAIMS_OPEN = "<details>\n<summary>What <code>lru-cache</code> says</summary>"
+CLAIMS_OPEN = "<details open>\n<summary>What <code>lru-cache</code> says</summary>"
 
 
 def claims_block(text: str) -> str:
@@ -561,7 +561,7 @@ def claims_block(text: str) -> str:
 
 def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -> None:
     comment = render_comment(evidence("passed"), repository=REPO)
-    # One collapsed block per contract, although two test functions check it.
+    # One open block per contract, although two test functions check it.
     assert comment.count(CLAIMS_OPEN) == 1
     block = claims_block(comment)
     assert (
@@ -574,14 +574,16 @@ def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -
         "`overwriteRefreshesTest`, `missKeepsContentsTest`."
     ) in block
     assert "**Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`." in block
-    # The first witness, read from its trace: each action and the observation the model expects after it.
+    # The first witness, read from its trace: the observation it starts from, then what each action changes.
     assert "**Witness `evictsLeastRecentlyUsedTest`, step by step**" in block
     rows = [line for line in block.splitlines() if line.startswith("| `")]
     assert rows[0] == "| `0` | `init(key='', value=0)` | `{ entries: [], lastRead: NoRead }` |"
     assert rows[3] == (
         "| `3` | `fetch(key='a', value=0)` | "
-        '`{ entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }], lastRead: Hit(1) }` |'
+        '`entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }] → [{ key: "b", value: 2 }, { key: "a", value: 1 }]`'
+        "<br>`lastRead: NoRead → Hit(1)` |"
     )
+    assert rows[5] == "| `5` | `inspect(key='', value=0)` | unchanged |"
     assert len(rows) == 6
     # Verdicts come first; the claims follow them.
     assert comment.index("<summary>🧪") < comment.index(CLAIMS_OPEN)
@@ -606,13 +608,15 @@ def test_claims_from_the_manifest_cannot_inject_markup_or_break_the_table(tmp_pa
     def inject(contract: dict) -> None:
         contract["actions"]["store"] = "<img src=x> pings @octocat"
         contract["invariant"] = "ok`|</details>"
-        contract["illustrated"]["steps"][1]["observed"] = {"note": "a|b`</details>"}
+        contract["illustrated"]["steps"][0]["observed"] = {"note": "a|b`</details>"}
+        contract["illustrated"]["steps"][1]["observed"] = {"note": "c|d`<img src=x>"}
 
     comment = render_comment(edited_passed_receipt(tmp_path, inject), repository=REPO)
     block = claims_block(comment)
     assert "- `store`: &lt;img src=x&gt; pings &#64;octocat" in block
     assert r"**Invariant** `ok'\|</details>`" in block
-    assert r"""| `1` | `store(key='a', value=1)` | `{ note: "a\|b'</details>" }` |""" in block
+    assert r"""| `0` | `init(key='', value=0)` | `{ note: "a\|b'</details>" }` |""" in block
+    assert r"""| `1` | `store(key='a', value=1)` | `note: "a\|b'</details>" → "c\|d'<img src=x>"` |""" in block
     assert all(line.count("|") - line.count(r"\|") == 4 for line in block.splitlines() if line.startswith("| "))
 
 
@@ -633,3 +637,33 @@ def test_long_witnesses_are_cut_and_claims_give_way_to_the_budget(tmp_path: Path
     # Leaving the claims out keeps every verdict and the footer, rather than truncating inside a collapsed block.
     assert "says</summary>" not in comment and "truncated" not in comment
     assert comment.rstrip().endswith("pytest-quint-connect</a></sub>")
+
+
+def test_a_wide_observation_shows_only_the_fields_each_action_changes(tmp_path: Path) -> None:
+    # The shape that made every row look alike in a real contract: nested records whose unchanged prefix
+    # filled the cell, so the field an action changed was never visible.
+    shard = {"bad": False, "call": 0, "collected": False, "durationTicks": 0, "failureCount": 0, "selected": False}
+    start = {"extraExists": False, "extraFirst": shard, "extraSecond": shard, "verified": True, "rejections": 0}
+    rejected = {**start, "verified": False, "rejections": 1, "extraFirst": {**shard, "bad": True}}
+    many = {**rejected, "extraExists": True, "extraSecond": {key: 1 for key in shard}}
+
+    def widen(contract: dict) -> None:
+        steps = contract["illustrated"]["steps"]
+        observations = [start, rejected, rejected, many]
+        contract["illustrated"]["steps"] = [{**step, "observed": seen} for step, seen in zip(steps, observations)]
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, widen), repository=REPO))
+    rows = [line for line in block.splitlines() if line.startswith("| `")]
+    assert rows[1].endswith("| `extraFirst.bad: false → true`<br>`verified: true → false`<br>`rejections: 0 → 1` |")
+    assert rows[2].endswith("| unchanged |")
+    # Seven fields change: six are shown, and the cell says how many it leaves out.
+    assert rows[3].count("<br>") == 6 and rows[3].endswith("and 1 more field |")
+
+
+def test_a_field_one_observation_lacks_is_shown_as_absent(tmp_path: Path) -> None:
+    def drop(contract: dict) -> None:
+        steps = contract["illustrated"]["steps"]
+        steps[1]["observed"] = {"entries": [], "lastRead": steps[0]["observed"]["lastRead"], "extra": 1}
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, drop), repository=REPO))
+    assert "| `1` | `store(key='a', value=1)` | `extra: absent → 1` |" in block
