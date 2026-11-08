@@ -26,7 +26,7 @@ its locked Quint 0.33.1 into a per-user cache; pass `--quint PATH` or set `QUINT
 to use your own.
 
 ```bash
-pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"
+pip install pytest-quint-connect
 pytest-quint-connect codegen quint-connect.json -o lru_cache_driver.py
 ```
 

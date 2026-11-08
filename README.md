@@ -2,6 +2,7 @@
 
 # pytest-quint-connect
 
+[![PyPI](https://img.shields.io/pypi/v/pytest-quint-connect?logo=pypi&logoColor=white)](https://pypi.org/project/pytest-quint-connect/)
 [![CI](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gigaverse-app/pytest-quint-connect/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Quint 0.33.1](https://img.shields.io/badge/Quint-0.33.1-6E56CF)](https://quint.sh)
@@ -44,8 +45,11 @@ locked Quint 0.33.1 into a per-user cache. To use your own Quint, pass `--quint 
 or set `QUINT`.
 
 ```bash
-pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"
+pip install pytest-quint-connect
 ```
+
+To try unreleased changes, install from Git instead:
+`pip install "pytest-quint-connect @ git+https://github.com/gigaverse-app/pytest-quint-connect"`.
 
 Generate a typed driver base from the model, then declare the contract:
 

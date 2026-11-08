@@ -101,7 +101,7 @@ incomplete judging or missing authentication fails visibly. Humans and agents
 choose refactors; the audit never edits application code or merges its own PR.
 
 ```bash
-uv tool install --no-config --python 3.13 'dry-lint @ git+https://github.com/gigaverse-app/dry-lint@v1'
+uv tool install --no-config --python 3.13 'dry-lint>=1,<2'
 dry-lint sweep --budget-usd 5 --report audit.json --output audit.md
 # Review both sides, refactor and test before recording progress.
 dry-lint sweep --update --budget-usd 5 --readme README.md --repository gigaverse-app/pytest-quint-connect --repository-id 1449617982
