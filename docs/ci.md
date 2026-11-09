@@ -66,7 +66,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/quint-cache
           key: quint-${{ runner.os }}-${{ hashFiles('**/requirements*.txt', '**/uv.lock', '**/poetry.lock', '**/pyproject.toml') }}
-      - run: python -m pip install -r requirements-dev.txt  # your test dependencies, including pytest-quint-connect
+      # The contracts' own dependency set: pytest and pytest-quint-connect>=X.Y.Z,<2 (see below).
+      - run: python -m pip install -e '.[contracts]'
       - name: Check the generated driver against the model
         env:
           PYTEST_QUINT_CONNECT_CACHE: ${{ runner.temp }}/quint-cache
@@ -79,8 +80,7 @@ jobs:
           pytest -c contracts/quint.ini contracts --quint-require-complete
           --junitxml=contracts/.artifacts/quint-connect/junit.xml
       # Comments on the pull request, uploads every receipt's directory and checks the README block.
-      # vX.Y.Z: the version of pytest-quint-connect you installed (see below).
-      - uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z
+      - uses: gigaverse-app/pytest-quint-connect/report@v1
         if: ${{ !cancelled() }}
 ```
 
@@ -92,9 +92,10 @@ Adjust the install step and the paths to your project, and follow its convention
 - **No `needs:`.** Leave the job independent of your other jobs, so an unrelated
   failure never hides the contract's result. If you gate merges on one aggregate job,
   add this job to that gate's `needs` instead (section 3).
-- **Action versions.** Use the versions, or the commit-SHA pins, your other workflows
-  already use for `actions/checkout`, `setup-python` and `cache`; older majors work the
-  same. Any Node.js 22+ works.
+- **Action versions and runners.** Use the runner, and the versions or commit-SHA pins,
+  your other workflows already use for `actions/checkout`, `setup-python` and `cache`;
+  older majors work the same. When you pin a SHA, add its `# vX.Y.Z` comment. Any
+  Node.js 22+ works.
 - **Cache key.** Hash the file that pins pytest-quint-connect, so the cache changes when
   the pin can: `hashFiles('tox.ini')` when it lives in `tox.ini`, otherwise your
   requirements file, lock file or `pyproject.toml`.
@@ -104,14 +105,43 @@ Adjust the install step and the paths to your project, and follow its convention
 - **Permissions.** The job-level block replaces the workflow-level `permissions:` for
   this job. If your workflow already has one, keep it, and give this job `contents: read`
   and `pull-requests: write`, plus anything else it needs from the workflow's block.
-- **Pin the report action to the installed version.** The action renders the report
-  with its own copy of pytest-quint-connect, not the one your tests installed, so a
-  different version can render the README block differently and fail the check. Pin
-  it to the release you installed and bump both together. If your workflows pin
-  Actions to commit SHAs, write
-  `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # vX.Y.Z`, with the SHA from
+- **Its own dependency set.** The plugin loads in every pytest session of the environment
+  it is installed in, so install it, with `pytest`, from a dependency group or extra the
+  main suite does not use, named `contracts`, with the release you adopted as the floor:
+  `pytest-quint-connect>=X.Y.Z,<2`. With uv or PEP 735 groups, `[dependency-groups]
+  contracts = [...]` in `pyproject.toml` (not in `default-groups`) and
+  `uv sync --locked --group contracts`; with extras, `[project.optional-dependencies]` and
+  `pip install -e '.[contracts]'`; otherwise a `requirements-contracts.txt`.
+- **The report action by its major tag.** `report@v1` upgrades with every 1.x release.
+  It renders with its own copy of pytest-quint-connect, not the one your tests installed,
+  and judges a README block another 1.x release wrote by the evidence the block records,
+  so a newer action passes the check with a note to refresh the block's layout, never a
+  failure. Pin a commit only when your tooling rejects tags (zizmor's `unpinned-uses`, or
+  an all-SHA policy CI enforces): `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # vX.Y.Z`,
+  the release you installed or newer, with the SHA from
   `gh api repos/gigaverse-app/pytest-quint-connect/commits/vX.Y.Z --jq .sha`.
-- **uv.** Install with `uv sync --locked` and prefix both commands with `uv run`.
+- **Updaters.** Dependabot and Renovate move `@v1` only to a new major; raise the package's
+  `<2` with it. Your dependency updates move the package floor. A SHA pin moves with your
+  action updater. If an updater rewrites tags to digests (Renovate's `pinGitHubActionDigests`,
+  a custom workflow), that is your SHA policy: keep the pin at the package's release or newer.
+- **uv.** Install with `uv sync --locked --group contracts` and prefix both commands with `uv run`.
+- **Containers and Nix.** If your jobs run inside a `container:` or a Nix shell
+  (`nix develop --command …`), run this job the same way and add Node.js 22+ to that
+  environment (`nodejs_24` in the flake's dev shell, or in the image) instead of
+  `setup-node`; Python then comes from the same environment, so drop `setup-python` too:
+
+  ```yaml
+      steps:
+        - uses: actions/checkout@v7
+        - uses: cachix/install-nix-action@v31
+        - run: nix develop .#contracts --command uv sync --locked --group contracts
+        - run: nix develop .#contracts --command uv run pytest-quint-connect codegen --check contracts/cache/quint-connect.json
+        - run: >-
+            nix develop .#contracts --command uv run pytest -c contracts/quint.ini contracts
+            --quint-require-complete --junitxml=contracts/.artifacts/quint-connect/junit.xml
+        - uses: gigaverse-app/pytest-quint-connect/report@v1
+          if: ${{ !cancelled() }}
+  ```
 - **Sharing totals.** The report step's `share-totals` input defaults to `true`: on the
   default branch it sends merged pull requests' tallies to the
   [global counter](reference.md#the-global-counter). Set `share-totals: 'false'` to opt out.
@@ -122,15 +152,28 @@ Adjust the install step and the paths to your project, and follow its convention
 
 ### Run through tox or nox
 
-If tests run through tox, run the contracts as their own tox environment, and have
-the CI job call `tox -e contracts`. tox hides the environment from tests, so pass the
-cache directory through, and pin the plugin to the same version as the report action:
+If tests run through tox, run the contracts as their own tox environment, left out of
+`env_list`, and have the CI job call `tox -e contracts`. tox hides the environment from
+tests, so pass the cache directory through. With classic tox:
 
 ```ini
 [testenv:contracts]
 deps =
     pytest
-    pytest-quint-connect==X.Y.Z
+    pytest-quint-connect>=X.Y.Z,<2
+pass_env = PYTEST_QUINT_CONNECT_CACHE, QUINT
+commands =
+    pytest-quint-connect codegen --check contracts/cache/quint-connect.json
+    pytest -c contracts/quint.ini contracts --quint-require-complete --junitxml=contracts/.artifacts/quint-connect/junit.xml
+```
+
+When the other environments use tox-uv's `runner = uv-venv-lock-runner`, install the
+`contracts` dependency group from the lock instead of `deps`:
+
+```ini
+[testenv:contracts]
+runner = uv-venv-lock-runner
+dependency_groups = contracts
 pass_env = PYTEST_QUINT_CONNECT_CACHE, QUINT
 commands =
     pytest-quint-connect codegen --check contracts/cache/quint-connect.json

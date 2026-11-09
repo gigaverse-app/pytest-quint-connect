@@ -24,9 +24,11 @@ from .typed import codegen_fingerprint
 __all__ = ["CodegenError", "compile_ir", "default_output", "generate_module"]
 
 # Generated modules must not churn under whatever formatter and linter settings a consumer uses:
-# `fmt: off` holds ruff and Black formatting at any line length, and the file-level noqa keeps lint quiet
-# (its own PGH004 line keeps `--select ALL` quiet about the blanket noqa).
-_TOOL_DIRECTIVES = ["# ruff: noqa: PGH004", "# ruff: noqa", "# fmt: off"]
+# `fmt: off` holds ruff and Black formatting at any line length, and the file-level noqa keeps lint quiet.
+# The first line exempts the noqa itself: PGH004 (blanket noqa) under `--select ALL`, preview's RUF105
+# (noqa instead of `ruff: file-ignore`, which has no blanket form) and RUF102 (a code this ruff does not know).
+# Ruff older than RUF105 prints a warning about the unknown codes and still passes.
+_TOOL_DIRECTIVES = ["# ruff: noqa: PGH004, RUF102, RUF105", "# ruff: noqa", "# fmt: off"]
 
 
 class CodegenError(ValueError):
@@ -304,6 +306,21 @@ def _by_label(
     return labels
 
 
+def _header(contract: Contract) -> list[str]:
+    """The manifest's ``codegen_header`` lines (a license notice, say), checked to be comments only."""
+    if contract.codegen_header is None:
+        return []
+    text = contract.codegen_header.read_text(encoding="utf-8").replace("\r\n", "\n").strip("\n")
+    lines = text.split("\n") if text else []
+    for number, line in enumerate(lines, start=1):
+        if line.strip() and not line.lstrip().startswith("#"):
+            raise CodegenError(
+                f"{contract.codegen_header}:{number}: codegen_header may hold only comment lines (starting with #) "
+                f"and blank lines, so the generated module carries no code of its own; got {line!r}"
+            )
+    return lines
+
+
 def generate_module(contract: Contract, ir: dict[str, Any], *, output: Path, class_name: str | None = None) -> str:
     """Return the source of the generated module for ``contract``."""
     typedefs, variables, quint_actions = _declarations(ir)
@@ -378,6 +395,7 @@ def generate_module(contract: Contract, ir: dict[str, Any], *, output: Path, cla
     if typing_names:
         imports.append(f"from typing import {', '.join(typing_names)}")
     lines = [
+        *_header(contract),
         *_TOOL_DIRECTIVES,
         f'"""Typed driver base for the Quint contract {_q(contract.name)} ({contract.model.name}).',
         "",

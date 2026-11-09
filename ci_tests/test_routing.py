@@ -143,6 +143,13 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(self.lanes(path), {"tests", "package"})
                 self.assertEqual(self.selected_files(path), ("scoped", ["tests/test_release.py"]))
 
+    def test_the_agent_procedure_runs_the_test_that_checks_its_reserved_names(self) -> None:
+        # The skill lists every name the bundled Quint reserves; test_codegen.py compares it with Quint's own list.
+        self.assertEqual(self.lanes("skills/pytest-quint-connect/SKILL.md"), {"tests"})
+        self.assertEqual(
+            self.selected_files("skills/pytest-quint-connect/SKILL.md"), ("scoped", ["tests/test_codegen.py"])
+        )
+
     def test_the_smoke_script_runs_only_the_package_lane(self) -> None:
         self.assertEqual(self.lanes("scripts/smoke_distribution.py"), {"package"})
 
@@ -164,8 +171,11 @@ class RoutingTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.lanes(path), set(self.config.lanes))
 
-    def test_plugin_source_runs_every_lane(self) -> None:
-        self.assertEqual(self.lanes("src/pytest_quint_connect/plugin.py"), set(self.config.lanes))
+    def test_plugin_source_runs_every_lane_that_executes_it(self) -> None:
+        # pytest-selective 1.1.0 (gigaverse-app/pytest-selective#102) starts only the lanes that hold graph tests
+        # when a change reaches every graph test, plus lanes listing the file as an input. The routing lane runs
+        # the selector on Git snapshots and never imports the plugin, so a plugin change no longer starts it.
+        self.assertEqual(self.lanes("src/pytest_quint_connect/plugin.py"), {"tests", "dogfood", "package"})
 
     def test_example_feeds_the_tests_dogfood_and_package_lanes(self) -> None:
         for path in ("examples/lru_cache/lru.qnt", "examples/lru_cache/quint-connect.json"):
