@@ -213,23 +213,25 @@ This repository's own contract, from the receipt of its last complete CI run. Th
 generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
-<!-- pytest-quint-connect:contracts session-receipts -->
-<!-- pytest-quint-connect:evidence 18ba286ac8b4fbc2 renderer 1.2.1 -->
+<!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
+<!-- pytest-quint-connect:evidence caa8c38b04f283bb renderer 1.3.0 -->
 <a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
 
-<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 1 contract passed · 8 histories · 4/4 mutants caught" src="https://img.shields.io/badge/Quint_contracts-1_contract_passed_%C2%B7_8_histories_%C2%B7_4%2F4_mutants_caught-brightgreen"></a>
+<a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 mutants caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_mutants_caught-brightgreen"></a>
 
 <details>
-<summary>✅ 1 contract · 13/13 cases · 4/4 mutants caught · 8 histories</summary>
+<summary>✅ 2 contracts · 47/47 cases · 6/6 mutants caught · 23 histories</summary>
 
-| | <img width="2000" height="1" align="right" alt="">Contract | Cases passed | [Mutants caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/v1.2.1/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") |
+| | <img width="2000" height="1" align="right" alt="">Contract | Cases passed | [Mutants caught](https://github.com/gigaverse-app/pytest-quint-connect/blob/v1.3.0/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") |
 | :-: | :-- | --: | --: |
+| ✅ | `lru-cache` `test_lru_contract.py::test_lru_cache`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
+| ✅ | `lru-cache` `test_lru_contract.py::test_ordered_refactor`<br><sub>15 histories (3 witnesses, 12 samples, seed 7) · every action covered · Quint 0.33.1</sub> | 17/17 | 1/1 |
 | ✅ | `session-receipts` `test_session_contract.py::test_session_receipts`<br><sub>8 histories (4 witnesses, 4 samples, seed 11) · every action covered · Quint 0.33.1</sub> | 13/13 | 4/4 |
 
 </details>
 
 <details>
-<summary>🐞 1 real bug found by this contract</summary>
+<summary>🐞 1 real bug found by these contracts</summary>
 
 | Contract | <img width="2000" height="1" align="right" alt="">Bug | Fixed in | Regression test |
 | :-- | :-- | :-- | :-- |
@@ -238,14 +240,67 @@ generated, and CI fails when it no longer matches the evidence:
 </details>
 
 <details>
-<summary>🧪 4 mutants (planted fake bugs), all caught</summary>
+<summary>🧪 5 mutants (planted fake bugs), all caught</summary>
 
-| Contract | [Mutant](https://github.com/gigaverse-app/pytest-quint-connect/blob/v1.2.1/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") | <img width="2000" height="1" align="right" alt="">What it breaks | Caught by | At |
+| Contract | [Mutant](https://github.com/gigaverse-app/pytest-quint-connect/blob/v1.3.0/docs/why.md#proof-that-the-tests-can-fail "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug") | <img width="2000" height="1" align="right" alt="">What it breaks | Caught by | At |
 | :-- | :-- | :-- | :-- | :-- |
+| `lru-cache` | `stale-read` | get() returns the value but does not refresh recency, so a just-read entry can be evicted next | `witness-evictsLeastRecentlyUsedTest`<br><sub>samples: 3/12 diverge</sub> | state 3, after `fetch(key='a')` |
 | `session-receipts` | `filtered-counts-as-complete` | a -k run that skipped cases is judged as if every case ran | `witness-filteredRunIsNeverPassedTest`<br><sub>samples: 1/4 diverge</sub> | state 1, after `session(kind='filtered', strict=False)` |
 | `session-receipts` | `replay-counts-as-complete` | replaying one saved trace no longer marks the session incomplete | `witness-replayIsNeverCompleteTest`<br><sub>samples: 2/4 diverge</sub> | state 2, after `session(kind='replay', strict=True)` |
 | `session-receipts` | `failed-session-keeps-old-receipt` | a failed or still-running session leaves the previous results.json in place | `witness-staleSuccessIsReplacedTest`<br><sub>samples: 4/4 diverge</sub> | state 2, after `session(kind='noQuint', strict=False)` |
 | `session-receipts` | `require-complete-ignored` | --quint-require-complete is accepted but never changes the exit code | `witness-filteredRunIsNeverPassedTest`<br><sub>samples: 2/4 diverge</sub> | state 2, after `session(kind='filtered', strict=True)` |
+
+</details>
+
+<details open>
+<summary>What <code>lru-cache</code> says</summary>
+
+**Actions**, and the code each one drives:
+
+- `init`: construct a fresh cache with capacity 2
+- `store`: cache.put(key, value)
+- `fetch`: cache.get(key), observed as Hit(value) or Miss
+- `inspect`: read cache.items() without changing it
+
+**Invariant** `withinCapacity`, checked while sampling histories.
+
+**Witnesses**, scenarios replayed exactly as written: `evictsLeastRecentlyUsedTest`, `overwriteRefreshesTest`, `missKeepsContentsTest`.
+
+**Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`.
+
+**Witness `evictsLeastRecentlyUsedTest`, drawn**: the state the model starts from, then what it expects each action to change. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPnN0YXRlIDA8L2I-PGJyPmVudHJpZXM6IFtdPGJyPmxhc3RSZWFkOiBOb1JlYWRcIl1cbiAgczFbXCI8Yj5zdGF0ZSAxPC9iPjxicj5lbnRyaWVzOiBbIzEyMzsga2V5OiAjMzQ7YSMzNDssIHZhbHVlOiAxICMxMjU7XVwiXVxuICBzMCAtLT58XCJzdG9yZShrZXk9J2EnLCB2YWx1ZT0xKVwifCBzMVxuICBzMltcIjxiPnN0YXRlIDI8L2I-PGJyPmVudHJpZXM6IFsjMTIzOyBrZXk6ICMzNDthIzM0OywgdmFsdWU6IDEgIzEyNTssICMxMjM7IGtleTogIzM0O2IjMzQ7LCB2YWx1ZTogMiAjMTI1O11cIl1cbiAgczEgLS0-fFwic3RvcmUoa2V5PSdiJywgdmFsdWU9MilcInwgczJcbiAgczNbXCI8Yj5zdGF0ZSAzPC9iPjxicj5lbnRyaWVzOiBbIzEyMzsga2V5OiAjMzQ7YiMzNDssIHZhbHVlOiAyICMxMjU7LCAjMTIzOyBrZXk6ICMzNDthIzM0OywgdmFsdWU6IDEgIzEyNTtdPGJyPmxhc3RSZWFkOiBIaXQoMSlcIl1cbiAgczIgLS0-fFwiZmV0Y2goa2V5PSdhJylcInwgczNcbiAgczRbXCI8Yj5zdGF0ZSA0PC9iPjxicj5lbnRyaWVzOiBbIzEyMzsga2V5OiAjMzQ7YSMzNDssIHZhbHVlOiAxICMxMjU7LCAjMTIzOyBrZXk6ICMzNDtjIzM0OywgdmFsdWU6IDAgIzEyNTtdPGJyPmxhc3RSZWFkOiBOb1JlYWRcIl1cbiAgczMgLS0-fFwic3RvcmUoa2V5PSdjJywgdmFsdWU9MClcInwgczRcbiAgczVbXCI8Yj5zdGF0ZSA1LCB1bmNoYW5nZWQ8L2I-XCJdXG4gIHM0IC0tPnxcImluc3BlY3QoKVwifCBzNSIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 420}}}%%
+flowchart TD
+  s0["<b>state 0</b><br>entries: []<br>lastRead: NoRead"]
+  s1["<b>state 1</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;]"]
+  s0 -->|"store(key='a', value=1)"| s1
+  s2["<b>state 2</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;b#34;, value: 2 #125;]"]
+  s1 -->|"store(key='b', value=2)"| s2
+  s3["<b>state 3</b><br>entries: [#123; key: #34;b#34;, value: 2 #125;, #123; key: #34;a#34;, value: 1 #125;]<br>lastRead: Hit(1)"]
+  s2 -->|"fetch(key='a')"| s3
+  s4["<b>state 4</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;c#34;, value: 0 #125;]<br>lastRead: NoRead"]
+  s3 -->|"store(key='c', value=0)"| s4
+  s5["<b>state 5, unchanged</b>"]
+  s4 -->|"inspect()"| s5
+```
+
+<details>
+<summary>The same witness as a table</summary>
+
+**Witness `evictsLeastRecentlyUsedTest`, step by step**: the observation the model starts from, then what it expects each action to change.
+
+| State | Action | Model expects |
+| --: | :-- | :-- |
+| `0` | `init()` | `{ entries: [], lastRead: NoRead }` |
+| `1` | `store(key='a', value=1)` | `entries: [] → [{ key: "a", value: 1 }]` |
+| `2` | `store(key='b', value=2)` | `entries: [{ key: "a", value: 1 }] → [{ key: "a", value: 1 }, { key: "b", value: 2 }]` |
+| `3` | `fetch(key='a')` | `entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }] → [{ key: "b", value: 2 }, { key: "a", value: 1 }]`<br>`lastRead: NoRead → Hit(1)` |
+| `4` | `store(key='c', value=0)` | `entries: [{ key: "b", value: 2 }, { key: "a", value: 1 }] → [{ key: "a", value: 1 }, { key: "c", value: 0 }]`<br>`lastRead: Hit(1) → NoRead` |
+| `5` | `inspect()` | unchanged |
+
+</details>
 
 </details>
 
@@ -264,6 +319,23 @@ generated, and CI fails when it no longer matches the evidence:
 
 **Bounds**: seed `11` · max_samples `300` · max_steps `3` · n_traces `4`.
 
+**Witness `staleSuccessIsReplacedTest`, drawn**: the state the model starts from, then what it expects each action to change. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPnN0YXRlIDA8L2I-PGJyPmV4aXRDb2RlOiAtMTxicj5tb2RlOiAjMzQ7bm9uZSMzNDs8YnI-c3RhdHVzOiAjMzQ7bm9uZSMzNDtcIl1cbiAgczFbXCI8Yj5zdGF0ZSAxPC9iPjxicj5leGl0Q29kZTogMDxicj5tb2RlOiAjMzQ7Z2VuZXJhdGUtYW5kLXJlcGxheSMzNDs8YnI-c3RhdHVzOiAjMzQ7cGFzc2VkIzM0O1wiXVxuICBzMCAtLT58XCJzZXNzaW9uKGtpbmQ9J2Z1bGwnLCBzdHJpY3Q9VHJ1ZSlcInwgczFcbiAgczJbXCI8Yj5zdGF0ZSAyPC9iPjxicj5leGl0Q29kZTogMTxicj5zdGF0dXM6ICMzNDtmYWlsZWQjMzQ7XCJdXG4gIHMxIC0tPnxcInNlc3Npb24oa2luZD0nbm9RdWludCcsIHN0cmljdD1GYWxzZSlcInwgczJcbiAgczNbXCI8Yj5zdGF0ZSAzLCB1bmNoYW5nZWQ8L2I-XCJdXG4gIHMyIC0tPnxcImluc3BlY3QoKVwifCBzMyIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 420}}}%%
+flowchart TD
+  s0["<b>state 0</b><br>exitCode: -1<br>mode: #34;none#34;<br>status: #34;none#34;"]
+  s1["<b>state 1</b><br>exitCode: 0<br>mode: #34;generate-and-replay#34;<br>status: #34;passed#34;"]
+  s0 -->|"session(kind='full', strict=True)"| s1
+  s2["<b>state 2</b><br>exitCode: 1<br>status: #34;failed#34;"]
+  s1 -->|"session(kind='noQuint', strict=False)"| s2
+  s3["<b>state 3, unchanged</b>"]
+  s2 -->|"inspect()"| s3
+```
+
+<details>
+<summary>The same witness as a table</summary>
+
 **Witness `staleSuccessIsReplacedTest`, step by step**: the observation the model starts from, then what it expects each action to change.
 
 | State | Action | Model expects |
@@ -275,7 +347,9 @@ generated, and CI fails when it no longer matches the evidence:
 
 </details>
 
-<sub>Generated by [pytest-quint-connect](https://github.com/gigaverse-app/pytest-quint-connect) from contract receipts; [what a passing run proves](https://github.com/gigaverse-app/pytest-quint-connect/blob/v1.2.1/docs/limits.md).</sub>
+</details>
+
+<sub>Generated by [pytest-quint-connect](https://github.com/gigaverse-app/pytest-quint-connect) from contract receipts; [what a passing run proves](https://github.com/gigaverse-app/pytest-quint-connect/blob/v1.3.0/docs/limits.md).</sub>
 <!-- pytest-quint-connect:end -->
 
 [`session-receipts`](dogfood) checks the plugin itself: each step is a real pytest session of

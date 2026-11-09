@@ -59,10 +59,15 @@ skipped: they belong to sessions a driver ran inside one history.
   width. "Mutants" links to an explanation that shows on hover. Under "What `NAME` says",
   each contract's claims let a reviewer judge the model
   itself: each declared action and the code it drives, the invariant, the witnesses, the
-  bounds, and, when it declares witnesses, the first one step by step, read from its generated
-  trace: the observation the model starts from, then for each action only the fields it is
-  expected to change (`path: before → after`, at most six per step, or `unchanged`), for at
-  most 20 states. Receipts from
+  bounds, and, when it declares witnesses, the first one read from its generated trace. That
+  witness is drawn as a Mermaid flowchart, a box per state and an arrow per action: the first
+  box holds the observation the model starts from, and each later box only the fields that
+  action is expected to change (at most six, or "unchanged"), for at most 20 states. An "Open full
+  size" link opens the same diagram on mermaid.live; the diagram travels in the link's
+  fragment, which the browser does not send to the server. Every character of receipt text in
+  the diagram is written as a Mermaid entity code unless it is plain, so receipt text cannot end
+  a label or the diagram. The same steps follow as a folded table
+  (`path: before → after`). Receipts from
   earlier plugin versions lack these fields and show no such block. When the comment would exceed
   GitHub's limit, these blocks are left out first. Then each failure with its state,
   action and differences, and a

@@ -7,6 +7,7 @@ can be checked against a fresh run the way ``codegen --check`` checks a generate
 """
 
 import ast
+import base64
 import difflib
 import glob
 import hashlib
@@ -840,6 +841,82 @@ def _changed(before: object, after: object) -> str:
     return "<br>".join(shown)
 
 
+# Mermaid reads these unescaped inside a quoted label; every other character is written as an entity code,
+# so receipt text can neither end the label nor inject markup or a code fence.
+_MERMAID_PLAIN = re.compile(r"[A-Za-z0-9 _.,:=()\[\]'+-]")
+MAX_LABEL = 60
+
+
+def _mermaid(text: str) -> str:
+    """``text`` for a quoted Mermaid label, one line, at most ``MAX_LABEL`` characters."""
+    text = " ".join(text.split())
+    if len(text) > MAX_LABEL:
+        text = text[: MAX_LABEL - 1] + "…"
+    return "".join(char if _MERMAID_PLAIN.fullmatch(char) else f"#{ord(char)};" for char in text)
+
+
+def _fields(observed: object) -> list[tuple[str, object]]:
+    """An observation's top-level fields, or the whole value when it is not a record."""
+    return list(observed.items()) if _record(observed) and isinstance(observed, dict) else [("observation", observed)]
+
+
+def _box(title: str, fields: list[tuple[str, object]]) -> str:
+    """A node label: the state, then at most ``MAX_CHANGES`` fields as ``path: value``."""
+    lines = [f"<b>{_mermaid(title)}</b>"]
+    lines += [
+        _mermaid(f"{path}: {'absent' if value is _ABSENT else _value(value)}") for path, value in fields[:MAX_CHANGES]
+    ]
+    if len(fields) > MAX_CHANGES:
+        lines.append(_mermaid(f"and {_plural(len(fields) - MAX_CHANGES, 'more field')}"))
+    return "<br>".join(lines)
+
+
+def _flowchart(illustrated: dict[str, Any]) -> str:
+    """One witness as a Mermaid flowchart: a box per state with what it changed, an arrow per action."""
+    steps = list(illustrated.get("steps", []))[:MAX_STEPS]
+    # Mermaid wraps a label at 200 pixels by default, which splits a record mid-field.
+    lines = ['%%{init: {"flowchart": {"wrappingWidth": 420}}}%%', "flowchart TD"]
+    previous: object = None
+    for index, step in enumerate(steps):
+        observed = step.get("observed")
+        title = f"state {step.get('state')}"
+        if index == 0:
+            fields = _fields(observed)
+        else:
+            fields = [(path, new) for path, _, new in _changes(previous, observed)]
+            title += "" if fields else ", unchanged"
+        lines.append(f'  s{index}["{_box(title, fields)}"]')
+        if index:
+            call = call_text(step.get("action"), dict(step.get("arguments") or {}), bool(step.get("event_fields")))
+            lines.append(f'  s{index - 1} -->|"{_mermaid(call)}"| s{index}')
+        previous = observed
+    return "\n".join(lines)
+
+
+def _full_size(diagram: str) -> str:
+    """A mermaid.live link that opens ``diagram`` full size. The diagram travels in the URL fragment, which
+    the browser never sends to the server, and base64 rather than a compressed form keeps the link the same
+    on every machine, so a README block that holds it stays current."""
+    state = json.dumps({"code": diagram, "mermaid": json.dumps({"theme": "default"})}, separators=(",", ":"))
+    return "https://mermaid.live/view#base64:" + base64.urlsafe_b64encode(state.encode("utf-8")).decode("ascii")
+
+
+def _diagram(illustrated: dict[str, Any]) -> list[str]:
+    """One witness drawn: what the model starts from, and what it expects each action to change."""
+    diagram = _flowchart(illustrated)
+    steps = len(illustrated.get("steps", []))
+    more = f" The first {MAX_STEPS} of its {steps} states are drawn." if steps > MAX_STEPS else ""
+    return [
+        f"**Witness {_code(illustrated.get('witness'))}, drawn**: the state the model starts from, then what it "
+        f"expects each action to change. [Open full size ↗]({_full_size(diagram)}){more}",
+        "",
+        "```mermaid",
+        diagram,
+        "```",
+        "",
+    ]
+
+
 def _steps(illustrated: dict[str, Any]) -> list[str]:
     """One witness as a table: the observation it starts from, then what each action changes in it.
 
@@ -893,7 +970,12 @@ def _says(rows: list[Row], *, expanded: bool = True) -> list[str]:
                 "",
                 f"**Bounds**: {bounds}.",
                 "",
-                *(_steps(claims.illustrated) if claims.illustrated else []),
+                *(_diagram(claims.illustrated) if claims.illustrated else []),
+                *(
+                    _collapsible("The same witness as a table", _steps(claims.illustrated))
+                    if claims.illustrated
+                    else []
+                ),
             ],
             expanded=expanded,
         )

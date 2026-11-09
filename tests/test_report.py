@@ -13,8 +13,10 @@ step by step (``illustrated``), which the report shows as what each contract cla
 with its four mutants and the real bug it found: the receipt this repository's sticky reports.
 """
 
+import base64
 import hashlib
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -797,7 +799,10 @@ def test_long_witnesses_are_cut_and_claims_give_way_to_the_budget(tmp_path: Path
         steps = contract["illustrated"]["steps"]
         contract["illustrated"]["steps"] = [{**steps[1], "state": index} for index in range(25)]
 
-    block = claims_block(render_comment(edited_passed_receipt(tmp_path, lengthen), repository=REPO))
+    comment = render_comment(edited_passed_receipt(tmp_path, lengthen), repository=REPO)
+    assert sum(line.startswith("  s") and "[" in line for line in mermaid(comment).splitlines()) == 20
+    assert "The first 20 of its 25 states are drawn." in comment
+    block = claims_block(comment)
     assert sum(line.startswith("| `") for line in block.splitlines()) == 20
     assert "…and 5 more states in the receipt." in block
 
@@ -841,3 +846,59 @@ def test_a_field_one_observation_lacks_is_shown_as_absent(tmp_path: Path) -> Non
 
     block = claims_block(render_comment(edited_passed_receipt(tmp_path, drop), repository=REPO))
     assert "| `1` | `store(key='a', value=1)` | `extra: absent → 1` |" in block
+
+
+def mermaid(text: str) -> str:
+    """The first Mermaid diagram in ``text``."""
+    return text.split("```mermaid\n", 1)[1].split("\n```", 1)[0]
+
+
+def test_the_first_witness_is_drawn_and_opens_full_size_in_a_browser() -> None:
+    comment = render_comment(evidence("passed"), repository=REPO)
+    block = claims_block(comment)
+    # Drawn inside the folded claims block, before the same steps as a table, which is folded once more.
+    assert block.index("```mermaid") < block.index("<summary>The same witness as a table</summary>")
+    diagram = mermaid(block)
+    assert diagram.splitlines() == [
+        '%%{init: {"flowchart": {"wrappingWidth": 420}}}%%',
+        "flowchart TD",
+        '  s0["<b>state 0</b><br>entries: []<br>lastRead: NoRead"]',
+        '  s1["<b>state 1</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;]"]',
+        "  s0 -->|\"store(key='a', value=1)\"| s1",
+        '  s2["<b>state 2</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;b#34;, value: 2 #125;]"]',
+        "  s1 -->|\"store(key='b', value=2)\"| s2",
+        '  s3["<b>state 3</b><br>entries: [#123; key: #34;b#34;, value: 2 #125;, #123; key: #34;a#34;, value: 1 #125;]'
+        '<br>lastRead: Hit(1)"]',
+        "  s2 -->|\"fetch(key='a', value=0)\"| s3",
+        '  s4["<b>state 4</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;c#34;, value: 0 #125;]'
+        '<br>lastRead: NoRead"]',
+        "  s3 -->|\"store(key='c', value=0)\"| s4",
+        '  s5["<b>state 5, unchanged</b>"]',
+        "  s4 -->|\"inspect(key='', value=0)\"| s5",
+    ]
+    # The link carries this very diagram to mermaid.live in its fragment, which never reaches a server.
+    link = re.search(r"\[Open full size ↗\]\((https://mermaid\.live/view#base64:([A-Za-z0-9_=-]+))\)", block)
+    assert link is not None
+    state = json.loads(base64.urlsafe_b64decode(link.group(2)))
+    assert state["code"] == diagram and json.loads(state["mermaid"]) == {"theme": "default"}
+    assert mermaid(render_readme(evidence("passed"))) == diagram
+
+
+def test_receipt_text_cannot_escape_the_diagram(tmp_path: Path) -> None:
+    hostile = 'x"] --> evil["`</details>```\n<img src=x>|#;'
+
+    def inject(contract: dict) -> None:
+        steps = contract["illustrated"]["steps"]
+        steps[0]["observed"] = {"note": hostile}
+        steps[1]["observed"] = {"note": hostile + "!"}
+        steps[1]["action"] = hostile
+
+    comment = render_comment(edited_passed_receipt(tmp_path, inject), repository=REPO)
+    # One fence opens the diagram and one closes it: an injected fence cannot end it early.
+    assert comment.count("```mermaid") == 1
+    for line in mermaid(comment).splitlines()[2:]:
+        labels = re.findall(r'"(.*?)"', line)
+        assert labels and len(line) - sum(map(len, labels)) < 30, line
+        for label in labels:
+            plain = label.replace("<b>", "").replace("</b>", "").replace("<br>", "")
+            assert not set(plain) & set('"`<>|\n'), label
