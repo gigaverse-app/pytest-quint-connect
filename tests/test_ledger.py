@@ -83,7 +83,8 @@ def test_the_comment_spans_the_page_and_carries_the_ledger() -> None:
     assert comment.startswith('<picture>\n  <source media="(prefers-color-scheme: dark)"')
     assert 'src="https://x.test/assets/sticky-banner-failed-light.svg" width="100%"' in comment
     assert 'srcset="https://x.test/assets/sticky-banner-failed-dark.svg"' in comment
-    tally = next(line for line in comment.splitlines() if line.startswith("| <img"))
+    # The tally follows the failures, whose field table is full-width too.
+    tally = next(line for line in comment.splitlines() if line.startswith("| <img") and "**4**" in line)
     assert tally.count('<img width="2000" height="1" align="right" alt="">') == 3
     assert "**4**" in tally and "**0**" in tally
     assert parse(comment).caught == ledger.caught

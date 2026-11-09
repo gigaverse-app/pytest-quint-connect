@@ -214,6 +214,7 @@ generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:contracts session-receipts -->
+<!-- pytest-quint-connect:evidence 18ba286ac8b4fbc2 renderer 1.2.1 -->
 <a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
 
 <a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 1 contract passed · 8 histories · 4/4 mutants caught" src="https://img.shields.io/badge/Quint_contracts-1_contract_passed_%C2%B7_8_histories_%C2%B7_4%2F4_mutants_caught-brightgreen"></a>

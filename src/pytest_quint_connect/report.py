@@ -16,6 +16,7 @@ import shlex
 import urllib.parse
 from dataclasses import dataclass, field
 from html import escape
+from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -39,8 +40,6 @@ DOCS = f"{HOME}/blob/v{__version__}/docs"
 LIMITS = f"{DOCS}/limits.md"
 # "Mutant" is the industry term but jargon: every mention links to this explanation, shown on hover.
 MUTANTS = f"{DOCS}/why.md#proof-that-the-tests-can-fail"
-# Links into this project's own docs, at any version or at main: which version rendered a block is not evidence.
-_DOCS_AT = re.compile(re.escape(HOME) + r"/blob/(?:main|v[0-9][0-9A-Za-z.+-]*)/docs/")
 MUTANTS_TIP = (
     "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. "
     "Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"
@@ -348,7 +347,8 @@ class Totals:
 
 def _green(evidence: Evidence, ledger: "Ledger | None" = None) -> bool:
     """Nothing to look at: every contract ran every case and passed, every mutant was caught, and no
-    disagreement this pull request caught is still open. Only then do the details start collapsed."""
+    disagreement this pull request caught is still open. Only then does the README start its table
+    collapsed and the sticky lead with what the contracts have found."""
     totals = Totals.of(evidence.rows)
     return evidence.complete and totals.detected == totals.mutants and (ledger is None or ledger.open == 0)
 
@@ -379,20 +379,41 @@ def _found_bugs(rows: list[Row]) -> list[tuple[str, dict[str, str]]]:
     return [(contract, bug) for contract, members in _by_contract(rows).items() for bug in members[0].bugs_found]
 
 
-def _credit(rows: list[Row]) -> list[str]:
-    """Bugs the contracts found before this run, credited apart from the headline so nobody reads them as open."""
+def _fixed_here(bug: dict[str, str], pull: str) -> bool:
+    """Whether ``bug`` names this pull request (``#N``, ``N`` or its URL) as its fix."""
+    fixed = str(bug.get("fixed_in") or "").strip()
+    return bool(pull) and (fixed.lstrip("#") == pull or fixed.rstrip("/").endswith(f"/pull/{pull}"))
+
+
+def _credit(rows: list[Row], pull: str = "") -> list[str]:
+    """Bugs the contracts found, credited apart from the headline so nobody reads them as open.
+
+    A bug fixed by this very pull request is said to be, with why the disagreement tally does not count it:
+    the tally holds only what this pull request's pushes caught, while a found bug is pinned by a mutant.
+    """
     found = _found_bugs(rows)
     if not found:
         return []
-    fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
-    these = "These contracts" if len(_by_contract(rows)) > 1 else "This contract"
-    lines = [
-        "> [!TIP]",
-        f"> **🏅 {these} found {_plural(len(found), 'real bug')}, since fixed in {', '.join(fixes)}.**",
-    ]
+    these = "these contracts" if len(_by_contract(rows)) > 1 else "this contract"
+    here = sum(1 for _, bug in found if _fixed_here(bug, pull))
+    if here == len(found):
+        title = f"🏅 This pull request fixes {_plural(here, 'real bug')} {these} found."
+    else:
+        fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
+        title = f"🏅 {these.capitalize()} found {_plural(len(found), 'real bug')}, fixed in {', '.join(fixes)}."
+    lines = ["> [!TIP]", f"> **{title}**"]
+    if here:
+        lines += [
+            ">",
+            "> A mutant puts each one back, and every run must catch it. They are not disagreements: the tally"
+            " counts only what this pull request's pushes caught.",
+            ">",
+        ]
     shown = found[:5]
     for _, bug in shown:
-        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')} (fixed in {_ref(bug.get('fixed_in'))})")
+        # A bug this pull request fixes needs no link back to the page the reader is on.
+        fixed = "" if _fixed_here(bug, pull) else f" (fixed in {_ref(bug.get('fixed_in'))})"
+        lines.append(f"> - {_text(bug.get('summary'), 160).rstrip('.')}{fixed}")
     if len(found) > len(shown):
         lines.append(f"> - …and {len(found) - len(shown)} more, in the table below")
     return [*lines, ""]
@@ -498,23 +519,33 @@ def _what(failure: Failure) -> str:
     return "failed; see the job log"
 
 
-def _failure(row: Row, failure: Failure, repository: Path) -> list[str]:
-    """One failing history in full: where it diverged, each differing field, and the command that reruns it."""
+def _failure(row: Row, failure: Failure, repository: Path, *, command: bool = True) -> list[str]:
+    """One failing history in full: where it diverged, each differing field, and the command that reruns it
+    unless the alert above already gave it."""
     lines = [f"**{_code(row.contract)}** · {_code(failure.case)}: {_what(failure)}.", ""]
     if "state" in failure.finding:
         lines += _differences(failure.finding)
-    return [*lines, "```bash", _reproduce(row, failure, repository), "```", ""]
+    if command:
+        lines += ["```bash", _reproduce(row, failure, repository), "```", ""]
+    return lines
+
+
+def _alerted(rows: list[Row]) -> Failure | None:
+    """The failure the alert tells a person to start with: the first failing test's clearest one."""
+    failing = [row for row in rows if row.failures]
+    return _clearest(failing[0].failures) if failing else None
 
 
 def _failures(rows: list[Row], repository: Path) -> list[str]:
     """Per contract test: the clearest failure open, the rest folded to one line and a command each."""
+    alerted = _alerted(rows)
     lines: list[str] = []
     shown = 0
     for row in rows:
         if not row.failures or shown >= MAX_FAILURES:
             continue
         first = _clearest(row.failures)
-        lines += _failure(row, first, repository)
+        lines += _failure(row, first, repository, command=first is not alerted)
         others = [failure for failure in row.failures if failure is not first][: MAX_FAILURES - shown - 1]
         shown += 1 + len(others)
         if others:
@@ -732,7 +763,7 @@ def _mutants_table(rows: list[Row]) -> list[str]:
             bugs += 1
             breaks = _text(catch.description).rstrip(".") if catch.description else "—"
             if catch.mutant in reintroducing:
-                breaks += "<br><sub>reintroduces a real bug found earlier</sub>"
+                breaks += "<br><sub>reintroduces a real bug this contract found</sub>"
             per_test = _per_test({row.test: _mutant_cells(_catch_of(row, catch.mutant) or catch) for row in members})
             target = caught if all(hit for _, (hit, _, _) in per_test) else missed
             uncaught += target is missed
@@ -822,10 +853,11 @@ def _steps(illustrated: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _says(rows: list[Row]) -> list[str]:
-    """What each contract claims, in an open block: its actions, invariant, witnesses, bounds and one witness's steps.
+def _says(rows: list[Row], *, expanded: bool = True) -> list[str]:
+    """What each contract claims: its actions, invariant, witnesses, bounds and one witness's steps.
 
     A passing run proves the code agrees with the model; this is what a reviewer reads to judge the model.
+    The README shows it open; the pull-request comment folds it below the actions a person must take.
     """
     lines: list[str] = []
     for contract, members in _by_contract(rows).items():
@@ -849,13 +881,12 @@ def _says(rows: list[Row]) -> list[str]:
                 "",
                 *(_steps(claims.illustrated) if claims.illustrated else []),
             ],
-            # Open: this is what a reviewer reads to judge the model, and a closed block reads as nothing to see.
-            expanded=True,
+            expanded=expanded,
         )
     return lines
 
 
-def _overview(evidence: Evidence, *, green: bool, legend: bool = True) -> list[str]:
+def _overview(evidence: Evidence, *, green: bool, legend: bool = True, expanded: bool | None = None) -> list[str]:
     """The contract table, what each status means, then the bugs found and the mutants; the sticky and
     the README block share it.
 
@@ -872,7 +903,7 @@ def _overview(evidence: Evidence, *, green: bool, legend: bool = True) -> list[s
         _plural(totals.histories, "history", "histories"),
     ]
     summary = f"{ICON[evidence.status or 'passed']} {' · '.join(numbers)}"
-    lines = _collapsible(summary, [*_table(evidence.rows), ""], expanded=not green)
+    lines = _collapsible(summary, [*_table(evidence.rows), ""], expanded=not green if expanded is None else expanded)
     # The sticky explains statuses in its alert and glossary; the README block, which has neither, here.
     present = [state for state in SEVERITY if state != "passed" and any(row.status == state for row in evidence.rows)]
     if present and legend:
@@ -913,13 +944,14 @@ def _tally(ledger: "Ledger") -> list[str]:
     caught = len(ledger.caught)
     cells = [f"{SPREAD}**{count}**" for count in (caught, ledger.fixed, ledger.open)]
     pushes = len(ledger.pushes)
+    # 🐞 is reserved for real bugs found; a disagreement is evidence from this pull request's own runs.
     return [
-        "| 🐞 Disagreements caught | ✅ Fixed in this PR | ❗ Still failing |",
+        "| 🔀 Disagreements caught | ✅ Fixed in this PR | ❗ Still failing |",
         "| :--: | :--: | :--: |",
         f"| {' | '.join(cells)} |",
         "",
-        f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}; "
-        "what counts as a disagreement is at the bottom.</sub>",
+        f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}: histories where the code reached a "
+        "different state than the model, or mutants no history caught. Real bugs found are counted apart.</sub>",
         "",
         *_fixed(ledger),
     ]
@@ -958,11 +990,13 @@ def render_comment(
     readme_note: str = "",
     assets: str = "",
     ledger: "Ledger | None" = None,
+    pull: str = "",
 ) -> str:
     """The pull-request sticky: what ran, what failed, and the command that reproduces each failure.
 
     ``assets`` is the URL of the action's own ``docs/assets`` when its banner exists; ``ledger`` is this
-    pull request's history, rendered as the headline tally and carried forward as hidden JSON.
+    pull request's history, rendered as the headline tally and carried forward as hidden JSON; ``pull`` is
+    its number, so a bug this pull request fixes is credited to it.
     """
     status = evidence.status
     lines = _banner(assets, status) if assets else []
@@ -970,19 +1004,12 @@ def render_comment(
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
     lines.append("")
-    # What needs a person comes first; bugs the contracts found earlier are credited after it, as history.
+    # Top to bottom: what a person must do, the evidence for it, what this pull request changed, then every
+    # detail folded. A green run has nothing to do, so its found-bug credit leads; a red one's follows the failures.
     lines += _alert(evidence, repository)
-    lines += _credit(evidence.rows)
-    # A first push that caught nothing has no story to tell yet; a later push or any catch does.
-    if ledger is not None and (ledger.caught or len(ledger.pushes) > 1):
-        lines += _tally(ledger)
-    lines += _overview(evidence, green=_green(evidence, ledger), legend=False)
-    weak = [(row, mutant) for row in evidence.rows for mutant in row.witness_only]
-    if weak:
-        lines += [f"<sub>⚠️ {_code(row.test)}: mutant {_code(mutant)} {WITNESS_ONLY}.</sub>" for row, mutant in weak]
-        lines.append("")
-    # What the contracts claim follows their verdicts, and is the first thing left out to fit the budget.
-    lines.append(CLAIMS)
+    green = _green(evidence, ledger)
+    if green:
+        lines += _credit(evidence.rows, pull)
     failures = [(row, failure) for row in evidence.rows for failure in row.failures]
     generation = [row for row in evidence.rows if row.generation_failure]
     if failures or generation:
@@ -999,6 +1026,19 @@ def render_comment(
         lines.append("")
     if readme_note:
         lines += [readme_note, ""]
+    if not green:
+        lines += _credit(evidence.rows, pull)
+    # A first push that caught nothing has no story to tell yet; a later push or any catch does.
+    if ledger is not None and (ledger.caught or len(ledger.pushes) > 1):
+        lines += _tally(ledger)
+    weak = [(row, mutant) for row in evidence.rows for mutant in row.witness_only]
+    if weak:
+        lines += [f"<sub>⚠️ {_code(row.test)}: mutant {_code(mutant)} {WITNESS_ONLY}.</sub>" for row, mutant in weak]
+        lines.append("")
+    # Details, all folded: the contract table with bugs and mutants, what each contract claims (the first thing
+    # left out to fit the budget) and the glossary.
+    lines += _overview(evidence, green=green, legend=False, expanded=False)
+    lines.append(CLAIMS)
     lines += _glossary()
     footer = [_plural(evidence.receipts, "receipt")]
     if head:
@@ -1009,7 +1049,7 @@ def render_comment(
     lines.append(f'<sub>{" · ".join(footer)} · <a href="{HOME}">pytest-quint-connect</a></sub>')
     hidden = f"\n{ledger.comment()}\n" if ledger is not None else ""
     at = lines.index(CLAIMS)
-    body = "\n".join([*lines[:at], *_says(evidence.rows), *lines[at + 1 :]]) + "\n"
+    body = "\n".join([*lines[:at], *_says(evidence.rows, expanded=False), *lines[at + 1 :]]) + "\n"
     if len(body) + len(hidden) > COMMENT_BUDGET:
         # A cut inside a collapsed block would hide the footer in it: leave the claims out before cutting.
         body = "\n".join([*lines[:at], *lines[at + 1 :]]) + "\n"
@@ -1060,6 +1100,65 @@ class Sign:
         )
 
 
+_EVIDENCE = re.compile(r"<!-- pytest-quint-connect:evidence ([0-9a-f]{16}) renderer (\S+) -->")
+
+
+def renderer_version() -> str:
+    try:
+        return metadata.version("pytest-quint-connect")
+    except metadata.PackageNotFoundError:  # a source tree without installation
+        return "unknown"
+
+
+def _caught(catch: Catch) -> dict[str, Any]:
+    """What the block shows of a mutant: never the trace paths a receipt records, which differ by machine."""
+    mutation = catch.mutation or {}
+    shown = {key: mutation.get(key) for key in ("detected_by", "state", "action", "arguments", "histories", "diverged")}
+    # Fields later receipts added count only when present, so a receipt without them keeps its fingerprint.
+    shown |= {
+        key: mutation[key]
+        for key in ("event_fields", "caught_by_sample", "samples_diverged", "samples")
+        if key in mutation
+    }
+    return {
+        "mutant": catch.mutant,
+        "description": catch.description,
+        "outcome": catch.outcome,
+        "survived": catch.survived,
+        **shown,
+    }
+
+
+def evidence_fingerprint(evidence: Evidence) -> str:
+    """The facts the README block shows, hashed: the same evidence always gives the same fingerprint, whatever
+    version of the renderer lays it out. The block stores it, so a check compares evidence, not formatting:
+    a release that changes how blocks look never makes an adopter's committed block stale."""
+    rows = []
+    for row in sorted(evidence.rows, key=lambda row: (row.contract, row.test)):
+        claims = row.claims
+        rows.append(
+            {
+                "contract": row.contract,
+                "test": row.test,
+                "status": row.status,
+                "histories": [row.witnesses, row.samples, row.seed],
+                "cases": [row.passed, row.cases],
+                "mutants": [row.mutants_detected, row.mutants, [_caught(catch) for catch in row.catches]],
+                "covered": row.covered,
+                "quint": row.quint,
+                "bugs_found": row.bugs_found,
+                # Hashed as receipts before per-mutant warnings had it: whether only witnesses caught every mutant.
+                "witnesses_only": bool(row.witness_only) and len(row.witness_only) == row.mutants_detected,
+                "claims": None
+                if claims is None
+                else [claims.actions, claims.invariant, claims.witnesses, claims.bounds, claims.illustrated],
+            }
+        )
+    # Incomplete evidence is never checked against a block, so only a complete run needs a stable fingerprint.
+    canonical = json.dumps(rows, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
 def render_readme(evidence: Evidence, sign: Sign | None = None) -> str:
     """The README block: the same table, with nothing that differs between two runs of the same evidence.
 
@@ -1078,6 +1177,7 @@ def render_readme(evidence: Evidence, sign: Sign | None = None) -> str:
     return "\n".join(
         [
             f"<!-- pytest-quint-connect:contracts {','.join(contracts)} -->",
+            f"<!-- pytest-quint-connect:evidence {evidence_fingerprint(evidence)} renderer {renderer_version()} -->",
             *([sign.picture(), ""] if sign else []),
             f'<a href="{HOME}" title="{MUTANTS_TIP}"><img alt="{alt}" src="{_badge("Quint contracts", message, color)}"></a>',
             "",
@@ -1109,23 +1209,22 @@ class ReadmeCheck:
     state: str
     reason: str = ""
     diff: str = ""
-
-
-def _unversioned(document: str) -> str:
-    """``document`` with every link into this project's docs pointing at one version, for comparison."""
-    return _DOCS_AT.sub(f"{HOME}/blob/VERSION/docs/", document)
+    # Refreshing the block with this renderer would settle the reason (an older block, an older layout).
+    refresh: bool = False
 
 
 def check_readme(document: str, evidence: Evidence, *, name: str = "README.md") -> ReadmeCheck:
     """Whether the block still matches the evidence.
 
-    Two things in a block are not evidence, so they never make it stale: the counter sign, which the block
-    keeps as it is (a block filled locally has none, and the action adds one only when it writes the block),
-    and the version in links to this project's docs, which changes with every release of the renderer.
+    The counter sign is not evidence, so it never makes a block stale: the check keeps whatever sign the block
+    shows (a block filled locally has none, and the action adds one only when it writes the block). A block
+    another renderer version wrote, its doc links pointing at that version's tag, is judged by the evidence
+    fingerprint it records.
     """
     rendered = embed(document, render_readme(evidence, Sign.found(document))).replace("\r\n", "\n")
     current = document.replace("\r\n", "\n")
-    if _unversioned(rendered) == _unversioned(current):
+    # The renderer's version is provenance, not content: a release that renders the same text stays current.
+    if _EVIDENCE.sub("", rendered) == _EVIDENCE.sub("", current):
         return ReadmeCheck("current")
     listed = _LISTED.search(current)
     previous = set(filter(None, listed.group(1).split(","))) if listed else set()
@@ -1137,6 +1236,24 @@ def check_readme(document: str, evidence: Evidence, *, name: str = "README.md") 
             else "not every contract ran every case and passed in this run"
         )
         return ReadmeCheck("unverifiable", why)
+    # The text differs. A block another renderer version wrote is judged by the evidence it records, not its
+    # layout: a release that lays out the same evidence differently must not fail every adopter's check.
+    recorded = _EVIDENCE.search(current.partition(START)[2].partition(END)[0])
+    if recorded is None:
+        return ReadmeCheck(
+            "unverifiable",
+            "the block was written before pytest-quint-connect recorded the evidence a block shows, so a newer "
+            "layout cannot be told from changed evidence; refresh it once",
+            refresh=True,
+        )
+    fingerprint, written_by = recorded.groups()
+    if written_by != renderer_version() and fingerprint == evidence_fingerprint(evidence):
+        return ReadmeCheck(
+            "current",
+            f"it shows this run's evidence in the layout of pytest-quint-connect {written_by}; "
+            f"{renderer_version()} lays it out differently, so refresh it to update its look",
+            refresh=True,
+        )
     diff = "".join(
         difflib.unified_diff(
             current.splitlines(keepends=True), rendered.splitlines(keepends=True), name, f"{name} (from receipts)"

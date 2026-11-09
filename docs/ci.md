@@ -205,8 +205,10 @@ relative links break on PyPI. When the file is missing or has no markers, the st
 leaves it alone and adds a warning annotation naming it.
 
 From then on the step fails when the block no longer matches the receipts, and
-prints the same command to refresh it. A run that skipped a contract the block lists
-cannot judge it, and says so instead of failing. Fork pull requests cannot be
+prints the same command to refresh it, pinned to the renderer version that ran. A run
+that skipped a contract the block lists cannot judge it, and says so instead of failing.
+The block records a fingerprint of the evidence it shows, so a release that only lays
+the same evidence out differently passes with a note to refresh, never a failure. Fork pull requests cannot be
 commented on with their own token; their report is in the job summary and the
 artifact. See [the action's inputs](reference.md#github-action).
 
