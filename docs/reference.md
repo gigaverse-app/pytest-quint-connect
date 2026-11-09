@@ -46,9 +46,10 @@ Reads `results.json` receipts (files or quoted recursive globs, such as
 it never runs Quint or imports the project. Receipts under a plugin `_work` directory are
 skipped: they belong to sessions a driver ran inside one history.
 
-- **Comment**: ordered by what a person must do. A headline says what matters now (cases
-  passed and mutants caught, or each test's status, worst first); an alert, when the run
-  needs a person, gives the one command to run; the failures follow; then what this pull
+- **Comment**: ordered by what a person must do. A headline gives the verdict (every
+  contract passed, or each test's status, worst first); an alert, when the run needs a
+  person, gives the one command to run; a header gives the key numbers once, each with
+  what it counts; the failures follow; then what this pull
   request changed. Every other detail is folded, each under its own summary: one table row
   per contract test (histories, cases passed, mutants caught, actions covered), failing
   rows first, under a summary line of the totals; the bugs the contracts found (summary,
@@ -133,6 +134,13 @@ marker. A report for an older run or attempt, or for a commit the pull request h
 past, never replaces it. A fork pull request's token cannot comment, so it keeps the job
 summary and the artifact.
 
+Under the headline and any alert, a full-width header gives the run's key numbers once,
+each over its name and what it counts: contracts, cases passed, mutants caught, real bugs
+found, and disagreements in this pull request. With the action's assets the numbers are
+large colored digits (red only for a failure, amber for what did not run, green for what
+passed or was caught); from the command line they are bold text. The rest of the comment
+names items (failures, fixed histories, bugs, mutants) without restating the counts.
+
 A run that needs a person opens with one GitHub alert. A failed run gets a caution naming
 the clearest failure (a named witness before a sample, then the shortest path) and the
 command that reruns it; an incomplete one gets a warning saying why it is not evidence.
@@ -142,12 +150,13 @@ and folds the rest into one line and a command each. Bugs the contracts found ea
 credited as a tip, one line each, as history rather than current failures: right under the
 headline on a green run, after the failures on a red one. When a bug's `fixed_in` names
 the pull request the comment is for (`--pull`, which the action passes), the tip says this
-pull request fixes it, and that it is not a disagreement: the tally counts only what the
-pull request's pushes caught, while a found bug is pinned by its mutant. A collapsed glossary at the
+pull request fixes it, and that it is counted apart from disagreements, which are what the
+pull request's own pushes caught, while a found bug is pinned by its mutant. The tip and the
+folded sections name items; only the header counts them. A collapsed glossary at the
 bottom explains the words and statuses.
 
-After the first push, or once anything was caught, the comment carries a full-width tally
-of the pull request's **disagreements**, and names each history it fixed: a
+The header's last number counts the pull request's **disagreements** across its pushes,
+and the comment names each history the pull request fixed. A disagreement is a
 history where the code reached a different state than the model, or a mutant that no
 history caught. Crashes and setup errors are not disagreements. A disagreement is
 *caught* on the first push that reports it and *fixed* once a later push runs that case

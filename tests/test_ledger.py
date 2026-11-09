@@ -83,10 +83,11 @@ def test_the_comment_spans_the_page_and_carries_the_ledger() -> None:
     assert comment.startswith('<picture>\n  <source media="(prefers-color-scheme: dark)"')
     assert 'src="https://x.test/assets/sticky-banner-failed-light.svg" width="100%"' in comment
     assert 'srcset="https://x.test/assets/sticky-banner-failed-dark.svg"' in comment
-    # The tally follows the failures, whose field table is full-width too.
-    tally = next(line for line in comment.splitlines() if line.startswith("| <img") and "**4**" in line)
-    assert tally.count('<img width="2000" height="1" align="right" alt="">') == 3
-    assert "**4**" in tally and "**0**" in tally
+    # The header counts this pull request's disagreements, and spans the comment like every table.
+    names = next(line for line in comment.splitlines() if "**disagreements in this PR**" in line)
+    assert names.count('<img width="2000" height="1" align="right" alt="">') == 5
+    assert 'alt="4 disagreements in this PR"' in comment
+    assert "across this pull request's 1 push: 0 fixed, 4 still failing" in names
     assert parse(comment).caught == ledger.caught
     plain = render_comment(evidence("failed"), repository=Path("/repo"))
     assert "<picture>" not in plain and "pytest-quint-connect-ledger" not in plain
@@ -133,8 +134,11 @@ def test_the_comment_names_each_history_this_pull_request_fixed() -> None:
     assert "**Fixed in this PR**" not in render_comment(evidence("failed"), repository=Path("/repo"), ledger=reopened)
 
 
-def test_a_first_push_that_caught_nothing_shows_no_tally() -> None:
+def test_the_header_counts_disagreements_across_every_push() -> None:
     quiet = advance(Ledger(), evidence("passed"), head="a")
-    assert "Disagreements caught" not in render_comment(evidence("passed"), repository=Path("/repo"), ledger=quiet)
-    later = advance(quiet, evidence("passed"), head="b")
-    assert "Disagreements caught" in render_comment(evidence("passed"), repository=Path("/repo"), ledger=later)
+    first = render_comment(evidence("passed"), repository=Path("/repo"), ledger=quiet)
+    assert "across this pull request's 1 push: 0 fixed, 0 still failing" in first
+    later = advance(advance(quiet, evidence("failed"), head="b"), evidence("passed"), head="c")
+    third = render_comment(evidence("passed"), repository=Path("/repo"), ledger=later)
+    assert "across this pull request's 3 pushes: 4 fixed, 0 still failing" in third
+    assert "**Fixed in this PR** (4 histories):" in third
