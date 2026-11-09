@@ -268,22 +268,22 @@ generated, and CI fails when it no longer matches the evidence:
 
 **Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`.
 
-**Witness `evictsLeastRecentlyUsedTest`, drawn**: the state the model starts from, then what it expects each action to change. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPnN0YXRlIDA8L2I-PGJyPmVudHJpZXM6IFtdPGJyPmxhc3RSZWFkOiBOb1JlYWRcIl1cbiAgczFbXCI8Yj5zdGF0ZSAxPC9iPjxicj5lbnRyaWVzOiBbIzEyMzsga2V5OiAjMzQ7YSMzNDssIHZhbHVlOiAxICMxMjU7XVwiXVxuICBzMCAtLT58XCJzdG9yZShrZXk9J2EnLCB2YWx1ZT0xKVwifCBzMVxuICBzMltcIjxiPnN0YXRlIDI8L2I-PGJyPmVudHJpZXM6IFsjMTIzOyBrZXk6ICMzNDthIzM0OywgdmFsdWU6IDEgIzEyNTssICMxMjM7IGtleTogIzM0O2IjMzQ7LCB2YWx1ZTogMiAjMTI1O11cIl1cbiAgczEgLS0-fFwic3RvcmUoa2V5PSdiJywgdmFsdWU9MilcInwgczJcbiAgczNbXCI8Yj5zdGF0ZSAzPC9iPjxicj5lbnRyaWVzOiBbIzEyMzsga2V5OiAjMzQ7YiMzNDssIHZhbHVlOiAyICMxMjU7LCAjMTIzOyBrZXk6ICMzNDthIzM0OywgdmFsdWU6IDEgIzEyNTtdPGJyPmxhc3RSZWFkOiBIaXQoMSlcIl1cbiAgczIgLS0-fFwiZmV0Y2goa2V5PSdhJylcInwgczNcbiAgczRbXCI8Yj5zdGF0ZSA0PC9iPjxicj5lbnRyaWVzOiBbIzEyMzsga2V5OiAjMzQ7YSMzNDssIHZhbHVlOiAxICMxMjU7LCAjMTIzOyBrZXk6ICMzNDtjIzM0OywgdmFsdWU6IDAgIzEyNTtdPGJyPmxhc3RSZWFkOiBOb1JlYWRcIl1cbiAgczMgLS0-fFwic3RvcmUoa2V5PSdjJywgdmFsdWU9MClcInwgczRcbiAgczVbXCI8Yj5zdGF0ZSA1LCB1bmNoYW5nZWQ8L2I-XCJdXG4gIHM0IC0tPnxcImluc3BlY3QoKVwifCBzNSIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
+**Scenario: Evicts least recently used** (witness `evictsLeastRecentlyUsedTest`). Each arrow is an action and the code it drives; each box is what the model then expects the code to show, only what changed. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPmluaXQoKTwvYj48YnI-PGk-Y29uc3RydWN0IGEgZnJlc2ggY2FjaGUgd2l0aCBjYXBhY2l0eSAyPC9pPjxicj5lbnRyaWVzID0gW108YnI-bGFzdFJlYWQgPSBOb1JlYWRcIl1cbiAgczFbXCJlbnRyaWVzID0gWyMxMjM7a2V5PWEsIHZhbHVlPTEjMTI1O11cIl1cbiAgczAgLS0-fFwiPGI-c3RvcmUoa2V5PSdhJywgdmFsdWU9MSk8L2I-PGJyPjxpPmNhY2hlLnB1dChrZXksIHZhbHVlKTwvaT5cInwgczFcbiAgczJbXCJlbnRyaWVzID0gWyMxMjM7a2V5PWEsIHZhbHVlPTEjMTI1OywgIzEyMztrZXk9YiwgdmFsdWU9MiMxMjU7XVwiXVxuICBzMSAtLT58XCI8Yj5zdG9yZShrZXk9J2InLCB2YWx1ZT0yKTwvYj48YnI-PGk-Y2FjaGUucHV0KGtleSwgdmFsdWUpPC9pPlwifCBzMlxuICBzM1tcImVudHJpZXMgPSBbIzEyMztrZXk9YiwgdmFsdWU9MiMxMjU7LCAjMTIzO2tleT1hLCB2YWx1ZT0xIzEyNTtdPGJyPmxhc3RSZWFkID0gSGl0KDEpXCJdXG4gIHMyIC0tPnxcIjxiPmZldGNoKGtleT0nYScpPC9iPjxicj48aT5jYWNoZS5nZXQoa2V5KSwgb2JzZXJ2ZWQgYXMgSGl0KHZhbHVlKSBvciBNaXNzPC9pPlwifCBzM1xuICBzNFtcImVudHJpZXMgPSBbIzEyMztrZXk9YSwgdmFsdWU9MSMxMjU7LCAjMTIzO2tleT1jLCB2YWx1ZT0wIzEyNTtdPGJyPmxhc3RSZWFkID0gTm9SZWFkXCJdXG4gIHMzIC0tPnxcIjxiPnN0b3JlKGtleT0nYycsIHZhbHVlPTApPC9iPjxicj48aT5jYWNoZS5wdXQoa2V5LCB2YWx1ZSk8L2k-XCJ8IHM0XG4gIHM1W1wiPGk-bm8gY2hhbmdlPC9pPlwiXVxuICBzNCAtLT58XCI8Yj5pbnNwZWN0KCk8L2I-PGJyPjxpPnJlYWQgY2FjaGUuaXRlbXMoKSB3aXRob3V0IGNoYW5naW5nIGl0PC9pPlwifCBzNSIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420}}}%%
 flowchart TD
-  s0["<b>state 0</b><br>entries: []<br>lastRead: NoRead"]
-  s1["<b>state 1</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;]"]
-  s0 -->|"store(key='a', value=1)"| s1
-  s2["<b>state 2</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;b#34;, value: 2 #125;]"]
-  s1 -->|"store(key='b', value=2)"| s2
-  s3["<b>state 3</b><br>entries: [#123; key: #34;b#34;, value: 2 #125;, #123; key: #34;a#34;, value: 1 #125;]<br>lastRead: Hit(1)"]
-  s2 -->|"fetch(key='a')"| s3
-  s4["<b>state 4</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;c#34;, value: 0 #125;]<br>lastRead: NoRead"]
-  s3 -->|"store(key='c', value=0)"| s4
-  s5["<b>state 5, unchanged</b>"]
-  s4 -->|"inspect()"| s5
+  s0["<b>init()</b><br><i>construct a fresh cache with capacity 2</i><br>entries = []<br>lastRead = NoRead"]
+  s1["entries = [#123;key=a, value=1#125;]"]
+  s0 -->|"<b>store(key='a', value=1)</b><br><i>cache.put(key, value)</i>"| s1
+  s2["entries = [#123;key=a, value=1#125;, #123;key=b, value=2#125;]"]
+  s1 -->|"<b>store(key='b', value=2)</b><br><i>cache.put(key, value)</i>"| s2
+  s3["entries = [#123;key=b, value=2#125;, #123;key=a, value=1#125;]<br>lastRead = Hit(1)"]
+  s2 -->|"<b>fetch(key='a')</b><br><i>cache.get(key), observed as Hit(value) or Miss</i>"| s3
+  s4["entries = [#123;key=a, value=1#125;, #123;key=c, value=0#125;]<br>lastRead = NoRead"]
+  s3 -->|"<b>store(key='c', value=0)</b><br><i>cache.put(key, value)</i>"| s4
+  s5["<i>no change</i>"]
+  s4 -->|"<b>inspect()</b><br><i>read cache.items() without changing it</i>"| s5
 ```
 
 <details>
@@ -319,18 +319,18 @@ flowchart TD
 
 **Bounds**: seed `11` · max_samples `300` · max_steps `3` · n_traces `4`.
 
-**Witness `staleSuccessIsReplacedTest`, drawn**: the state the model starts from, then what it expects each action to change. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPnN0YXRlIDA8L2I-PGJyPmV4aXRDb2RlOiAtMTxicj5tb2RlOiAjMzQ7bm9uZSMzNDs8YnI-c3RhdHVzOiAjMzQ7bm9uZSMzNDtcIl1cbiAgczFbXCI8Yj5zdGF0ZSAxPC9iPjxicj5leGl0Q29kZTogMDxicj5tb2RlOiAjMzQ7Z2VuZXJhdGUtYW5kLXJlcGxheSMzNDs8YnI-c3RhdHVzOiAjMzQ7cGFzc2VkIzM0O1wiXVxuICBzMCAtLT58XCJzZXNzaW9uKGtpbmQ9J2Z1bGwnLCBzdHJpY3Q9VHJ1ZSlcInwgczFcbiAgczJbXCI8Yj5zdGF0ZSAyPC9iPjxicj5leGl0Q29kZTogMTxicj5zdGF0dXM6ICMzNDtmYWlsZWQjMzQ7XCJdXG4gIHMxIC0tPnxcInNlc3Npb24oa2luZD0nbm9RdWludCcsIHN0cmljdD1GYWxzZSlcInwgczJcbiAgczNbXCI8Yj5zdGF0ZSAzLCB1bmNoYW5nZWQ8L2I-XCJdXG4gIHMyIC0tPnxcImluc3BlY3QoKVwifCBzMyIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
+**Scenario: Stale success is replaced** (witness `staleSuccessIsReplacedTest`). Each arrow is an action and the code it drives; each box is what the model then expects the code to show, only what changed. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPmluaXQoKTwvYj48YnI-PGk-Y29weSBleGFtcGxlcyM0NztscnVfY2FjaGUgaW50byBhIGZyZXNoIHByb2plY3QgZGlyZWN0b3J5IzU5OyBubyByZWNlaXB0IHlldDwvaT48YnI-ZXhpdENvZGUgPSAtMTxicj5tb2RlID0gbm9uZTxicj5zdGF0dXMgPSBub25lXCJdXG4gIHMxW1wiZXhpdENvZGUgPSAwPGJyPm1vZGUgPSBnZW5lcmF0ZS1hbmQtcmVwbGF5PGJyPnN0YXR1cyA9IHBhc3NlZFwiXVxuICBzMCAtLT58XCI8Yj5zZXNzaW9uKGtpbmQ9J2Z1bGwnLCBzdHJpY3Q9VHJ1ZSk8L2I-PGJyPjxpPnJ1biAjOTY7cHl0aG9uIC1tIHB5dGVzdCM5NjsgaW4gdGhlIHByb2plY3Qgd2l0aCB0aGUgaW5zdGFsbGVkIHBsdWdpbiBhbmQgdGhlIG9wdGlvbnMgZm9yIHRoaXMga2luZCM1OTsgcmVhZCByZXN1bHRzLmpzb24gYW5kIHRoZSBleGl0IGNvZGU8L2k-XCJ8IHMxXG4gIHMyW1wiZXhpdENvZGUgPSAxPGJyPnN0YXR1cyA9IGZhaWxlZFwiXVxuICBzMSAtLT58XCI8Yj5zZXNzaW9uKGtpbmQ9J25vUXVpbnQnLCBzdHJpY3Q9RmFsc2UpPC9iPjxicj48aT5ydW4gIzk2O3B5dGhvbiAtbSBweXRlc3QjOTY7IGluIHRoZSBwcm9qZWN0IHdpdGggdGhlIGluc3RhbGxlZCBwbHVnaW4gYW5kIHRoZSBvcHRpb25zIGZvciB0aGlzIGtpbmQjNTk7IHJlYWQgcmVzdWx0cy5qc29uIGFuZCB0aGUgZXhpdCBjb2RlPC9pPlwifCBzMlxuICBzM1tcIjxpPm5vIGNoYW5nZTwvaT5cIl1cbiAgczIgLS0-fFwiPGI-aW5zcGVjdCgpPC9iPjxicj48aT5yZWFkIHJlc3VsdHMuanNvbiBhbmQgdGhlIGxhc3QgZXhpdCBjb2RlIHdpdGhvdXQgcnVubmluZyBhbnl0aGluZzwvaT5cInwgczMiLCJtZXJtYWlkIjoie1widGhlbWVcIjogXCJkZWZhdWx0XCJ9In0=)
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420}}}%%
 flowchart TD
-  s0["<b>state 0</b><br>exitCode: -1<br>mode: #34;none#34;<br>status: #34;none#34;"]
-  s1["<b>state 1</b><br>exitCode: 0<br>mode: #34;generate-and-replay#34;<br>status: #34;passed#34;"]
-  s0 -->|"session(kind='full', strict=True)"| s1
-  s2["<b>state 2</b><br>exitCode: 1<br>status: #34;failed#34;"]
-  s1 -->|"session(kind='noQuint', strict=False)"| s2
-  s3["<b>state 3, unchanged</b>"]
-  s2 -->|"inspect()"| s3
+  s0["<b>init()</b><br><i>copy examples#47;lru_cache into a fresh project directory#59; no receipt yet</i><br>exitCode = -1<br>mode = none<br>status = none"]
+  s1["exitCode = 0<br>mode = generate-and-replay<br>status = passed"]
+  s0 -->|"<b>session(kind='full', strict=True)</b><br><i>run #96;python -m pytest#96; in the project with the installed plugin and the options for this kind#59; read results.json and the exit code</i>"| s1
+  s2["exitCode = 1<br>status = failed"]
+  s1 -->|"<b>session(kind='noQuint', strict=False)</b><br><i>run #96;python -m pytest#96; in the project with the installed plugin and the options for this kind#59; read results.json and the exit code</i>"| s2
+  s3["<i>no change</i>"]
+  s2 -->|"<b>inspect()</b><br><i>read results.json and the last exit code without running anything</i>"| s3
 ```
 
 <details>

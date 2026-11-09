@@ -284,31 +284,41 @@ def _call(action: object, arguments: object, event_fields: object = False) -> st
     return _code(call_text(action, dict(arguments or {}), bool(event_fields)))
 
 
-def _value(value: object) -> str:
-    """A value as the receipt records it (``compare.plain``), written in Quint's syntax: ``Hit(1)``, ``NoRead``."""
+def _value(value: object, *, terse: bool = False) -> str:
+    """A value as the receipt records it (``compare.plain``), written in Quint's syntax: ``Hit(1)``, ``NoRead``.
+
+    ``terse`` is for pictures, where every character costs width: a word-like string loses its quotes and a
+    record is written ``{key=a, value=1}``.
+    """
+
+    def inner(item: object) -> str:
+        return _value(item, terse=terse)
+
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
+        return value if terse and re.fullmatch(r"[\w.-]+", value) else json.dumps(value, ensure_ascii=False)
     if isinstance(value, list):
-        return "[" + ", ".join(map(_value, value)) + "]"
+        return "[" + ", ".join(map(inner, value)) + "]"
     if not isinstance(value, dict):
         return str(value)
     # ITF, and so plain(), writes a variant as exactly {tag, value}; a unit variant's value is the empty tuple.
     if set(value) == {"tag", "value"}:
         unit = value["value"] == {"#tup": []}
-        return str(value["tag"]) if unit else f"{value['tag']}({_value(value['value'])})"
+        return str(value["tag"]) if unit else f"{value['tag']}({inner(value['value'])})"
     if set(value) == {"#tup"}:
-        return "(" + ", ".join(map(_value, value["#tup"])) + ")"
+        return "(" + ", ".join(map(inner, value["#tup"])) + ")"
     if set(value) == {"#set"}:
-        return "Set(" + ", ".join(map(_value, value["#set"])) + ")"
+        return "Set(" + ", ".join(map(inner, value["#set"])) + ")"
     if set(value) == {"#map"}:
-        return "Map(" + ", ".join(f"{_value(key)} -> {_value(item)}" for key, item in value["#map"]) + ")"
+        return "Map(" + ", ".join(f"{inner(key)} -> {inner(item)}" for key, item in value["#map"]) + ")"
     if set(value) == {"#unserializable"}:
         return str(value["#unserializable"])
     if not value:
         return "{}"
-    return "{ " + ", ".join(f"{key}: {_value(item)}" for key, item in value.items()) + " }"
+    if terse:
+        return "{" + ", ".join(f"{key}={inner(item)}" for key, item in value.items()) + "}"
+    return "{ " + ", ".join(f"{key}: {inner(item)}" for key, item in value.items()) + " }"
 
 
 def _plural(count: int, word: str, plural: str = "") -> str:
@@ -847,11 +857,11 @@ _MERMAID_PLAIN = re.compile(r"[A-Za-z0-9 _.,:=()\[\]'+-]")
 MAX_LABEL = 60
 
 
-def _mermaid(text: str) -> str:
-    """``text`` for a quoted Mermaid label, one line, at most ``MAX_LABEL`` characters."""
+def _mermaid(text: str, limit: int = MAX_LABEL) -> str:
+    """``text`` for a quoted Mermaid label, one line, at most ``limit`` characters."""
     text = " ".join(text.split())
-    if len(text) > MAX_LABEL:
-        text = text[: MAX_LABEL - 1] + "…"
+    if len(text) > limit:
+        text = text[: limit - 1] + "…"
     return "".join(char if _MERMAID_PLAIN.fullmatch(char) else f"#{ord(char)};" for char in text)
 
 
@@ -860,37 +870,55 @@ def _fields(observed: object) -> list[tuple[str, object]]:
     return list(observed.items()) if _record(observed) and isinstance(observed, dict) else [("observation", observed)]
 
 
-def _box(title: str, fields: list[tuple[str, object]]) -> str:
-    """A node label: the state, then at most ``MAX_CHANGES`` fields as ``path: value``."""
-    lines = [f"<b>{_mermaid(title)}</b>"]
+def _box(fields: list[tuple[str, object]], *, heading: list[str] = ()) -> str:  # type: ignore[assignment]
+    """A node label: an optional heading, then at most ``MAX_CHANGES`` fields as ``name = value``, or no change."""
+    lines = list(heading)
     lines += [
-        _mermaid(f"{path}: {'absent' if value is _ABSENT else _value(value)}") for path, value in fields[:MAX_CHANGES]
+        _mermaid(f"{path} = {'absent' if value is _ABSENT else _value(value, terse=True)}")
+        for path, value in fields[:MAX_CHANGES]
     ]
     if len(fields) > MAX_CHANGES:
         lines.append(_mermaid(f"and {_plural(len(fields) - MAX_CHANGES, 'more field')}"))
-    return "<br>".join(lines)
+    return "<br>".join(lines or ["<i>no change</i>"])
 
 
-def _flowchart(illustrated: dict[str, Any]) -> str:
-    """One witness as a Mermaid flowchart: a box per state with what it changed, an arrow per action."""
+def _action(step: dict[str, Any], actions: dict[str, str]) -> list[str]:
+    """An action in words: the call in bold, then what the manifest says it drives in the code, in italics."""
+    call = call_text(step.get("action"), dict(step.get("arguments") or {}), bool(step.get("event_fields")))
+    drives = actions.get(str(step.get("action")))
+    # A description is prose: Mermaid wraps it, so it may run longer than a value.
+    return [f"<b>{_mermaid(call)}</b>", *([f"<i>{_mermaid(drives, 2 * MAX_LABEL + 20)}</i>"] if drives else [])]
+
+
+def _flowchart(illustrated: dict[str, Any], actions: dict[str, str]) -> str:
+    """One witness as a Mermaid flowchart, in the contract's own words.
+
+    Each arrow is an action: its call, and what the manifest says it drives in the code. Each box is what the
+    model then expects the code to show, only the fields that action changed. The first box is the action that
+    set things up and the state it leaves.
+    """
     steps = list(illustrated.get("steps", []))[:MAX_STEPS]
-    # Mermaid wraps a label at 200 pixels by default, which splits a record mid-field.
+    # Mermaid wraps a label at 200 pixels by default, which splits a value mid-field.
     lines = ['%%{init: {"flowchart": {"wrappingWidth": 420}}}%%', "flowchart TD"]
     previous: object = None
     for index, step in enumerate(steps):
         observed = step.get("observed")
-        title = f"state {step.get('state')}"
         if index == 0:
-            fields = _fields(observed)
+            lines.append(f'  s0["{_box(_fields(observed), heading=_action(step, actions))}"]')
         else:
-            fields = [(path, new) for path, _, new in _changes(previous, observed)]
-            title += "" if fields else ", unchanged"
-        lines.append(f'  s{index}["{_box(title, fields)}"]')
-        if index:
-            call = call_text(step.get("action"), dict(step.get("arguments") or {}), bool(step.get("event_fields")))
-            lines.append(f'  s{index - 1} -->|"{_mermaid(call)}"| s{index}')
+            changed = [(path, new) for path, _, new in _changes(previous, observed)]
+            lines.append(f'  s{index}["{_box(changed)}"]')
+            lines.append(f'  s{index - 1} -->|"{"<br>".join(_action(step, actions))}"| s{index}')
         previous = observed
     return "\n".join(lines)
+
+
+def _sentence(name: object) -> str:
+    """A witness name as words: ``evictsLeastRecentlyUsedTest`` reads ``Evicts least recently used``."""
+    text = re.sub(r"Test$", "", str(name))
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|[_-]+", " ", text).split()
+    sentence = " ".join(word if word.isupper() and len(word) > 1 else word.lower() for word in words)
+    return sentence[:1].upper() + sentence[1:]
 
 
 def _full_size(diagram: str) -> str:
@@ -901,14 +929,16 @@ def _full_size(diagram: str) -> str:
     return "https://mermaid.live/view#base64:" + base64.urlsafe_b64encode(state.encode("utf-8")).decode("ascii")
 
 
-def _diagram(illustrated: dict[str, Any]) -> list[str]:
-    """One witness drawn: what the model starts from, and what it expects each action to change."""
-    diagram = _flowchart(illustrated)
+def _diagram(illustrated: dict[str, Any], actions: dict[str, str]) -> list[str]:
+    """One witness drawn in the contract's words: each action and what the model then expects to see."""
+    diagram = _flowchart(illustrated, actions)
     steps = len(illustrated.get("steps", []))
     more = f" The first {MAX_STEPS} of its {steps} states are drawn." if steps > MAX_STEPS else ""
+    witness = illustrated.get("witness")
     return [
-        f"**Witness {_code(illustrated.get('witness'))}, drawn**: the state the model starts from, then what it "
-        f"expects each action to change. [Open full size ↗]({_full_size(diagram)}){more}",
+        f"**Scenario: {_text(_sentence(witness), 120)}** (witness {_code(witness)}). Each arrow is an action and "
+        "the code it drives; each box is what the model then expects the code to show, only what changed. "
+        f"[Open full size ↗]({_full_size(diagram)}){more}",
         "",
         "```mermaid",
         diagram,
@@ -970,7 +1000,7 @@ def _says(rows: list[Row], *, expanded: bool = True) -> list[str]:
                 "",
                 f"**Bounds**: {bounds}.",
                 "",
-                *(_diagram(claims.illustrated) if claims.illustrated else []),
+                *(_diagram(claims.illustrated, claims.actions) if claims.illustrated else []),
                 *(
                     _collapsible("The same witness as a table", _steps(claims.illustrated))
                     if claims.illustrated

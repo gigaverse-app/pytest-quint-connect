@@ -60,9 +60,12 @@ skipped: they belong to sessions a driver ran inside one history.
   each contract's claims let a reviewer judge the model
   itself: each declared action and the code it drives, the invariant, the witnesses, the
   bounds, and, when it declares witnesses, the first one read from its generated trace. That
-  witness is drawn as a Mermaid flowchart, a box per state and an arrow per action: the first
-  box holds the observation the model starts from, and each later box only the fields that
-  action is expected to change (at most six, or "unchanged"), for at most 20 states. An "Open full
+  witness is drawn as a Mermaid flowchart in the contract's own words, titled with the witness
+  name as a sentence ("Scenario: Evicts least recently used"). Each arrow is an action: its
+  call, and the code the manifest's `actions` says it drives. Each box is what the model then
+  expects the code to show: the first box the setup action and the whole observation it
+  leaves, each later box only the fields that action changed (at most six, or "no change"),
+  for at most 20 states. An "Open full
   size" link opens the same diagram on mermaid.live; the diagram travels in the link's
   fragment, which the browser does not send to the server. Every character of receipt text in
   the diagram is written as a Mermaid entity code unless it is plain, so receipt text cannot end

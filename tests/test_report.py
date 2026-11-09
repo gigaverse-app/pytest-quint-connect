@@ -858,23 +858,25 @@ def test_the_first_witness_is_drawn_and_opens_full_size_in_a_browser() -> None:
     block = claims_block(comment)
     # Drawn inside the folded claims block, before the same steps as a table, which is folded once more.
     assert block.index("```mermaid") < block.index("<summary>The same witness as a table</summary>")
+    # Named the way the contract names it: the scenario in words, each arrow an action and what the manifest says
+    # it drives in the code, each box what the model then expects the code to show.
+    assert "**Scenario: Evicts least recently used** (witness `evictsLeastRecentlyUsedTest`)." in block
     diagram = mermaid(block)
     assert diagram.splitlines() == [
         '%%{init: {"flowchart": {"wrappingWidth": 420}}}%%',
         "flowchart TD",
-        '  s0["<b>state 0</b><br>entries: []<br>lastRead: NoRead"]',
-        '  s1["<b>state 1</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;]"]',
-        "  s0 -->|\"store(key='a', value=1)\"| s1",
-        '  s2["<b>state 2</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;b#34;, value: 2 #125;]"]',
-        "  s1 -->|\"store(key='b', value=2)\"| s2",
-        '  s3["<b>state 3</b><br>entries: [#123; key: #34;b#34;, value: 2 #125;, #123; key: #34;a#34;, value: 1 #125;]'
-        '<br>lastRead: Hit(1)"]',
-        "  s2 -->|\"fetch(key='a', value=0)\"| s3",
-        '  s4["<b>state 4</b><br>entries: [#123; key: #34;a#34;, value: 1 #125;, #123; key: #34;c#34;, value: 0 #125;]'
-        '<br>lastRead: NoRead"]',
-        "  s3 -->|\"store(key='c', value=0)\"| s4",
-        '  s5["<b>state 5, unchanged</b>"]',
-        "  s4 -->|\"inspect(key='', value=0)\"| s5",
+        "  s0[\"<b>init(key='', value=0)</b><br><i>construct a fresh cache with capacity 2</i><br>entries = []"
+        '<br>lastRead = NoRead"]',
+        '  s1["entries = [#123;key=a, value=1#125;]"]',
+        "  s0 -->|\"<b>store(key='a', value=1)</b><br><i>cache.put(key, value)</i>\"| s1",
+        '  s2["entries = [#123;key=a, value=1#125;, #123;key=b, value=2#125;]"]',
+        "  s1 -->|\"<b>store(key='b', value=2)</b><br><i>cache.put(key, value)</i>\"| s2",
+        '  s3["entries = [#123;key=b, value=2#125;, #123;key=a, value=1#125;]<br>lastRead = Hit(1)"]',
+        "  s2 -->|\"<b>fetch(key='a', value=0)</b><br><i>cache.get(key), observed as Hit(value) or Miss</i>\"| s3",
+        '  s4["entries = [#123;key=a, value=1#125;, #123;key=c, value=0#125;]<br>lastRead = NoRead"]',
+        "  s3 -->|\"<b>store(key='c', value=0)</b><br><i>cache.put(key, value)</i>\"| s4",
+        '  s5["<i>no change</i>"]',
+        "  s4 -->|\"<b>inspect(key='', value=0)</b><br><i>read cache.items() without changing it</i>\"| s5",
     ]
     # The link carries this very diagram to mermaid.live in its fragment, which never reaches a server.
     link = re.search(r"\[Open full size ↗\]\((https://mermaid\.live/view#base64:([A-Za-z0-9_=-]+))\)", block)
@@ -892,6 +894,8 @@ def test_receipt_text_cannot_escape_the_diagram(tmp_path: Path) -> None:
         steps[0]["observed"] = {"note": hostile}
         steps[1]["observed"] = {"note": hostile + "!"}
         steps[1]["action"] = hostile
+        contract["actions"][hostile] = hostile + " drives"
+        contract["illustrated"]["witness"] = hostile
 
     comment = render_comment(edited_passed_receipt(tmp_path, inject), repository=REPO)
     # One fence opens the diagram and one closes it: an injected fence cannot end it early.
@@ -900,5 +904,24 @@ def test_receipt_text_cannot_escape_the_diagram(tmp_path: Path) -> None:
         labels = re.findall(r'"(.*?)"', line)
         assert labels and len(line) - sum(map(len, labels)) < 30, line
         for label in labels:
-            plain = label.replace("<b>", "").replace("</b>", "").replace("<br>", "")
+            plain = re.sub(r"</?(b|i)>|<br>", "", label)
             assert not set(plain) & set('"`<>|\n'), label
+
+
+@pytest.mark.parametrize(
+    ("witness", "sentence"),
+    [
+        ("evictsLeastRecentlyUsedTest", "Evicts least recently used"),
+        ("staleSuccessIsReplacedTest", "Stale success is replaced"),
+        ("replayIsNeverCompleteTest", "Replay is never complete"),
+        ("reapedOwnerCannotWriteTest", "Reaped owner cannot write"),
+        ("noQuintTTLTest", "No quint TTL"),
+        ("plain_snake_case", "Plain snake case"),
+    ],
+)
+def test_a_witness_name_reads_as_a_scenario(tmp_path: Path, witness: str, sentence: str) -> None:
+    def rename(contract: dict) -> None:
+        contract["illustrated"]["witness"] = witness
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, rename), repository=REPO))
+    assert f"**Scenario: {sentence}** (witness `{witness}`)." in block
