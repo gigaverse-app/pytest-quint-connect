@@ -54,7 +54,8 @@ installed (step 1), read the example and docs at that release, on GitHub:
     differently from the file's style: match the existing style and keep the diff to your lines.
   - extras: `[project.optional-dependencies] contracts = [...]`; install with `pip install -e '.[contracts]'`.
   - requirements files: a new `requirements-contracts.txt`.
-  - tox: a `contracts` environment that installs that group or extra (step 6), never added to `env_list`.
+  - tox: a `contracts` environment that installs that group or extra (step 6), never added to the
+    default environment list (`env_list`, or `envlist` in a `tox.ini` written for tox 3).
 
   Install it into the environment the contracts run in, so no cache serves an older version:
   `pip install -U pytest-quint-connect`, or `uv pip install --refresh --upgrade pytest-quint-connect`
@@ -102,6 +103,16 @@ Write `<name>.qnt`, modeling the API boundary, not the implementation:
 - state the rules need but the API cannot show (recency order, an internal counter) in a separate
   model-only `var`, left out of `observe`. Check it through its effects: which entry an insert
   evicts, what `popitem()` returns. See [state the code cannot show](https://pytest-quint-connect.readthedocs.io/en/latest/docs/drivers/#state-the-code-cannot-show);
+- an immutable or persistent value (an operation returns a new value instead of changing one):
+  model each value the rules talk about as its own observed field (the latest result, an earlier
+  snapshot, the original), so "later writes never change an earlier value" is a checked rule. See
+  [values that never change](https://pytest-quint-connect.readthedocs.io/en/latest/docs/drivers/#values-that-never-change);
+- behavior that depends on hashing: model a hash-ordered container as a `Map` or `Set`, never a
+  `List`, because its iteration order is not part of the contract. Model no buckets or hashes. To
+  exercise collisions and resizing, pick keys whose hashes collide in the code (a small non-negative
+  `int` hashes to itself; never `str`, whose hash changes on every run) and say so in the manifest's
+  `limits`. See
+  [behavior that depends on hashing](https://pytest-quint-connect.readthedocs.io/en/latest/docs/drivers/#behavior-that-depends-on-hashing);
 - `init`, one action per API operation, and a read-only `inspect` action. Every action sets both
   `event'` and `observed'`;
 - a `step` action that picks arguments with `nondet x = Set(…).oneOf()` and chooses an action with
@@ -150,7 +161,10 @@ same file:
 pytest-quint-connect codegen contracts/<name>/quint-connect.json
 ```
 
-It writes `<module>_driver.py` beside the manifest. Commit it and never edit it; it is already
+It writes `<module>_driver.py` beside the manifest. **Rerun this command after every edit to the
+`.qnt` file**, a witness or a comment included, and after changing the manifest's `actions`: the
+base records a fingerprint of the whole model file, and until you regenerate, every history fails
+with `… is stale`. Commit it and never edit it; it is already
 exempt from your linters and formatters (ruff stable and preview, every rule, and Black), so add no
 per-file ignore for it. If the repository requires a license or copyright header on every file,
 copy that header into a file (or reuse one the repository has), set the manifest's
@@ -164,7 +178,14 @@ with its arguments; `observe()` reads the real state back as plain data shaped l
 calls the code counts as uses. Check the target's docs. In cachetools, for example, `cache.items()`
 and `cache[key]` count as uses and refresh recency, so an `observe()` built on them hides exactly
 the recency bugs under test. Read the state without touching it (`len()`, `key in cache`, a
-side-effect-free view), or observe less and check the rest through effects. The
+side-effect-free view), or observe less and check the rest through effects.
+
+When operations return new values instead of changing one (a persistent map, a frozen builder),
+the driver keeps each value the model observes in its own attribute and rebinds it in the action
+(`self.snapshot = self.evolver.persistent()`); `observe()` reads every kept value, old ones
+included. When the contents cannot be listed (no iteration, no `items()`), probe a fixed set of keys
+that covers every key the model uses plus a few it never does, so a stray entry shows
+(`{k: m[k] for k in range(8) if k in m}`), and name that projection in the manifest's `limits`. The
 fixture returns a factory, so every history starts from fresh state:
 
 ```python
@@ -195,8 +216,28 @@ For each rule that matters, add a mutant: a plausible bug built in the factory f
 `context.mutant` (a subclass that skips one update, a patched function undone in `close()`).
 Declare each in the manifest as `{"name": "…", "description": "…"}`, so reports say what it
 simulates. **Each one must be detected.** A surviving mutant means the
-observation or the histories cannot see that fault: widen `observed` or add a witness. Never
-delete the mutant, drop a witness or remove an observed field to make a run pass.
+observation or the histories cannot see that fault: widen `observed` or add a witness (then rerun
+`codegen`, step 3). Never delete the mutant, drop a witness or remove an observed field to make a
+run pass.
+
+**Check that the history you wrote for a mutant is the one that catches it.** The run names one
+history per mutant (`detected_by` in the receipt, "Caught by" in the report): the *first* that
+diverged. Witnesses replay in manifest order and stop at the first catch; samples replay after them.
+So an earlier witness can take the credit, and a `sample-N` there means no witness caught it at all.
+To learn whether a given witness catches a mutant, replay just that pair after a full run (step 5)
+has written the witness's trace, `witness-<WitnessName>-<position>.itf.json`:
+
+```bash
+pytest -c contracts/quint.ini contracts/<name>/test_<name>_contract.py --quint-mutant <mutant> \
+  --quint-replay contracts/.artifacts/quint-connect/<contract>/witness-<WitnessName>-<position>.itf.json
+```
+
+Its summary says `diverged from the model at state N, after action …` and the case fails: the
+witness catches it. `matched the model at all N states` and a pass mean it does not. A witness
+that matches the mutant does not exercise the rule you wrote it for: change its steps or its
+assertion until it diverges. A mutant only samples catch needs a witness for its rule, because
+samples change with the seed, the bounds and every model edit. Rerun the full command afterwards:
+a replay rewrites the receipt as `replay-only`.
 
 If the contract surfaces a real bug and it gets fixed, add a `bugs_found` entry to the manifest
 (`summary`, `fixed_in`, and `found_by`, `regression_test` and a `mutant` that reintroduces it when
@@ -240,6 +281,10 @@ report.
   `contracts/quint.ini`, or install the package editable.
 - **A setup error** means Quint could not generate histories. It shows Quint's own message, such
   as `Assertion failed` with the file and line of a witness. Fix the model.
+- **`<Contract>Driver is stale`** in every history means the `.qnt` file or the manifest's actions
+  changed after `codegen` ran. Rerun the `codegen` command it prints (step 3) and commit the result.
+- **`mutant '…' caught by no witness`** means only sampled histories caught it. Write or fix a
+  witness for that rule (step 4).
 
 ## 6. Wire it into the repository
 
@@ -256,7 +301,9 @@ report.
   [the contracts environment](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/#run-through-tox-or-nox)
   that matches how its other environments install: `deps` for classic tox, or `dependency_groups`
   when they use `runner = uv-venv-lock-runner` (tox-uv). Either way it holds `pass_env` (tox hides
-  the cache directory otherwise) and the JUnit path, and stays out of `env_list`. nox passes the
+  the cache directory otherwise) and the JUnit path, and stays out of the default environment list.
+  Spell keys the way the file already does: a `tox.ini` written for tox 3 says `envlist` and
+  `passenv`, tox 4's documentation says `env_list` and `pass_env`; tox 4 reads both. nox passes the
   environment through unless a session restricts it.
 - **Type checks.** If the repository type-checks its tests and `contracts/` falls in that scope,
   install `pytest` and `pytest-quint-connect` in the type-check environment too. The driver
@@ -269,10 +316,13 @@ report.
     If the repository has one aggregate gate job, add this job to the gate's `needs` instead.
   - **Match the repository's runner and environment**: the same `runs-on`, triggers, concurrency,
     and the same major versions or SHA pins it already uses for `actions/checkout`, `setup-python`
-    and `cache`. The page shows current majors; older ones work the same. For an Action it does not
-    use yet (often `setup-node`), take the page's version, pinned the way the repository pins. When
-    you pin a SHA, add its `# vX.Y.Z` comment even if the repository's existing pins have none.
-    Node.js: `node-version: '24'` (any 22+).
+    and `cache`, unless that major runs on Node.js 20: `actions/checkout@v4`, `setup-python@v5`,
+    `setup-node@v4` and `cache@v4` and older. GitHub deprecates those and warns on every run, so the
+    new job takes the page's major instead, pinned the way the repository pins; leave the other jobs
+    alone and list their Node.js 20 Actions under "Pre-existing failures". For an Action the
+    repository does not use yet (often `setup-node`), take the page's version. When you pin a SHA,
+    add its `# vX.Y.Z` comment even if the repository's existing pins have none. Node.js:
+    `node-version: '24'` (any 22+).
   - **Jobs that run inside a container or a Nix shell** (`container:`, `nix develop --command …`, a
     devcontainer): do what the other jobs do, and add Node.js 22+ to that environment instead of a
     `setup-node` step: `nodejs_24` in the flake's shell (a separate `contracts` dev shell if the
@@ -309,9 +359,19 @@ report.
   `<!-- pytest-quint-connect:start -->` and `<!-- pytest-quint-connect:end -->` in a Markdown
   file. If the README is Markdown, add those two lines where the table belongs. Otherwise (a
   `README.rst`, for example), put them in `contracts/README.md`, set the report step's
-  `readme: contracts/README.md`, and link that file from the README. Fill the block once and commit it:
-  `pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme <file>`.
-  The report step checks exactly this block; the counter sign is optional and never makes it stale.
+  `readme: contracts/README.md`, and link that file from the README. Fill the block once and commit it.
+  While `share-totals` is on, fill it with the repository's counter sign: the report step only checks
+  the block and never writes it, so a sign you leave out now never appears. Name the repository the
+  pull request targets (the upstream one, not a fork you work in):
+
+  ```bash
+  GITHUB_REPOSITORY=OWNER/REPO GITHUB_REPOSITORY_ID="$(gh api repos/OWNER/REPO --jq .id)" \
+    pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme <file> --counter-sign
+  ```
+
+  The block then opens with a `sign.svg` picture; confirm it is there. With `share-totals: 'false'`,
+  drop both variables and `--counter-sign`. The report step checks the block's evidence; the sign
+  never makes it stale.
 - **Links in a PyPI long description.** If you edit a README that is also the package's PyPI page
   (`readme = "README.rst"` in `pyproject.toml`, or `long_description` in `setup.py`), write the link
   to `contracts/README.md` as an absolute GitHub URL at the repository's canonical URL, the one its
@@ -347,7 +407,8 @@ Mutants: <name>: <the bug it simulates> (detected by <case>; samples <k>/<n>)
 Not covered: <behavior outside the model or the bounds>; see the limits page
 Pre-existing failures: <lint or test failures on files you did not touch, or none>
 Needs a human: review the model; make "<check name>" a required check; share-totals is on (sends merged
-  pull requests' tallies to the public counter): keep it or set share-totals: 'false'; <workflows to enable, if any>;
+  pull requests' tallies to the public counter, and the README block shows the counter sign): keep it or
+  set share-totals: 'false' and refresh the block without the sign; <workflows to enable, if any>;
   <an updater that would rewrite the report action's tag, if any>
 ```
 

@@ -371,6 +371,20 @@ def test_the_counter_sign_is_keyed_by_the_repository_id_and_survives_a_local_ref
     assert sign.key in readme.read_text(encoding="utf-8")
 
 
+def test_asking_for_a_sign_without_a_repository_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A local fill with --counter-sign but no repository variables writes no sign, and says how to add one.
+    for name in ("GITHUB_REPOSITORY_ID", "GITHUB_REPOSITORY", "GITHUB_ACTIONS"):
+        monkeypatch.delenv(name, raising=False)
+    readme = readme_with_block(tmp_path)
+    assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme), "--counter-sign"]) == 0
+    captured = capsys.readouterr()
+    assert "--counter-sign needs GITHUB_REPOSITORY_ID and GITHUB_REPOSITORY" in captured.err
+    assert 'GITHUB_REPOSITORY=OWNER/REPO GITHUB_REPOSITORY_ID="$(gh api repos/OWNER/REPO --jq .id)"' in captured.out
+    assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
+
+
 def test_no_sign_without_the_flag_or_an_existing_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1")
     monkeypatch.setenv("GITHUB_REPOSITORY", "acme/shop")
@@ -389,10 +403,19 @@ def test_the_check_never_requires_the_counter_sign(
     monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1")
     monkeypatch.setenv("GITHUB_REPOSITORY", "acme/shop")
     capsys.readouterr()
-    assert main(["report", receipt, "--readme", str(readme), "--check", "--counter-sign"]) == 0
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    comment = tmp_path / "comment.md"
+    assert (
+        main(["report", receipt, "--readme", str(readme), "--check", "--counter-sign", "--comment", str(comment)]) == 0
+    )
     out = capsys.readouterr().out
     assert "the contract block is current" in out
-    assert "shows no counter sign (optional)" in out and "--counter-sign" in out
+    # The command that adds the sign is concrete, and shows where people look: a run annotation and the PR comment.
+    command = 'GITHUB_REPOSITORY=acme/shop GITHUB_REPOSITORY_ID="$(gh api repos/acme/shop --jq .id)" '
+    assert "shows no counter sign (optional)" in out and command in out and "--counter-sign" in out
+    assert "::notice file=" in out
+    assert "shows no counter sign (optional)" in comment.read_text(encoding="utf-8")
+    assert command in comment.read_text(encoding="utf-8")
     assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
     # Writing the block is what adds the sign.
     assert main(["report", receipt, "--readme", str(readme), "--counter-sign"]) == 0

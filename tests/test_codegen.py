@@ -433,7 +433,8 @@ def test_stale_generated_base_fails_the_replay(generated: tuple[ModuleType, Path
     driver = cache_driver(module.LruCacheDriver)
     model = tmp_path / "lru.qnt"
     model.write_text(model.read_text() + "\n// a later edit to the model\n", encoding="utf-8")
-    with pytest.raises(ContractError, match="is stale.*pytest-quint-connect codegen quint-connect.json"):
+    # A comment is enough: the fingerprint covers the whole model file, and the message says so.
+    with pytest.raises(ContractError, match="is stale.*a witness or a comment included.*codegen quint-connect.json"):
         replay_trace(DATA / "lru" / "witness-evicts.itf.json", load_contract(manifest), lambda context: driver())
 
 

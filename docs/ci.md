@@ -93,9 +93,11 @@ Adjust the install step and the paths to your project, and follow its convention
   failure never hides the contract's result. If you gate merges on one aggregate job,
   add this job to that gate's `needs` instead (section 3).
 - **Action versions and runners.** Use the runner, and the versions or commit-SHA pins,
-  your other workflows already use for `actions/checkout`, `setup-python` and `cache`;
-  older majors work the same. When you pin a SHA, add its `# vX.Y.Z` comment. Any
-  Node.js 22+ works.
+  your other workflows already use for `actions/checkout`, `setup-python` and `cache`,
+  unless that major runs on Node.js 20 (`actions/checkout@v4`, `setup-python@v5`,
+  `setup-node@v4`, `cache@v4` and older): GitHub deprecates those and warns on every
+  run, so give this job the majors shown above instead. When you pin a SHA, add its
+  `# vX.Y.Z` comment. Any Node.js 22+ works.
 - **Cache key.** Hash the file that pins pytest-quint-connect, so the cache changes when
   the pin can: `hashFiles('tox.ini')` when it lives in `tox.ini`, otherwise your
   requirements file, lock file or `pyproject.toml`.
@@ -153,8 +155,10 @@ Adjust the install step and the paths to your project, and follow its convention
 ### Run through tox or nox
 
 If tests run through tox, run the contracts as their own tox environment, left out of
-`env_list`, and have the CI job call `tox -e contracts`. tox hides the environment from
-tests, so pass the cache directory through. With classic tox:
+the default environment list (`env_list`, or `envlist` in a `tox.ini` written for
+tox 3), and have the CI job call `tox -e contracts`. tox hides the environment from
+tests, so pass the cache directory through. Spell keys the way your `tox.ini` already
+does: tox 4 reads both `pass_env` and tox 3's `passenv`. With classic tox:
 
 ```ini
 [testenv:contracts]
@@ -239,6 +243,15 @@ printf '<!-- pytest-quint-connect:start -->
 ' >> README.md
 pytest -c contracts/quint.ini contracts --quint-require-complete
 pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md
+```
+
+While the step shares totals (`share-totals`, on by default), fill the block with your
+repository's [counter sign](reference.md#the-global-counter) instead. The step only checks
+the block and never writes it, so a block filled without the sign keeps passing without one:
+
+```bash
+GITHUB_REPOSITORY=OWNER/REPO GITHUB_REPOSITORY_ID="$(gh api repos/OWNER/REPO --jq .id)" \
+  pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme README.md --counter-sign
 ```
 
 The block is Markdown and HTML. In a `README.rst` or another format the markers would
