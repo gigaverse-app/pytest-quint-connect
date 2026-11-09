@@ -29,7 +29,8 @@ def test_a_value_is_drawn_by_its_shape() -> None:
         ("lastRead", "Hit", "Hit"),
         ("seen", 2, "2 entries"),
         ("owners", 0, "empty"),
-        ("pair", "(x, true)", "(x, true)"),
+        # Written the one way reports write model values (compare.quint_text): strings keep their quotes.
+        ("pair", '("x", true)', '("x", true)'),
         ("nested.ok", False, "false"),
         ("nested.count", 3, "3"),
     ]

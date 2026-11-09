@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from . import __version__
+from .compare import quint_text
 from .contract import display_path
 from .plugin import WITNESS_ONLY, sample_catches, witness_only
 from .replay import call_text
@@ -287,33 +288,6 @@ def _ref(ref: object) -> str:
 def _call(action: object, arguments: object, event_fields: object = False) -> str:
     """``fetch(key='a')`` as inline code; ``fetch(event: key='a', value=0)`` for a whole event record."""
     return _code(call_text(action, dict(arguments or {}), bool(event_fields)))
-
-
-def _value(value: object) -> str:
-    """A value as the receipt records it (``compare.plain``), written in Quint's syntax: ``Hit(1)``, ``NoRead``."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
-    if isinstance(value, list):
-        return "[" + ", ".join(map(_value, value)) + "]"
-    if not isinstance(value, dict):
-        return str(value)
-    # ITF, and so plain(), writes a variant as exactly {tag, value}; a unit variant's value is the empty tuple.
-    if set(value) == {"tag", "value"}:
-        unit = value["value"] == {"#tup": []}
-        return str(value["tag"]) if unit else f"{value['tag']}({_value(value['value'])})"
-    if set(value) == {"#tup"}:
-        return "(" + ", ".join(map(_value, value["#tup"])) + ")"
-    if set(value) == {"#set"}:
-        return "Set(" + ", ".join(map(_value, value["#set"])) + ")"
-    if set(value) == {"#map"}:
-        return "Map(" + ", ".join(f"{_value(key)} -> {_value(item)}" for key, item in value["#map"]) + ")"
-    if set(value) == {"#unserializable"}:
-        return str(value["#unserializable"])
-    if not value:
-        return "{}"
-    return "{ " + ", ".join(f"{key}: {_value(item)}" for key, item in value.items()) + " }"
 
 
 def _plural(count: int, word: str, plural: str = "") -> str:
@@ -838,7 +812,7 @@ def _changed(before: object, after: object) -> str:
         return "unchanged"
 
     def shown_value(value: object) -> str:
-        return "absent" if value is _ABSENT else _value(value)
+        return "absent" if value is _ABSENT else quint_text(value)
 
     shown = [_code(f"{path}: {shown_value(old)} → {shown_value(new)}", 160) for path, old, new in changes[:MAX_CHANGES]]
     if len(changes) > MAX_CHANGES:
@@ -970,7 +944,7 @@ def _steps(illustrated: dict[str, Any]) -> list[str]:
     for index, step in enumerate(steps[:MAX_STEPS]):
         call = _call(step.get("action"), step.get("arguments"), step.get("event_fields"))
         observed = step.get("observed")
-        expects = _code(_value(observed), 600) if index == 0 else _changed(previous, observed)
+        expects = _code(quint_text(observed), 600) if index == 0 else _changed(previous, observed)
         lines.append(f"| {_code(step.get('state'))} | {call} | {expects} |")
         previous = observed
     lines.append("")

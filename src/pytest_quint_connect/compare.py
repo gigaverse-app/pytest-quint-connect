@@ -12,13 +12,14 @@ than coerced:
   ``tag`` and ``value``; a unit variant may omit ``value`` or give ``None``.
 """
 
+import json
 from collections.abc import Mapping, Set
 from dataclasses import dataclass
 from typing import Any
 
 from .itf import QList, QMap, QTuple, Record, Unserializable, Variant
 
-__all__ = ["Difference", "differences", "plain"]
+__all__ = ["Difference", "differences", "plain", "quint_text"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,36 @@ def plain(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [plain(item) for item in value]
     return value
+
+
+def quint_text(value: object) -> str:
+    """A value as :func:`plain` writes it, in Quint's syntax: ``Hit(1)``, ``NoRead``, ``{ key: "a" }``.
+
+    Reports and the receipt's state machine show model values to people in this one form.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ", ".join(map(quint_text, value)) + "]"
+    if not isinstance(value, dict):
+        return str(value)
+    # ITF, and so plain(), writes a variant as exactly {tag, value}; a unit variant's value is the empty tuple.
+    if set(value) == {"tag", "value"}:
+        unit = value["value"] == {"#tup": []}
+        return str(value["tag"]) if unit else f"{value['tag']}({quint_text(value['value'])})"
+    if set(value) == {"#tup"}:
+        return "(" + ", ".join(map(quint_text, value["#tup"])) + ")"
+    if set(value) == {"#set"}:
+        return "Set(" + ", ".join(map(quint_text, value["#set"])) + ")"
+    if set(value) == {"#map"}:
+        return "Map(" + ", ".join(f"{quint_text(key)} -> {quint_text(item)}" for key, item in value["#map"]) + ")"
+    if set(value) == {"#unserializable"}:
+        return str(value["#unserializable"])
+    if not value:
+        return "{}"
+    return "{ " + ", ".join(f"{key}: {quint_text(item)}" for key, item in value.items()) + " }"
 
 
 def differences(expected: Any, actual: Any, path: str = "") -> list[Difference]:

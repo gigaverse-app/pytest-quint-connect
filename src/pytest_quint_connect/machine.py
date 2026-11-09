@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-from .compare import plain
+from .compare import plain, quint_text
 from .contract import Contract
 from .itf import load_trace
 from .replay import TraceError, shown_arguments, steps
@@ -24,18 +24,6 @@ Scalar = str | int | bool
 
 def _count(size: int, one: str, many: str) -> str:
     return "empty" if size == 0 else f"{size} {one if size == 1 else many}"
-
-
-def _display(value: object) -> str:
-    """A plain value as a reader would write it: a variant by its tag, strings bare, booleans lower case."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, dict) and set(value) == {"tag", "value"}:
-        unit = value["value"] == {"#tup": []}
-        return str(value["tag"]) if unit else f"{value['tag']}({_display(value['value'])})"
-    if isinstance(value, dict) and set(value) == {"#tup"}:
-        return "(" + ", ".join(_display(item) for item in value["#tup"]) + ")"
-    return str(value)
 
 
 def shape(observed: object, path: str = "") -> list[tuple[str, Scalar, str]]:
@@ -54,14 +42,14 @@ def shape(observed: object, path: str = "") -> list[tuple[str, Scalar, str]]:
             size = len(next(iter(observed.values())))
             return [(name, size, _count(size, "entry", "entries"))]
         if set(observed) in ({"#tup"}, {"#unserializable"}):
-            text = _display(observed) if "#tup" in observed else str(observed["#unserializable"])
+            text = quint_text(observed)
             return [(name, text, text)]
         fields: list[tuple[str, Scalar, str]] = []
         for key, item in observed.items():
             fields += shape(item, f"{path}.{key}" if path else str(key))
         return fields or [(name, "{}", "{}")]
     if isinstance(observed, (str, int, bool)):
-        return [(name, observed, _display(observed))]
+        return [(name, observed, quint_text(observed))]
     return [(name, str(observed), str(observed))]
 
 
@@ -87,7 +75,9 @@ def machine(
         previous: int | None = None
         for step, expected in steps(trace, contract):
             if contract.state_names is not None:
-                name = _display(plain(step.state[contract.state_names]))
+                value = plain(step.state[contract.state_names])
+                # A sum type names a state by its tag (``Passed``); a string variable by its text.
+                name = value if isinstance(value, str) else quint_text(value)
                 key: object = name
                 entry: dict[str, Any] = {"name": name}
             else:
