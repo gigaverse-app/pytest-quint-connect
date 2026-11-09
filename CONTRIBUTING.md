@@ -69,7 +69,9 @@ rather than writing them by hand.
 
 Update `src/pytest_quint_connect/toolchain/package.json`, run
 `npm install --package-lock-only --ignore-scripts` in that directory, update
-`DEFAULT_QUINT_VERSION` in `contract.py`, the README badge and the docs, and run the
+`DEFAULT_QUINT_VERSION` in `contract.py`, the README badge, the docs and the reserved-names
+paragraph of `skills/pytest-quint-connect/SKILL.md` (its version, and the names
+`tests/test_codegen.py::test_the_skill_lists_every_name_quint_reserves` reports), and run the
 whole suite and the smoke script. One version is supported at a time.
 
 ## Pull requests

@@ -102,7 +102,7 @@ permissions:
 steps:
   # ... checkout, Node.js 22+, Python, then:
   - run: pytest --quint-require-complete
-  - uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z  # the installed pytest-quint-connect version
+  - uses: gigaverse-app/pytest-quint-connect/report@v1
     if: ${{ !cancelled() }}
 ```
 
@@ -114,13 +114,15 @@ markers, the step adds a warning annotation naming the file and leaves it alone.
 block is Markdown and HTML: next to a `README.rst`, keep it in a Markdown file such as
 `contracts/README.md` and set `readme` to it.
 
-Pin the action to the version of pytest-quint-connect your tests install. It renders
-with its own copy of the code, so another version can lay the README block out
+Reference the action by its major tag, `@v1`, so it upgrades with every 1.x release. It
+renders with its own copy of the code, so a newer version can lay the README block out
 differently. The block's `<!-- pytest-quint-connect:evidence FINGERPRINT renderer VERSION -->`
 line records what it shows and which version wrote it: when the text differs and the
 versions differ, the check compares fingerprints, so a new layout of the same evidence is
 `current` (with a note to refresh) and only changed evidence is `stale`. A block written
-before that line existed is `unverifiable` until refreshed once. With commit SHAs, write `report@<sha>  # vX.Y.Z`.
+before that line existed is `unverifiable` until refreshed once. Where tooling rejects tags
+(zizmor's `unpinned-uses`, an all-SHA policy CI enforces), write `report@<sha>  # vX.Y.Z`
+for the release your tests install or a newer one.
 The block's links to these docs point at the tag of the version that rendered it
 (`blob/vX.Y.Z/docs/...`).
 

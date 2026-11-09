@@ -147,7 +147,7 @@ README block like [this repository's](#measured) current:
 
 ```yaml
 - run: pytest --quint-require-complete
-- uses: gigaverse-app/pytest-quint-connect/report@vX.Y.Z  # your installed version; job permission: pull-requests: write
+- uses: gigaverse-app/pytest-quint-connect/report@v1  # job permission: pull-requests: write
   if: ${{ !cancelled() }}
 ```
 

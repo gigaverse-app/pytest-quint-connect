@@ -1,4 +1,4 @@
-# ruff: noqa: PGH004
+# ruff: noqa: PGH004, RUF102, RUF105
 # ruff: noqa
 # fmt: off
 """Typed driver base for the Quint contract "session-receipts" (session.qnt).

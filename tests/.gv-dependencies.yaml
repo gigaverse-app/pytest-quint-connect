@@ -28,6 +28,10 @@ dependencies:
     inputs: ["//dogfood/session_driver.py"]
     kind: content
     reason: codegen --check compares the committed generated dogfood driver.
+  - readers: ["test_codegen.py"]
+    inputs: ["//skills/pytest-quint-connect/SKILL.md"]
+    kind: content
+    reason: The agent procedure must list every built-in name the bundled Quint reserves.
   - readers: ["test_plugin.py", "test_codegen.py"]
     inputs: ["//src/pytest_quint_connect/toolchain/*.json"]
     kind: content

@@ -46,6 +46,7 @@ instead of silently weakening a check.
 | `sources` | no | Implementation files whose hashes go into the receipt. A missing file fails collection. |
 | `attest` | no | `{"package": "name", "source": "dir"}`: after every step, every imported module of `package` must come from `source`, so a stale installed copy cannot stand in for the checkout under test. `source` is the directory that *contains* the package directory, relative to `root`: `"src"` for `src/name/`, `"."` for `name/` at the root. Use it when a runner installs the package non-editably (tox does by default), and put `source` first on the contract config's `pythonpath` so the checkout is what gets imported. |
 | `description`, `limits` | no | Documentation. `limits` is copied into the receipt. |
+| `codegen_header` | no | A file, relative to the manifest, whose lines `codegen` writes at the top of the generated driver base, before its tool directives: a license or copyright notice your repository requires on every file. Only comment (`#`) and blank lines are allowed. It is not part of the base's fingerprint, so adding or editing it never makes a replay stale; `codegen --check` compares it like the rest of the file. |
 
 ## Mutants
 
