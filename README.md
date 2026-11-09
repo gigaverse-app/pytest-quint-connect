@@ -359,8 +359,9 @@ itself and [RELEASING.md](RELEASING.md) for publishing.
 
 [![Tests selected by pytest-selective](https://img.shields.io/badge/tests_selected_by-pytest--selective-2563EB)](https://github.com/gigaverse-app/pytest-selective)
 
-<sub>Pull requests run only the [test lanes](.github/test-lanes.json) and test files a
-change can affect, chosen by [pytest-selective](https://github.com/gigaverse-app/pytest-selective).
-[CI-esta](https://github.com/gigaverse-app/ci-esta) reports this repository's CI timing,
+<sub>Pull requests run only the CI jobs and test files a change can affect, planned by
+[CI-esta](https://github.com/gigaverse-app/ci-esta) from the workflow and
+[pytest-selective](https://github.com/gigaverse-app/pytest-selective)'s import graph.
+[CI-esta](https://github.com/gigaverse-app/ci-esta) also reports this repository's CI timing,
 keeps its test durations and owns its required gate. Neither is a dependency of
 pytest-quint-connect. See [how CI runs here](docs/ci-toolkit.md).</sub>

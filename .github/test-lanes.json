@@ -1,4 +1,5 @@
 {
+  "extends": "workflow",
   "graph": {
     "module_roots": [
       "src",
@@ -7,93 +8,32 @@
       "examples/lru_cache",
       "."
     ],
-    "test_roots": [
-      "tests",
-      "dogfood"
-    ],
-    "pytest_policy": {
-      "dogfood/pytest.ini": "9ffb0792a62dd87edc3fe124040158789e6aa11ab61369738c9e608570e99f57",
-      "examples/lru_cache/pytest.ini": "6c3befbb547919b63209db214320c1649a9be5fc334031a67b822e3d718f09fc",
-      "pyproject.toml": "836043fbcfef82c8fe001b6c25f3bea5315fb24044a2d9a3e87e5864292a2b3b"
-    },
-    "global_inputs": [
-      "pyproject.toml",
-      "**/pyproject.toml",
-      "uv.lock",
-      "**/uv.lock",
-      ".python-version",
-      "pytest.ini",
-      "**/pytest.ini"
-    ],
     "scoped_hooks": {
       "examples/lru_cache/conftest.py": "364e54f8375cf39a6d22e43d8020080a082f4caf"
     },
     "floor_budget": 8
   },
-  "lanes": {
-    "tests": {
-      "roots": [
-        "tests"
+  "rules": [
+    {
+      "name": "python-environment",
+      "when": [
+        "pyproject.toml",
+        "**/pyproject.toml",
+        "uv.lock",
+        "**/uv.lock",
+        ".python-version",
+        "pytest.ini",
+        "**/pytest.ini"
       ],
-      "inputs": [
-        "src/**",
-        "tests/**",
-        "examples/lru_cache/*.py",
-        "examples/lru_cache/*.qnt",
-        "examples/lru_cache/*.json",
-        "dogfood/quint-connect.json",
-        "dogfood/session.qnt",
-        "dogfood/session_driver.py",
-        "skills/pytest-quint-connect/SKILL.md"
-      ]
+      "select": ["all"],
+      "reason": "the test environment; the Read the Docs documentation/requirements.{in,txt} are not part of it"
     },
-    "dogfood": {
-      "roots": [
-        "dogfood/test_session_contract.py"
-      ],
-      "inputs": [
-        "src/**",
-        "dogfood/*.py",
-        "dogfood/*.qnt",
-        "dogfood/*.json",
-        "examples/lru_cache/*.py",
-        "examples/lru_cache/*.qnt",
-        "examples/lru_cache/*.json",
-        "report/**"
-      ]
-    },
-    "package": {
-      "inputs": [
-        "src/**",
-        "README.md",
-        "LICENSE",
-        ".release-please-manifest.json",
-        "release-please-config.json",
-        "tests/test_release.py",
-        "scripts/smoke_distribution.py",
-        "examples/lru_cache/*.py",
-        "examples/lru_cache/*.qnt",
-        "examples/lru_cache/*.json"
-      ]
-    },
-    "routing": {
-      "inputs": [
-        "ci_tests/**",
-        "scripts/ci/**",
-        "tests/.gv-dependencies.yaml",
-        ".github/workflows/release.yml"
-      ]
+    {
+      "name": "report-action-runs-this-checkout",
+      "when": ["src/**", "README.md", "docs/assets/sticky-banner*.svg"],
+      "select": ["job:.github/workflows/ci.yml#dogfood"],
+      "reason": "the dogfood job's ./report action installs this checkout's package (uvx --from its github.action_path/..), runs its report CLI, checks README.md's contract block and links the banners"
     }
-  },
-  "global_inputs": [
-    "pyproject.toml",
-    "**/pyproject.toml",
-    "uv.lock",
-    "**/uv.lock",
-    ".python-version",
-    ".github/test-lanes.json",
-    ".github/workflows/ci.yml",
-    "scripts/run_ci_tests.py",
-    "scripts/ci_file_config.py"
-  ]
+  ],
+  "disable_rules": ["bun-environment"]
 }

@@ -1,0 +1,10 @@
+dependencies:
+  - inputs:
+      - "//.github/test-lanes.json"
+      - "//.github/workflows/ci.yml"
+      - "//tests/.gv-dependencies.yaml"
+      - "//**/*.gv-dependency.yaml"
+    kind: content
+    reason: >-
+      Plans lanes and test files on a snapshot of the repository, from the workflow's lane conditions, the lane
+      file and the read declarations; every assertion depends on them.
