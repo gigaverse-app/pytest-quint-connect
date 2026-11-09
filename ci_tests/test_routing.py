@@ -1,6 +1,7 @@
 """This repository's lane and file selection, exercised on real Git snapshots of the working tree.
 
-Run as CI does:
+Lanes are planned as CI-esta's plan-work action plans them (`python -m ci_esta.testing.work_plan`): the lanes the
+workflow's job conditions read, extended by .github/test-lanes.json. Run as CI does, with Bun on PATH:
     uv run --no-project --python 3.14 --with "$(python scripts/ci/selector_requirement.py)" \
         python -m unittest discover -s ci_tests -v
 """
@@ -12,12 +13,18 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pytest_selective.ci import LaneConfig, plan
+from ci_esta.testing.lane_inference import resolve
+from ci_esta.testing.work_plan import plan_work
+from pytest_selective.ci import LanePlan
 from pytest_selective.impact_models import ImpactConfig
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from ci_file_config import file_config  # noqa: E402
+from ci_file_config import LANE_FILE, file_config  # noqa: E402
+from ci_file_config import resolve as resolve_lanes  # noqa: E402
+
+# Read declarations steer both lane and file selection.
+DECLARATIONS = ("tests/.gv-dependencies.yaml", "**/*.gv-dependency.yaml")
 
 
 class RoutingTests(unittest.TestCase):
@@ -28,18 +35,23 @@ class RoutingTests(unittest.TestCase):
         archive = subprocess.run(["git", "archive", "HEAD"], cwd=ROOT, check=True, capture_output=True).stdout
         subprocess.run(["tar", "-xf", "-", "-C", str(cls.repo)], input=archive, check=True)
         # Use the working configuration, so these tests reproduce a routing bug before its fix is committed.
-        for path in (".github/test-lanes.json", "tests/.gv-dependencies.yaml"):
+        working = {
+            LANE_FILE,
+            *(found.relative_to(ROOT).as_posix() for name in DECLARATIONS for found in ROOT.glob(name)),
+        }
+        for path in sorted(working):
             (cls.repo / path).write_bytes((ROOT / path).read_bytes())
-        cls.config = LaneConfig.model_validate_json((ROOT / ".github/test-lanes.json").read_text())
-        cls.files: ImpactConfig = file_config(cls.config)
-        cls.outside = tempfile.TemporaryDirectory()
-        cls.impact = Path(cls.outside.name) / "impact.json"
-        cls.impact.write_text(cls.files.model_dump_json())
         cls.git("init", "-q")
         cls.git("config", "user.email", "ci@example.invalid")
         cls.git("config", "user.name", "CI routing test")
         cls.git("config", "core.autocrlf", "false")
         cls.base = cls.commit()
+        cls.lane_file = cls.repo / LANE_FILE
+        cls.config = resolve(cls.repo, cls.base, cls.base, cls.lane_file).config
+        cls.files: ImpactConfig = file_config(resolve_lanes(cls.repo))
+        cls.outside = tempfile.TemporaryDirectory()
+        cls.impact = Path(cls.outside.name) / "impact.json"
+        cls.impact.write_text(cls.files.model_dump_json())
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -70,9 +82,17 @@ class RoutingTests(unittest.TestCase):
                     output.write("\n")
         return self.commit()
 
+    def plan(self, *paths: str, delete: bool = False) -> LanePlan:
+        """The plan-work action's plan for one commit that changes `paths`."""
+        head = self.change(*paths, delete=delete)
+        resolved = resolve(self.repo, self.base, head, self.lane_file)
+        return plan_work(self.repo, resolved.config, self.base, head, rules=resolved.rules)
+
     def lanes(self, *paths: str, delete: bool = False) -> set[str]:
-        result = plan(self.repo, self.config, self.base, self.change(*paths, delete=delete))
-        self.assertNotIn("fallback", result.reason, result.model_dump_json())
+        result = self.plan(*paths, delete=delete)
+        # A fallback (no Bun, an unreadable workflow) runs lanes for the wrong reason; it must not pass a case.
+        reasons = [result.reason, *(reason for values in result.lane_reasons.values() for reason in values)]
+        self.assertFalse([reason for reason in reasons if "fallback" in reason], result.model_dump_json())
         return {name for name, enabled in result.lanes.items() if enabled}
 
     def selected_files(self, *paths: str) -> tuple[str, list[str]]:
@@ -210,7 +230,7 @@ class RoutingTests(unittest.TestCase):
                     current,
                     reviewed,
                     f"{path} changed. Check that its pytest_* hooks still apply only when pytest runs in its "
-                    f"directory, then set scoped_hooks[{path!r}] in .github/test-lanes.json to `git hash-object {path}`.",
+                    f"directory, then set graph.scoped_hooks[{path!r}] in {LANE_FILE} to `git hash-object {path}`.",
                 )
 
     def test_report_code_stays_out_of_the_plugins_import_closure(self) -> None:
@@ -250,7 +270,7 @@ class RoutingTests(unittest.TestCase):
         for path in ("dogfood/pytest.ini", "examples/lru_cache/pytest.ini"):
             with self.subTest(path=path):
                 # Each is a reviewed pytest policy, so an edit also changes its fingerprint.
-                result = plan(self.repo, self.config, self.base, self.change(path))
+                result = self.plan(path)
                 self.assertTrue(all(result.lanes.values()), result.model_dump_json())
 
     def test_unit_tests_and_fixtures_keep_the_tests_lane(self) -> None:

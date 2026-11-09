@@ -40,9 +40,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      # Whole lanes first: a change that cannot affect a lane's inputs does not start that lane's jobs.
+      # Whole lanes first. Each lane is the name a job's condition reads, and a change selects it through what
+      # that job runs: the tests that import the change or declare reading it, and the scripts and actions the job
+      # executes. `ci-esta lanes` shows the lanes and why; .github/test-lanes.json adds what the graphs cannot see.
       - id: plan
-        uses: gigaverse-app/pytest-selective/actions/plan-lanes@v1
+        uses: gigaverse-app/ci-esta/actions/plan-work@v1
         with:
           config: .github/test-lanes.json
       # GitHub often omits a run's pull_requests link. This marker binds the run to its PR and head, so the push
@@ -100,11 +102,11 @@ jobs:
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync python scripts/check_docs.py
-      # Static and cheap, so it always runs: the gate, job conditions and lane file cannot drift apart.
+      # Static and cheap, so it always runs: the gate, job conditions and the lanes the workflow defines cannot drift.
       - name: Check the aggregate gate against the execution lanes
         run: >-
           uv run --no-project --python 3.14
-          --with "ci-esta[selection]>=1.1.0,<2.0.0"
+          --with "ci-esta[selection]>=1.12.0,<2.0.0"
           ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
 
   routing:
@@ -117,6 +119,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+      # plan-work plans report/publish.test.cjs from Bun's module graph; without Bun it runs that lane on every change.
+      - uses: oven-sh/setup-bun@v2
       - name: Prove lane and file routing on real Git snapshots
         run: >-
           uv run --no-project --python 3.14

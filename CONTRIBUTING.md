@@ -34,28 +34,35 @@ The first test run installs the plugin's locked Quint into your user cache with
 
 ### Declare what tests read
 
-CI runs only the test files a change can affect ([how CI runs here](docs/ci-toolkit.md)).
+CI runs only the CI jobs and test files a change can affect ([how CI runs here](docs/ci-toolkit.md)).
 A test that reads a file it does not import (an ITF fixture, the example project, a
 manifest) must declare it in [tests/.gv-dependencies.yaml](tests/.gv-dependencies.yaml),
-or a change to that file will not select the test. Check after adding tests or fixtures:
+or a change to that file will not select the test. Tests outside `tests/` (the dogfood and
+example contracts, `ci_tests/`) declare their reads next to them, in a
+`<test>.gv-dependency.yaml` file, and a script a CI job runs declares the files it reads by
+path with `# gv:test-dependency: PATH` comments, as `scripts/smoke_distribution.py` does.
+Check after adding tests or fixtures:
 
 ```bash
 SEL="pytest-selective[audit] @ git+https://github.com/gigaverse-app/pytest-selective.git@v1"
+ESTA="$(python scripts/ci/selector_requirement.py)"
 uv run --with "$SEL" pytest tests --no-selective -p pytest_selective.impact_audit_plugin --impact-audit-dir .impact-audit
-uv run --no-project --with "$SEL" python scripts/ci_file_config.py .impact-config.json
+uv run --no-project --with "$ESTA" python scripts/ci_file_config.py .impact-config.json
 uv run --no-project --with "$SEL" pytest-selective --config .impact-config.json --records .impact-audit audit
-uv run --no-project --python 3.14 --with "$SEL" python -m unittest discover -s ci_tests -v
+uv run --no-project --python 3.14 --with "$ESTA" python -m unittest discover -s ci_tests -v  # needs Bun
+uv run --no-project --python 3.14 --with "$ESTA" ci-esta lanes --config .github/test-lanes.json --base origin/main
 ```
 
-The audit must report `0 undeclared`. Add a routing case to `ci_tests/test_routing.py`
-when you add a lane input or a new kind of fixture.
+The audit must report `0 undeclared`. The last command shows which lanes your change runs and why.
+Add a routing case to `ci_tests/test_routing.py` when you add a declaration, a rule or a new
+kind of fixture.
 
 pytest loads the plugin in every session, so every module that `plugin.py` imports
 (directly or through the package `__init__.py`) reaches every test file. That set is the
-startup floor, and `floor_budget` in [.github/test-lanes.json](.github/test-lanes.json)
+startup floor, and `graph.floor_budget` in [.github/test-lanes.json](.github/test-lanes.json)
 caps it: CI fails a PR that grows it. Put code that only `report` or `codegen` needs in
 modules the plugin does not import. The selector treats a `conftest.py` that defines a
-`pytest_*` hook as loaded by every session. `scoped_hooks` records that
+`pytest_*` hook as loaded by every session. `graph.scoped_hooks` records that
 `examples/lru_cache/conftest.py` applies only when pytest runs in that directory, and pins
 the reviewed file. After editing that conftest, check that its hooks still apply only
 there, then update its entry to the output of `git hash-object examples/lru_cache/conftest.py`.
