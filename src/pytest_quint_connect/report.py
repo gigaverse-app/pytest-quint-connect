@@ -836,7 +836,9 @@ def _mermaid(text: str, limit: int = MAX_LABEL) -> str:
 
 def _words(name: object) -> str:
     """A Quint name as words: ``PartlyFilled`` reads ``Partly filled``, ``noQuintTTL`` reads ``No quint TTL``."""
-    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|[_-]+", " ", str(name)).split()
+    # Split before a capital that follows a lower-case letter, and inside a run of capitals before the next
+    # word: ``RunWithAPlantedBug`` reads "Run with a planted bug", ``noQuintTTL`` keeps "TTL".
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|[_-]+", " ", str(name)).split()
     sentence = " ".join(word if word.isupper() and len(word) > 1 else word.lower() for word in words)
     return sentence[:1].upper() + sentence[1:]
 

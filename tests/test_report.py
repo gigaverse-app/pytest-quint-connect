@@ -966,6 +966,8 @@ def test_receipt_text_cannot_escape_the_diagram(tmp_path: Path) -> None:
         ("reapedOwnerCannotWriteTest", "Reaped owner cannot write"),
         ("noQuintTTLTest", "No quint TTL"),
         ("plain_snake_case", "Plain snake case"),
+        ("runWithAPlantedBugTest", "Run with a planted bug"),
+        ("HTTPServerDownTest", "HTTP server down"),
     ],
 )
 def test_a_witness_name_reads_as_a_scenario(tmp_path: Path, witness: str, sentence: str) -> None:
