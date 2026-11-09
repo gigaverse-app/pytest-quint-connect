@@ -1,9 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    # /report: the published composite action pins its actions by SHA (AGENTS.md); Dependabot only reads
-    # an action.yml in a directory listed here.
-    directories: ["/", "/report"]
+    directory: /
     commit-message:
       prefix: ci
     schedule:

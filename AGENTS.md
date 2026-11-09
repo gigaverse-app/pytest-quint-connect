@@ -22,9 +22,8 @@ working on pytest-quint-connect itself.
 - **ITF types stay distinct.** Map keys keep their type; lists, tuples and records
   never compare equal (`tests/test_itf.py`). Add a collision test with any decoder change.
 - **Generated code carries types, never behavior.** `codegen` output must stay
-  deterministic, fingerprinted and left alone by any consumer's ruff or Black configuration, preview
-  rules included (its `# ruff: noqa: PGH004, RUF102, RUF105` / `# ruff: noqa` / `# fmt: off` header,
-  `tests/test_codegen.py::test_generated_module_is_stable_under_any_consumer_ruff_config`); regenerate
+  deterministic, fingerprinted and left alone by any consumer's ruff or Black configuration
+  (its `# ruff: noqa` / `# fmt: off` header, `tests/test_codegen.py::test_generated_module_is_stable_under_any_consumer_ruff_config`); regenerate
   `examples/lru_cache/lru_cache_driver.py` and `dogfood/session_driver.py` whenever the generator changes
   (`tests/test_codegen.py::test_committed_generated_drivers_are_current` fails otherwise).
 - **Reports say no more than receipts.** The PR comment and the README block are rendered
@@ -51,14 +50,7 @@ working on pytest-quint-connect itself.
 ## GitHub Actions versions
 
 Use published major-version tags for established Actions (for example
-`actions/checkout@v7`) in this repository's own workflows. Do not replace them with commit hashes
-unless asked.
-
-The composite action this repository publishes, `report/action.yml`, is the exception: it pins
-every action it runs to a full commit SHA with a `# vX.Y.Z` comment, because a consumer that pins
-`report@<sha>` cannot pin the moving tags inside it
-(`report/publish.test.cjs`, "the action pins every action it runs to a commit"). Dependabot updates
-those pins (`directories` in `.github/dependabot.yml` lists `/report`).
+`actions/checkout@v7`). Do not replace them with commit hashes unless asked.
 
 ALWAYS use the `v1` major-version tag for dry-lint: `gigaverse-app/dry-lint@v1` for the
 Action and `rev: v1` for pre-commit hooks; install the CLI from PyPI as `'dry-lint>=1,<2'`. Do not use commit SHAs

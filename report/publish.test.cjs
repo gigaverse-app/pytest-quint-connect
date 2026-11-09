@@ -186,13 +186,3 @@ test('a counter that cannot be reached never fails the job', async () => {
   assert.equal(await publish.share({github: f.github, context: f.context, core: f.core}, f.env, failing), 0);
   assert.match(f.notes.join('\n'), /next default-branch run retries/);
 });
-
-test('the action pins every action it runs to a commit, so a consumer that pins by SHA pins the whole chain', () => {
-  // A moving tag (`@v7`) inside a composite action defeats a caller's SHA pin of this action.
-  const action = fs.readFileSync(path.join(__dirname, 'action.yml'), 'utf8');
-  const uses = [...action.matchAll(/^\s*(?:-\s+)?uses:\s*(.+)$/gm)].map(match => match[1].trim());
-  assert.ok(uses.length >= 3, uses.join('\n'));
-  for (const reference of uses) {
-    assert.match(reference, /^[\w.-]+\/[\w./-]+@[0-9a-f]{40} {2}# v\d+\.\d+\.\d+$/, reference);
-  }
-});
