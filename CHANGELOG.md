@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.2.1...v1.3.0) (2026-11-09)
+
+
+### Features
+
+* **report:** lead with an alert and the command to run, fold repeated failures, name fixed histories ([#43](https://github.com/gigaverse-app/pytest-quint-connect/issues/43)) ([002b556](https://github.com/gigaverse-app/pytest-quint-connect/commit/002b556ce1a65f106858302936fdb1735b4792ca))
+* **report:** one header of key numbers, each with what it counts ([#45](https://github.com/gigaverse-app/pytest-quint-connect/issues/45)) ([367f083](https://github.com/gigaverse-app/pytest-quint-connect/commit/367f08331909dbfb99defcd077e522f0d5bb2946))
+* **report:** put the action first in the sticky and fold every detail beneath it ([#47](https://github.com/gigaverse-app/pytest-quint-connect/issues/47)) ([c6b92ab](https://github.com/gigaverse-app/pytest-quint-connect/commit/c6b92ab509629d11d18dd5105ec83bd136f2b35e))
+
+
+### Bug fixes
+
+* agent setup round 3, from a third adoption trial ([#49](https://github.com/gigaverse-app/pytest-quint-connect/issues/49)) ([348c2bb](https://github.com/gigaverse-app/pytest-quint-connect/commit/348c2bb0e61f222f279c1c76e5c5e942d50e8d8a))
+* **ci:** grant the Publish workflow every permission ci.yml's jobs ask for ([#42](https://github.com/gigaverse-app/pytest-quint-connect/issues/42)) ([ed65438](https://github.com/gigaverse-app/pytest-quint-connect/commit/ed65438661850efeef94344dd0cf5772d8d8802e))
+* **report:** judge a README block from another release by its evidence ([#48](https://github.com/gigaverse-app/pytest-quint-connect/issues/48)) ([bf8146e](https://github.com/gigaverse-app/pytest-quint-connect/commit/bf8146e9fe77062f2fd28d11ad711d575a488eb1))
+
 ## [1.2.1](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.2.0...v1.2.1) (2026-11-08)
 
 
