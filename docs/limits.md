@@ -36,3 +36,4 @@ for the histories that were generated. It is not a proof.
 
 pytest-quint-connect does not use or require any proof tool. It complements, and does
 not replace, ordinary unit and integration tests.
+
