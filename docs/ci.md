@@ -152,13 +152,14 @@ the gate as the only required check.
 ## 4. Show results on the pull request and in the README
 
 The report step needs no inputs. On a same-repository pull request it keeps one
-comment up to date: a row per contract test (histories, cases passed, mutants
-caught, actions covered) and, for each failure, the state and action where the code
-diverged, the differing fields and the command that reproduces it locally:
+comment up to date: a verdict, a header of the key numbers (contracts, cases passed,
+mutants caught, real bugs found, disagreements in this pull request), and, for each
+failure, the state and action where the code diverged, the differing fields and the
+command that reproduces it locally:
 
 ```text
-### ❌ Quint contracts: 1 contract · 1 test failed, 1 passed · 30/34 cases passed · 2/2 mutants caught
-... table ...
+### ❌ Quint contracts: 1 test failed, 1 passed
+1 contracts · 30/34 cases passed · 2/2 mutants caught · 0 real bugs found · 4 disagreements in this PR
 lru-cache · witness-evictsLeastRecentlyUsedTest: observed state differs from the model at
 state 3, after fetch(key='a', value=0)
 - entries[0].key: values differ; expected: 'b'; actual: 'a'

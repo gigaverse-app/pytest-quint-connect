@@ -370,6 +370,16 @@ def _headline(evidence: Evidence) -> str:
     return " · ".join([_plural(totals.contracts, "contract"), *parts])
 
 
+def _verdict(evidence: Evidence) -> str:
+    """The sticky's headline: ``every contract passed``, or contract tests per status, worst first."""
+    if not evidence.rows:
+        return "no contract ran in this run"
+    counts = [(status, count) for status in SEVERITY if (count := sum(row.status == status for row in evidence.rows))]
+    if [status for status, _ in counts] == ["passed"]:
+        return "every contract passed"
+    return ", ".join([f"{_plural(counts[0][1], 'test')} {counts[0][0]}"] + [f"{n} {s}" for s, n in counts[1:]])
+
+
 def _found_bugs(rows: list[Row]) -> list[tuple[str, dict[str, str]]]:
     """Each bug a contract's manifest says it found, once per contract, in row order."""
     return [(contract, bug) for contract, members in _by_contract(rows).items() for bug in members[0].bugs_found]
@@ -392,17 +402,13 @@ def _credit(rows: list[Row], pull: str = "") -> list[str]:
         return []
     these = "these contracts" if len(_by_contract(rows)) > 1 else "this contract"
     here = sum(1 for _, bug in found if _fixed_here(bug, pull))
-    if here == len(found):
-        title = f"🏅 This pull request fixes {_plural(here, 'real bug')} {these} found."
-    else:
-        fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found))
-        title = f"🏅 {these.capitalize()} found {_plural(len(found), 'real bug')}, fixed in {', '.join(fixes)}."
-    lines = ["> [!TIP]", f"> **{title}**"]
+    title = f"🏅 This pull request fixes what {these} found" if here == len(found) else f"🏅 What {these} found"
+    lines = ["> [!TIP]", f"> **{title}:**"]
     if here:
         lines += [
             ">",
-            "> A mutant puts each one back, and every run must catch it. They are not disagreements: the tally"
-            " counts only what this pull request's pushes caught.",
+            "> A mutant puts each one back, and every run must catch it. They are counted apart from"
+            " disagreements, which are what this pull request's own pushes caught.",
             ">",
         ]
     shown = found[:5]
@@ -629,6 +635,8 @@ def _glossary() -> list[str]:
         "only when every case ran and passed.",
         f"- **{_term('Mutant')}**: a planted fake bug. Each must make some history diverge, which proves the "
         "histories would notice that kind of bug.",
+        "- **Real bug**: a bug in the code under test that a contract found, recorded in its manifest's "
+        "`bugs_found` with the pull request that fixed it. A mutant puts each back, so every run re-checks it.",
         "- **Disagreement**: a history where the code reached a different state than the model, or a mutant no "
         "history caught. Crashes and setup errors are not counted. *Fixed* means a later push ran the case and "
         "it passed.",
@@ -709,7 +717,7 @@ def _node(node: str) -> str:
     return f"<sub>{'<br>'.join(lines)}</sub>"
 
 
-def _bugs_table(rows: list[Row]) -> list[str]:
+def _bugs_table(rows: list[Row], *, counted: bool = True) -> list[str]:
     """Bugs the contracts found earlier, as their manifests declare them, and what this run re-checks of each."""
     contracts = _by_contract(rows)
     found = _found_bugs(rows)
@@ -734,10 +742,11 @@ def _bugs_table(rows: list[Row]) -> list[str]:
         *_capped(lines, MAX_FAILURES * 2),
         "",
     ]
-    return _collapsible(f"🐞 {_plural(len(found), 'real bug')} found by {these}", table)
+    title = f"🐞 {_plural(len(found), 'real bug')} found by {these}" if counted else "🐞 Real bugs: what each was"
+    return _collapsible(title if counted else f"{title}, and the test that pins it", table)
 
 
-def _mutants_table(rows: list[Row]) -> list[str]:
+def _mutants_table(rows: list[Row], *, counted: bool = True) -> list[str]:
     """Every mutant: what it breaks and where it was caught, one row per bug and contract.
 
     A mutant that reintroduces a found bug is listed here too, and marked: the found bug's row says
@@ -770,7 +779,12 @@ def _mutants_table(rows: list[Row]) -> list[str]:
         "",
     ]
     fake = "planted fake bug" if bugs == 1 else "planted fake bugs"
-    return _collapsible(f"🧪 {_plural(bugs, 'mutant')} ({fake}), {verdict}", table, expanded=bool(missed))
+    title = (
+        f"🧪 {_plural(bugs, 'mutant')} ({fake}), {verdict}"
+        if counted
+        else "🧪 Mutants: what each planted fake bug breaks, and which history caught it"
+    )
+    return _collapsible(title, table, expanded=bool(missed))
 
 
 # A field one observation has and the other lacks; Quint records keep their fields, but receipts are data.
@@ -876,12 +890,20 @@ def _says(rows: list[Row], *, expanded: bool = True) -> list[str]:
     return lines
 
 
-def _overview(evidence: Evidence, *, green: bool, legend: bool = True, expanded: bool | None = None) -> list[str]:
+def _overview(
+    evidence: Evidence,
+    *,
+    green: bool,
+    legend: bool = True,
+    expanded: bool | None = None,
+    counted: bool = True,
+) -> list[str]:
     """The contract table, what each status means, then the bugs found and the mutants; the sticky and
     the README block share it.
 
-    The table's summary carries the numbers. When everything is green the table starts collapsed; when
-    anything is red or incomplete it stays open, failing rows first.
+    The table's summary carries the numbers, unless ``counted`` is false because a header above already
+    gives them. When everything is green the table starts collapsed; when anything is red or incomplete it
+    stays open, failing rows first.
     """
     if not evidence.rows:
         return []
@@ -892,14 +914,15 @@ def _overview(evidence: Evidence, *, green: bool, legend: bool = True, expanded:
         *([totals.mutants_caught()] if totals.mutants else []),
         _plural(totals.histories, "history", "histories"),
     ]
-    summary = f"{ICON[evidence.status or 'passed']} {' · '.join(numbers)}"
+    each = "Each contract test: its status, cases, histories and coverage"
+    summary = f"{ICON[evidence.status or 'passed']} {' · '.join(numbers) if counted else each}"
     lines = _collapsible(summary, [*_table(evidence.rows), ""], expanded=not green if expanded is None else expanded)
     # The sticky explains statuses in its alert and glossary; the README block, which has neither, here.
     present = [state for state in SEVERITY if state != "passed" and any(row.status == state for row in evidence.rows)]
     if present and legend:
         lines.append("<br>".join(f"<sub>{ICON[state]} {state}: {MEANING[state]}.</sub>" for state in present))
         lines.append("")
-    return [*lines, *_bugs_table(evidence.rows), *_mutants_table(evidence.rows)]
+    return [*lines, *_bugs_table(evidence.rows, counted=counted), *_mutants_table(evidence.rows, counted=counted)]
 
 
 # GitHub sizes a comment's tables to their content. A wide spacer floated into each cell, which GitHub caps
@@ -929,21 +952,101 @@ def _banner(assets: str, status: str | None) -> list[str]:
     ]
 
 
-def _tally(ledger: "Ledger") -> list[str]:
-    """This pull request's disagreements across its pushes, as a table that spans the comment."""
-    caught = len(ledger.caught)
-    cells = [f"{SPREAD}**{count}**" for count in (caught, ledger.fixed, ledger.open)]
-    pushes = len(ledger.pushes)
-    # 🐞 is reserved for real bugs found; a disagreement is evidence from this pull request's own runs.
+# The header's numbers, in this order. Every count the comment gives is one of these, said once, with what it
+# counts, so "case", "mutant", "real bug" and "disagreement" each keep one meaning (the glossary's).
+SCOREBOARD = ("contracts", "cases passed", "mutants caught", "real bugs found", "disagreements in this PR")
+GLYPH_WIDTH, GLYPH_HEIGHT = 14, 28
+
+
+@dataclass(frozen=True)
+class Score:
+    """One header number: its text, its color (good, bad, warning or neutral), and what it counts."""
+
+    text: str
+    color: str
+    label: str
+    meaning: str
+
+
+def _scores(evidence: Evidence, ledger: "Ledger | None" = None, pull: str = "") -> list[Score]:
+    """The header's numbers, colored by pytest-obligation's rule: red only for a failure, amber for what did
+    not run, green for what passed or was caught, plain for what is only counted."""
+    rows = evidence.rows
+    totals = Totals.of(rows)
+    by_contract = {row.contract: row for row in rows}.values()
+    witnesses, samples = sum(row.witnesses for row in by_contract), sum(row.samples for row in by_contract)
+    failing = any(row.failures or row.generation_failure or row.covered is False for row in rows)
+    cases_color = "good" if totals.passed == totals.cases else "bad" if failing else "warning"
+    found = _found_bugs(rows)
+    here = sum(1 for _, bug in found if _fixed_here(bug, pull))
+    fixes = list(dict.fromkeys(_ref(bug.get("fixed_in")) for _, bug in found if not _fixed_here(bug, pull)))
+    if not found:
+        bugs = "bugs in the code under test that a contract found; none recorded"
+    elif here == len(found):
+        bugs = "found by a contract and fixed in this pull request; a mutant now puts each back"
+    else:
+        where = f"{here} in this pull request, " if here else ""
+        bugs = f"found by a contract and fixed: {where}{', '.join(fixes)}; a mutant now puts each back"
+    if ledger is not None:
+        caught, fixed, still = len(ledger.caught), ledger.fixed, ledger.open
+        across = f"across this pull request's {_plural(len(ledger.pushes), 'push', 'pushes')}"
+    else:
+        caught = still = sum(len(row.failures) for row in rows)
+        fixed, across = 0, "in this run"
     return [
-        "| 🔀 Disagreements caught | ✅ Fixed in this PR | ❗ Still failing |",
-        "| :--: | :--: | :--: |",
-        f"| {' | '.join(cells)} |",
+        Score(str(totals.contracts), "neutral", "contracts", "Quint models checked against the code"),
+        Score(
+            f"{totals.passed}/{totals.cases}",
+            cases_color,
+            "cases passed",
+            f"{_plural(totals.histories, 'history', 'histories')} ({witnesses} witnesses, {samples} samples) "
+            "replayed, plus mutant and coverage checks",
+        ),
+        Score(
+            f"{totals.detected}/{totals.mutants}",
+            "good" if totals.detected == totals.mutants else "bad",
+            "mutants caught",
+            "planted fake bugs; each must make some history disagree with the model",
+        )
+        if totals.mutants
+        else Score("0", "warning", "mutants caught", "no planted fake bugs, so nothing shows the histories can fail"),
+        Score(str(len(found)), "good" if found else "neutral", "real bugs found", bugs),
+        Score(
+            str(caught),
+            "bad" if still else "good" if caught else "neutral",
+            "disagreements in this PR",
+            f"histories where the code reached a different state than the model, or mutants no history caught, "
+            f"{across}: {fixed} fixed, {still} still failing",
+        ),
+    ]
+
+
+def _glyph(base: str, name: str, alt: str = "") -> str:
+    return (
+        f'<picture><source media="(prefers-color-scheme: dark)" srcset="{base}{name}-dark.svg">'
+        f'<img src="{base}{name}-light.svg" width="{GLYPH_WIDTH}" height="{GLYPH_HEIGHT}" '
+        f'alt="{escape(alt, quote=True)}"></picture>'
+    )
+
+
+def _number(score: Score, base: str) -> str:
+    """Large colored digits from the action's fixed glyphs; bold text without them. Only the first glyph
+    carries the count as alt text, so a screen reader reads ``13/13 cases passed`` once, not digit by digit."""
+    if not base:
+        return f"**{score.text}**"
+    slugs = ["slash" if char == "/" else char for char in score.text]
+    alts = [f"{score.text} {score.label}"] + [""] * (len(slugs) - 1)
+    return "".join(_glyph(base, f"{score.color}-{slug}", alt) for slug, alt in zip(slugs, alts, strict=True))
+
+
+def _scoreboard(evidence: Evidence, base: str = "", ledger: "Ledger | None" = None, pull: str = "") -> list[str]:
+    """The comment's header: each key number over its name and what it counts, spanning the comment."""
+    scores = _scores(evidence, ledger, pull)
+    return [
+        "| " + " | ".join(_number(score, base) for score in scores) + " |",
+        "| " + " | ".join(":-:" for _ in scores) + " |",
+        "| " + " | ".join(f"{SPREAD}**{score.label}**<br><sub>{score.meaning}</sub>" for score in scores) + " |",
         "",
-        f"<sub>Across this pull request's {_plural(pushes, 'push', 'pushes')}: histories where the code reached a "
-        "different state than the model, or mutants no history caught. Real bugs found are counted apart.</sub>",
-        "",
-        *_fixed(ledger),
     ]
 
 
@@ -990,13 +1093,16 @@ def render_comment(
     """
     status = evidence.status
     lines = _banner(assets, status) if assets else []
-    lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_headline(evidence)}")
+    lines.append(f"### {ICON.get(status or '', '➖')} Quint contracts: {_verdict(evidence)}")
     if title:
         lines.append(f"<sub>{_code(title, 120)}</sub>")
     lines.append("")
     # Top to bottom: what a person must do, the evidence for it, what this pull request changed, then every
     # detail folded. A green run has nothing to do, so its found-bug credit leads; a red one's follows the failures.
     lines += _alert(evidence, repository)
+    # The key numbers, once, each with what it counts; everything below names items, not new counts.
+    if evidence.rows:
+        lines += _scoreboard(evidence, f"{assets}/score/" if assets else "", ledger, pull)
     green = _green(evidence, ledger)
     if green:
         lines += _credit(evidence.rows, pull)
@@ -1018,15 +1124,15 @@ def render_comment(
         lines += [readme_note, ""]
     if not green:
         lines += _credit(evidence.rows, pull)
-    # A first push that caught nothing has no story to tell yet; a later push or any catch does.
-    if ledger is not None and (ledger.caught or len(ledger.pushes) > 1):
-        lines += _tally(ledger)
+    # The header counts this pull request's disagreements; here, the histories it fixed, by name.
+    if ledger is not None:
+        lines += _fixed(ledger)
     weak = [row for row in evidence.rows if row.witnesses_only]
     if weak:
         lines += [f"<sub>⚠️ {_code(row.test)}: {WITNESSES_ONLY}.</sub>" for row in weak] + [""]
     # Details, all folded: the contract table with bugs and mutants, what each contract claims (the first thing
     # left out to fit the budget) and the glossary.
-    lines += _overview(evidence, green=green, legend=False, expanded=False)
+    lines += _overview(evidence, green=green, legend=False, expanded=False, counted=False)
     lines.append(CLAIMS)
     lines += _glossary()
     footer = [_plural(evidence.receipts, "receipt")]

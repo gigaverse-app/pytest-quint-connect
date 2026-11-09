@@ -45,3 +45,7 @@ dependencies:
     inputs: ["//docs/assets/sticky-banner*.svg"]
     kind: content
     reason: The comment may only name banners the action's own revision ships.
+  - readers: ["test_scoreboard.py"]
+    inputs: ["data/receipts/**", "//docs/assets/score/*.svg"]
+    kind: content
+    reason: The header may only name glyphs this revision ships.
