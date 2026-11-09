@@ -293,6 +293,7 @@ def test_a_reused_built_in_name_says_to_rename_it(tmp_path: Path, quint, capsys:
 
 def test_the_skill_lists_every_name_quint_reserves(tmp_path: Path) -> None:
     # The bundled Quint's own list, so a Quint upgrade that reserves a new name fails here until the skill says so.
+    # Always the managed install, never QUINT: its node_modules layout is where Quint's names module is found.
     tool = resolve_quint(load_contract(MANIFEST).quint_version, tmp_path, None)
     names_module = tool.executable.parent.parent / "@informalsystems/quint/dist/src/names/base.js"
     script = "console.log(JSON.stringify(require(process.argv[1]).builtinNames))"
