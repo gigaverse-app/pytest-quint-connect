@@ -63,6 +63,7 @@ extra:
   - docs/why.md
   - docs/tutorial.md
   - docs/ci.md
+  - docs/placement.md
   - examples/lru_cache/README.md
   - skills/pytest-quint-connect/SKILL.md
   - docs/manifest.md
@@ -83,6 +84,7 @@ nav:
   - "Example: an LRU cache contract": examples/lru_cache/README.md
   - Let your agent set it up: skills/pytest-quint-connect/SKILL.md
 - Write a contract:
+  - Where contracts live: docs/placement.md
   - Contract manifest: docs/manifest.md
   - Drivers and generated bases: docs/drivers.md
   - Options and the receipt: docs/reference.md

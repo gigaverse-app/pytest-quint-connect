@@ -215,6 +215,7 @@ on every pull request. [Run contracts in CI](ci.md) has the workflow.
 
 ## Where to go next
 
+- Lay out several contracts, link them to the code and make them readable: [where contracts live](placement.md).
 - Choose a step convention or use a hand-written driver: [drivers](drivers.md).
 - Know what a passing run shows and what it does not: [limits](limits.md).
 - Have a coding agent write the model, manifest and driver for your code:
