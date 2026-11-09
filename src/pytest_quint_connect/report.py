@@ -20,8 +20,10 @@ from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from . import __version__
 from .contract import display_path
-from .plugin import WITNESSES_ONLY, witnesses_only
+from .plugin import WITNESS_ONLY, sample_catches, witness_only
+from .replay import call_text
 
 if TYPE_CHECKING:
     from .ledger import Ledger
@@ -33,9 +35,11 @@ START = "<!-- pytest-quint-connect:start -->"
 END = "<!-- pytest-quint-connect:end -->"
 _LISTED = re.compile(r"<!-- pytest-quint-connect:contracts (.*?) -->")
 HOME = "https://github.com/gigaverse-app/pytest-quint-connect"
-LIMITS = f"{HOME}/blob/main/docs/limits.md"
+# Documentation at the tag of the version that renders the report: the one the report action is pinned to.
+DOCS = f"{HOME}/blob/v{__version__}/docs"
+LIMITS = f"{DOCS}/limits.md"
 # "Mutant" is the industry term but jargon: every mention links to this explanation, shown on hover.
-MUTANTS = f"{HOME}/blob/main/docs/why.md#proof-that-the-tests-can-fail"
+MUTANTS = f"{DOCS}/why.md#proof-that-the-tests-can-fail"
 MUTANTS_TIP = (
     "Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. "
     "Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"
@@ -128,7 +132,8 @@ class Row:
     # The manifest's bugs_found, as recorded in the receipt: declared facts, shared by the contract's tests.
     bugs_found: list[dict[str, str]] = field(default_factory=list)
     passed_cases: frozenset[str] = frozenset()
-    witnesses_only: bool = False
+    # Detected mutants that no sampled history caught: only named witnesses did.
+    witness_only: tuple[str, ...] = ()
     # None for receipts written before they recorded the manifest's actions and invariant.
     claims: Claims | None = None
 
@@ -246,7 +251,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                     ],
                     bugs_found=list(contract.get("bugs_found", [])),
                     passed_cases=frozenset(case for case, outcome in outcomes.items() if outcome == "passed"),
-                    witnesses_only=witnesses_only(test.get("mutations", {}), samples),
+                    witness_only=tuple(witness_only(test.get("mutations", {}), samples)),
                     claims=claims,
                 )
             )
@@ -273,10 +278,9 @@ def _ref(ref: object) -> str:
     return text if re.fullmatch(r"https://[^\s<>()\[\]|]+|[\w.#/-]{1,80}", text) else _code(text, 80)
 
 
-def _call(action: object, arguments: object) -> str:
-    """``fetch(key='a', value=0)`` as inline code."""
-    shown = ", ".join(f"{key}={value!r}" for key, value in dict(arguments or {}).items())
-    return _code(f"{action}({shown})")
+def _call(action: object, arguments: object, event_fields: object = False) -> str:
+    """``fetch(key='a')`` as inline code; ``fetch(event: key='a', value=0)`` for a whole event record."""
+    return _code(call_text(action, dict(arguments or {}), bool(event_fields)))
 
 
 def _value(value: object) -> str:
@@ -516,7 +520,7 @@ def _what(failure: Failure) -> str:
     if "survived" in finding:
         return f"the mutant (a planted fake bug) survived all {finding['survived']} histories; no observation differed from the model"
     if "state" in finding:
-        action = _call(finding.get("action"), finding.get("arguments"))
+        action = _call(finding.get("action"), finding.get("arguments"), finding.get("event_fields"))
         return f"the code left the model at state {finding['state']}, after {action}"
     return "failed; see the job log"
 
@@ -662,8 +666,14 @@ def _mutant_cells(catch: Catch) -> tuple[bool, str, str]:
     if mutation is None:
         verdict = "➖ **not run**" if catch.outcome is None else "❌ **not caught**"
         return False, verdict, _missed(catch)
-    call = _call(mutation.get("action"), mutation.get("arguments"))
-    return True, _code(mutation.get("detected_by")), f"state {mutation.get('state')}, after {call}"
+    call = _call(mutation.get("action"), mutation.get("arguments"), mutation.get("event_fields"))
+    by = _code(mutation.get("detected_by"))
+    counted = sample_catches(mutation)
+    if counted is not None:
+        by += f"<br><sub>samples: {counted} diverge</sub>"
+    elif mutation.get("caught_by_sample") is False:
+        by += "<br><sub>no sample caught it</sub>"
+    return True, by, f"state {mutation.get('state')}, after {call}"
 
 
 def _rechecked(catch: Catch | None) -> str:
@@ -846,7 +856,7 @@ def _steps(illustrated: dict[str, Any]) -> list[str]:
     ]
     previous: object = None
     for index, step in enumerate(steps[:MAX_STEPS]):
-        call = _call(step.get("action"), step.get("arguments"))
+        call = _call(step.get("action"), step.get("arguments"), step.get("event_fields"))
         observed = step.get("observed")
         expects = _code(_value(observed), 600) if index == 0 else _changed(previous, observed)
         lines.append(f"| {_code(step.get('state'))} | {call} | {expects} |")
@@ -1127,9 +1137,10 @@ def render_comment(
     # The header counts this pull request's disagreements; here, the histories it fixed, by name.
     if ledger is not None:
         lines += _fixed(ledger)
-    weak = [row for row in evidence.rows if row.witnesses_only]
+    weak = [(row, mutant) for row in evidence.rows for mutant in row.witness_only]
     if weak:
-        lines += [f"<sub>⚠️ {_code(row.test)}: {WITNESSES_ONLY}.</sub>" for row in weak] + [""]
+        lines += [f"<sub>⚠️ {_code(row.test)}: mutant {_code(mutant)} {WITNESS_ONLY}.</sub>" for row, mutant in weak]
+        lines.append("")
     # Details, all folded: the contract table with bugs and mutants, what each contract claims (the first thing
     # left out to fit the budget) and the glossary.
     lines += _overview(evidence, green=green, legend=False, expanded=False, counted=False)
@@ -1209,6 +1220,12 @@ def _caught(catch: Catch) -> dict[str, Any]:
     """What the block shows of a mutant: never the trace paths a receipt records, which differ by machine."""
     mutation = catch.mutation or {}
     shown = {key: mutation.get(key) for key in ("detected_by", "state", "action", "arguments", "histories", "diverged")}
+    # Fields later receipts added count only when present, so a receipt without them keeps its fingerprint.
+    shown |= {
+        key: mutation[key]
+        for key in ("event_fields", "caught_by_sample", "samples_diverged", "samples")
+        if key in mutation
+    }
     return {
         "mutant": catch.mutant,
         "description": catch.description,
@@ -1236,7 +1253,8 @@ def evidence_fingerprint(evidence: Evidence) -> str:
                 "covered": row.covered,
                 "quint": row.quint,
                 "bugs_found": row.bugs_found,
-                "witnesses_only": row.witnesses_only,
+                # Hashed as receipts before per-mutant warnings had it: whether only witnesses caught every mutant.
+                "witnesses_only": bool(row.witness_only) and len(row.witness_only) == row.mutants_detected,
                 "claims": None
                 if claims is None
                 else [claims.actions, claims.invariant, claims.witnesses, claims.bounds, claims.illustrated],
@@ -1301,13 +1319,18 @@ class ReadmeCheck:
     refresh: bool = False
 
 
-def check_readme(
-    document: str, evidence: Evidence, *, name: str = "README.md", sign: Sign | None = None
-) -> ReadmeCheck:
-    expected = embed(document, render_readme(evidence, sign)).replace("\r\n", "\n")
+def check_readme(document: str, evidence: Evidence, *, name: str = "README.md") -> ReadmeCheck:
+    """Whether the block still matches the evidence.
+
+    The counter sign is not evidence, so it never makes a block stale: the check keeps whatever sign the block
+    shows (a block filled locally has none, and the action adds one only when it writes the block). A block
+    another renderer version wrote, its doc links pointing at that version's tag, is judged by the evidence
+    fingerprint it records.
+    """
+    rendered = embed(document, render_readme(evidence, Sign.found(document))).replace("\r\n", "\n")
     current = document.replace("\r\n", "\n")
     # The renderer's version is provenance, not content: a release that renders the same text stays current.
-    if _EVIDENCE.sub("", expected) == _EVIDENCE.sub("", current):
+    if _EVIDENCE.sub("", rendered) == _EVIDENCE.sub("", current):
         return ReadmeCheck("current")
     listed = _LISTED.search(current)
     previous = set(filter(None, listed.group(1).split(","))) if listed else set()
@@ -1339,7 +1362,7 @@ def check_readme(
         )
     diff = "".join(
         difflib.unified_diff(
-            current.splitlines(keepends=True), expected.splitlines(keepends=True), name, f"{name} (from receipts)"
+            current.splitlines(keepends=True), rendered.splitlines(keepends=True), name, f"{name} (from receipts)"
         )
     )
     return ReadmeCheck("stale", "the evidence changed since the block was generated", diff)

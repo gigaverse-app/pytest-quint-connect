@@ -218,8 +218,9 @@ def test_readme_check_judges_another_releases_block_by_its_evidence(tmp_path: Pa
     # A release that lays out different evidence is still stale.
     found = embed(document, older_renderer(render_readme(evidence("bug-found"))))
     assert check_readme(found, evidence("passed")).state == "stale"
-    # Only the version differs: nothing to refresh.
-    same = embed(document, render_readme(evidence("passed")).replace(renderer_version(), "1.0.0"))
+    # Only the recorded version differs: nothing to refresh.
+    marker = f" renderer {renderer_version()} -->"
+    same = embed(document, render_readme(evidence("passed")).replace(marker, " renderer 1.0.0 -->"))
     assert check_readme(same, evidence("passed")) == check_readme(same.replace("1.0.0", "9.9.9"), evidence("passed"))
     assert check_readme(same, evidence("passed")).reason == ""
 
@@ -376,6 +377,60 @@ def test_no_sign_without_the_flag_or_an_existing_one(tmp_path: Path, monkeypatch
     readme = readme_with_block(tmp_path)
     assert main(["report", str(RECEIPTS / "lru-passed.json"), "--readme", str(readme)]) == 0
     assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
+
+
+def test_the_check_never_requires_the_counter_sign(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The action passes --counter-sign while it shares totals; a block filled locally has no sign and is current.
+    readme = readme_with_block(tmp_path)
+    receipt = str(RECEIPTS / "lru-passed.json")
+    assert main(["report", receipt, "--readme", str(readme)]) == 0
+    monkeypatch.setenv("GITHUB_REPOSITORY_ID", "1")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/shop")
+    capsys.readouterr()
+    assert main(["report", receipt, "--readme", str(readme), "--check", "--counter-sign"]) == 0
+    out = capsys.readouterr().out
+    assert "the contract block is current" in out
+    assert "shows no counter sign (optional)" in out and "--counter-sign" in out
+    assert "/v1/sign.svg" not in readme.read_text(encoding="utf-8")
+    # Writing the block is what adds the sign.
+    assert main(["report", receipt, "--readme", str(readme), "--counter-sign"]) == 0
+    assert "/v1/sign.svg" in readme.read_text(encoding="utf-8")
+    assert main(["report", receipt, "--readme", str(readme), "--check", "--counter-sign"]) == 0
+
+
+def test_readme_links_point_at_the_rendering_versions_docs_and_a_release_does_not_stale_the_block(
+    tmp_path: Path,
+) -> None:
+    from pytest_quint_connect import __version__
+    from pytest_quint_connect.report import HOME
+
+    block_text = render_readme(evidence("passed"))
+    assert f"{HOME}/blob/v{__version__}/docs/limits.md" in block_text
+    assert f"{HOME}/blob/main/docs/" not in block_text
+    # A block another release rendered links that release's docs; it is judged by its evidence, so still current.
+    document = embed(f"# Project\n\n{START}\n{END}\n", block_text)
+    marker = f" renderer {renderer_version()} -->"
+    older = document.replace(f"/blob/v{__version__}/docs/", "/blob/v1.0.0/docs/").replace(marker, " renderer 1.0.0 -->")
+    assert older != document
+    relaid = check_readme(older, evidence("passed"))
+    assert relaid.state == "current" and relaid.refresh
+    # The evidence still decides.
+    assert check_readme(document.replace("17/17", "16/17"), evidence("passed")).state == "stale"
+
+
+def test_whole_event_records_are_labelled_wherever_an_action_is_named(tmp_path: Path) -> None:
+    receipt = json.loads((RECEIPTS / "lru-passed.json").read_text(encoding="utf-8"))
+    contract = receipt["contracts"][0]
+    contract["illustrated"]["steps"][3].update(arguments={"key": "a", "value": 0}, event_fields=True)
+    mutation = contract["tests"][0]["mutations"]["stale-read"]
+    mutation.update(arguments={"key": "a"}, event_fields=False)
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    comment = render_comment(load([path]), repository=REPO)
+    assert "`fetch(event: key='a', value=0)`" in comment
+    assert "state 3, after `fetch(key='a')`" in comment
 
 
 def block(text: str, summary: str) -> tuple[bool, list[str]]:
@@ -651,15 +706,20 @@ def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> 
     plain = tmp_path / "plain.json"
     plain.write_text(json.dumps(receipt), encoding="utf-8")
     # Receipts from before caught_by_sample existed say nothing either way.
-    assert "caught only by a named witness" not in render_comment(load([plain]), repository=REPO)
-    for test in receipt["contracts"][0]["tests"]:
-        for mutation in test["mutations"].values():
-            mutation["caught_by_sample"] = False
+    quiet = render_comment(load([plain]), repository=REPO)
+    assert "caught only by witnesses" not in quiet and "samples:" not in quiet
+    # The warning is per mutant: one test's samples catch stale-read (5 of 12), the other's catch none.
+    lru, ordered = receipt["contracts"][0]["tests"]
+    lru["mutations"]["stale-read"].update(caught_by_sample=False, samples_diverged=0, samples=12)
+    ordered["mutations"]["stale-read"].update(caught_by_sample=True, samples_diverged=5, samples=12)
     weak = tmp_path / "results.json"
     weak.write_text(json.dumps(receipt), encoding="utf-8")
     comment = render_comment(load([weak]), repository=REPO)
-    assert "`test_lru_contract.py::test_lru_cache`: every mutant was caught only by a named witness" in comment
+    assert "`test_lru_contract.py::test_lru_cache`: mutant `stale-read` caught only by witnesses" in comment
+    assert "`test_lru_contract.py::test_ordered_refactor`: mutant" not in comment
     assert "Raise bounds.n_traces or max_steps" in comment
+    # The mutant table says how many sampled histories catch each mutant, per test.
+    assert "<sub>samples: 0/12 diverge</sub>" in comment and "<sub>samples: 5/12 diverge</sub>" in comment
 
 
 CLAIMS = "<summary>What <code>lru-cache</code> says</summary>"

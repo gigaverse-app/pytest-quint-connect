@@ -86,6 +86,18 @@ jobs:
 
 Adjust the install step and the paths to your project, and follow its conventions:
 
+- **Its own job, on Python 3.11+.** pytest-quint-connect and the driver base it
+  generates need Python 3.11+. Run the contracts as this separate job on one such
+  Python, not as an entry in a test matrix, even when the matrix covers older versions.
+- **No `needs:`.** Leave the job independent of your other jobs, so an unrelated
+  failure never hides the contract's result. If you gate merges on one aggregate job,
+  add this job to that gate's `needs` instead (section 3).
+- **Action versions.** Use the versions, or the commit-SHA pins, your other workflows
+  already use for `actions/checkout`, `setup-python` and `cache`; older majors work the
+  same. Any Node.js 22+ works.
+- **Cache key.** Hash the file that pins pytest-quint-connect, so the cache changes when
+  the pin can: `hashFiles('tox.ini')` when it lives in `tox.ini`, otherwise your
+  requirements file, lock file or `pyproject.toml`.
 - **Triggers.** Use the triggers your other workflows use. With both `push` and
   `pull_request` on every branch, the job runs twice for each pull-request commit;
   the `push` filter above keeps it to `main`.
@@ -100,6 +112,13 @@ Adjust the install step and the paths to your project, and follow its convention
   `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # vX.Y.Z`, with the SHA from
   `gh api repos/gigaverse-app/pytest-quint-connect/commits/vX.Y.Z --jq .sha`.
 - **uv.** Install with `uv sync --locked` and prefix both commands with `uv run`.
+- **Sharing totals.** The report step's `share-totals` input defaults to `true`: on the
+  default branch it sends merged pull requests' tallies to the
+  [global counter](reference.md#the-global-counter). Set `share-totals: 'false'` to opt out.
+- **Forks.** GitHub disables a fork's inherited workflows even when its Actions settings
+  allow them. `gh api repos/OWNER/REPO/actions/workflows --jq '.workflows[]|{name,state}'`
+  shows `disabled_fork` for each; enable them with `gh workflow enable "<name>" -R OWNER/REPO`
+  (or the Actions tab), then close and reopen the pull request to start its runs.
 
 ### Run through tox or nox
 
@@ -161,7 +180,7 @@ command that reproduces it locally:
 ### ❌ Quint contracts: 1 test failed, 1 passed
 1 contracts · 30/34 cases passed · 2/2 mutants caught · 0 real bugs found · 4 disagreements in this PR
 lru-cache · witness-evictsLeastRecentlyUsedTest: observed state differs from the model at
-state 3, after fetch(key='a', value=0)
+state 3, after fetch(key='a')
 - entries[0].key: values differ; expected: 'b'; actual: 'a'
 
 cd examples/lru_cache
@@ -182,8 +201,9 @@ pytest-quint-connect report '**/.artifacts/quint-connect/results.json' --readme 
 The block is Markdown and HTML. In a `README.rst` or another format the markers would
 show as text, so keep the block in a Markdown file such as `contracts/README.md`, link
 it from your README, and point the step at it with `readme: contracts/README.md`. When
-the file is missing or has no markers, the step leaves it alone and adds a warning
-annotation naming it.
+the README is also your PyPI description, make that link an absolute GitHub URL:
+relative links break on PyPI. When the file is missing or has no markers, the step
+leaves it alone and adds a warning annotation naming it.
 
 From then on the step fails when the block no longer matches the receipts, and
 prints the same command to refresh it, pinned to the renderer version that ran. A run

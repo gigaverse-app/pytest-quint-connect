@@ -113,6 +113,8 @@ line records what it shows and which version wrote it: when the text differs and
 versions differ, the check compares fingerprints, so a new layout of the same evidence is
 `current` (with a note to refresh) and only changed evidence is `stale`. A block written
 before that line existed is `unverifiable` until refreshed once. With commit SHAs, write `report@<sha>  # vX.Y.Z`.
+The block's links to these docs point at the tag of the version that rendered it
+(`blob/vX.Y.Z/docs/...`).
 
 | Input | Default | |
 | --- | --- | --- |
@@ -179,9 +181,12 @@ merged, its pushes, and the plugin version: no code, names, paths or people.
 - **Counted once.** The counter keys contributions on the repository's key and pull request number, so each run can
   resend the 30 most recently merged pull requests: a resend changes nothing, and a failed send is caught up by the
   next run. Sending never fails the job.
-- **The repository's own sign.** While it shares its totals, the README block opens with the repository's sign: what
-  its own contracts caught (`report --counter-sign`, which the action passes).
-- **Opt out** with `share-totals: "false"`. Nothing is sent, and the block shows no sign.
+- **The repository's own sign.** While it shares its totals, the README block can open with the repository's sign:
+  what its own contracts caught. `report --counter-sign` adds it when it writes the block, keyed from
+  `GITHUB_REPOSITORY_ID` and named from `GITHUB_REPOSITORY` (the action passes the flag and has both). The check never
+  requires the sign: a block filled locally without it stays current, and one that shows it keeps it. To add it
+  locally, run the refresh command with both variables set and `--counter-sign`.
+- **Opt out** with `share-totals: "false"`. Nothing is sent, and the action adds no sign.
 
 The send needs the job to run on pushes to the default branch, and a token that can read pull requests.
 
@@ -249,17 +254,23 @@ and per test: outcomes, completeness, steps replayed, imported modules (with
 failed history its state, action, arguments, first differences and mismatch file, and for
 a surviving mutant how many histories it survived. A detected mutant's entry in
 `mutations` says where it was first caught: `detected_by` (the case id of the trace),
-`state`, `action`, `arguments` and the differences, and `caught_by_sample`: whether a sampled
-history caught it too (witnesses replay first; samples then replay until one does). When
-every detected mutant has `caught_by_sample: false`, the session summary and the PR comment
-say that only the named witnesses catch the mutants; the entry of a mutant named by a found bug adds
+`state`, `action`, `arguments` and the differences, then `samples_diverged` of `samples`: how many
+sampled histories diverge through it, and `caught_by_sample`, whether any did. Witnesses replay
+first, until one catches the mutant; every sample then replays, so the count is exact. The session
+summary lists each mutant's count (`sampled histories that catch each mutant: stale-read 3/12`), and
+it and the PR comment name every mutant that only witnesses catch. `arguments` are the action's own
+parameters when a generated driver declares them; with a hand-written driver in the event
+convention they are the whole event record, and `event_fields: true` says so (reports show
+`fetch(event: key='a', value=0)`). The entry of a mutant named by a found bug adds
 `histories` (how many were replayed) and `diverged` (the case ids that mismatched, in
 generation order). `root` is the session's rootdir, and
 the mismatch paths are relative to it. `config_file` is the configuration file given
 with `-c`, relative to `root` (`null` when pytest found its configuration itself); the
 PR comment's reproduce command repeats it. A `--quint-replay` session rewrites
 `results.json` with mode `replay-only`; rerun the full contract to restore complete
-evidence. Beside it, each
+evidence. Its summary says what the one replay showed (`replay of sample-3.itf.json through
+mutant 'stale-read': diverged from the model at state 4, after action fetch(key='a')`), never a
+session-wide mutant tally. Beside it, each
 contract's directory holds the ITF traces, Quint logs and a `mismatch-TEST-CASE.json`
 for every failed history. Upload the whole directory from CI, including on failure.
 
