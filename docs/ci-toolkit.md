@@ -98,6 +98,6 @@ To check the wiring statically:
 
 ```bash
 uvx --from ci-esta ci-esta adoption --root .
-uv run --no-project --python 3.14 --with "ci-esta[selection]>=1.13.0,<2.0.0" \
+uv run --no-project --python 3.14 --with "ci-esta[selection]>=1.14.0,<2.0.0" \
   ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
 ```
