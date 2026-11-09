@@ -39,6 +39,7 @@ _OPTIONAL = {
     "description",
     "limits",
     "state_names",
+    "step_names",
     "codegen_header",
 }
 
@@ -132,6 +133,9 @@ class Contract:
     # The model variable whose value names each state, such as a sum type ``Empty | PartlyFilled | Full``.
     # Reports draw the model's state machine in those names; the driver is never compared on it.
     state_names: str | None = None
+    # The model variable whose value names what each step did, such as ``AddedEntry | EvictedLeastRecentlyUsed``.
+    # Reports label the state diagram's arrows with it; like ``state_names``, it is never compared with the code.
+    step_names: str | None = None
 
     @property
     def mutants(self) -> tuple[str, ...]:
@@ -332,11 +336,15 @@ def load_contract(manifest: Path) -> Contract:
         raise ContractError("observe must be a state variable name or a non-empty list of names")
 
     state_names = _string(data, "state_names") if "state_names" in data else None
-    if state_names in observed:
-        raise ContractError(
-            f"state_names {state_names!r} is also observed; name the states with a variable the driver is not "
-            "compared on, so naming them never changes what the code must do"
-        )
+    step_names = _string(data, "step_names") if "step_names" in data else None
+    for field, variable in (("state_names", state_names), ("step_names", step_names)):
+        if variable in observed:
+            raise ContractError(
+                f"{field} {variable!r} is also observed; name the model's states and steps with variables the "
+                "driver is not compared on, so naming them never changes what the code must do"
+            )
+    if state_names is not None and state_names == step_names:
+        raise ContractError("state_names and step_names must be different variables: one names states, one steps")
 
     historical = data.get("historical")
     historical_sha256 = data.get("historical_sha256")
@@ -387,6 +395,7 @@ def load_contract(manifest: Path) -> Contract:
         limits=tuple(str(item) for item in limits),
         codegen_header=path(_string(data, "codegen_header"), "codegen_header") if "codegen_header" in data else None,
         state_names=state_names,
+        step_names=step_names,
     )
     check_sources(contract)
     return contract

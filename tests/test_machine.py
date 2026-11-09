@@ -38,7 +38,7 @@ def test_a_value_is_drawn_by_its_shape() -> None:
 
 
 def test_a_model_that_names_no_states_is_merged_by_the_shape_of_what_it_observes() -> None:
-    contract = replace(load_contract(MANIFEST), state_names=None)
+    contract = replace(load_contract(MANIFEST), state_names=None, step_names=None)
     merged = machine(contract, TRACES, None)
     assert merged["histories"] == 2 and merged["named_by"] is None and merged["initial"] == [0]
     assert merged["states"][0] == {"fields": [["entries", "empty"], ["lastRead", "NoRead"]]}
@@ -48,7 +48,7 @@ def test_a_model_that_names_no_states_is_merged_by_the_shape_of_what_it_observes
 
 
 def test_an_arrow_keeps_only_the_arguments_every_call_on_it_shared() -> None:
-    contract = replace(load_contract(MANIFEST), state_names=None)
+    contract = replace(load_contract(MANIFEST), state_names=None, step_names=None)
     parameters = {"store": ("key", "value"), "fetch": ("key",)}
 
     def first_store(traces: list[Path]) -> dict:
@@ -66,3 +66,9 @@ def test_a_named_state_variable_the_trace_lacks_is_an_error() -> None:
     # These traces predate the model's `fill` variable: naming states by it must fail, not fall back.
     with pytest.raises(TraceError, match="no state_names variable 'fill'"):
         machine(load_contract(MANIFEST), TRACES, None)
+
+
+def test_a_named_step_variable_the_trace_lacks_is_an_error() -> None:
+    contract = replace(load_contract(MANIFEST), state_names=None)
+    with pytest.raises(TraceError, match="no step_names variable 'change'"):
+        machine(contract, TRACES, None)

@@ -53,13 +53,14 @@
         }
       ],
       "state_names": "fill",
+      "step_names": "change",
       "limits": [
         "Three keys, values 0-2, capacity 2, at most 8 steps per sampled history.",
         "Single-threaded; the driver's projection of cache.items() is trusted."
       ],
       "sha256": {
-        "quint-connect.json": "096d2b6c08f9b5a947e9fb4fdd1ae5fd322038ddd79e4e1f0443ae4917c603d8",
-        "lru.qnt": "baf9b29eab2828e61a686e3c9ebf35af966664c5abb241f121a89553ae5ae071",
+        "quint-connect.json": "838633c80e99c7c87dd4bcc65903c435a40f1fd1be75055c134fe7f1cf0020ea",
+        "lru.qnt": "8dad8ced7ae2af69ae3ed72f4279010f60a19988b428d09f92f2f79ff75ea07b",
         "lru_cache.py": "75bbbfdcb4d29bf6a01cce1fd5bc6262e702198b254edb6a7843b5909c794924"
       },
       "quint": "0.33.1",
@@ -68,7 +69,9 @@
           "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
           "/home/user\\AppData\\Local\\pytest-quint-connect\\quint-0.33.1-0710bb314b301b56\\node_modules\\@informalsystems\\quint\\dist\\src\\cli.js",
           "typecheck",
-          "/repo\\examples\\lru_cache\\lru.qnt"
+          "/repo\\examples\\lru_cache\\lru.qnt",
+          "--out",
+          "/repo\\examples\\lru_cache\\.artifacts\\quint-connect\\lru-cache\\typecheck.json"
         ],
         [
           "/home/user\\scoop\\apps\\nodejs\\current\\node.EXE",
@@ -140,6 +143,11 @@
       "machine": {
         "histories": 15,
         "named_by": "fill",
+        "steps_named_by": "change",
+        "described": {
+          "states": "How full the cache is after each step",
+          "steps": "What each step did to the cache"
+        },
         "states": [
           {
             "name": "Empty"
@@ -161,6 +169,7 @@
             "actions": [
               {
                 "action": "store",
+                "step": "AddedEntry",
                 "arguments": {}
               }
             ]
@@ -171,6 +180,7 @@
             "actions": [
               {
                 "action": "store",
+                "step": "AddedEntry",
                 "arguments": {}
               }
             ]
@@ -181,14 +191,27 @@
             "actions": [
               {
                 "action": "fetch",
+                "step": "ReadHitMovedToMostRecent",
                 "arguments": {}
               },
               {
                 "action": "store",
+                "step": "EvictedLeastRecentlyUsed",
                 "arguments": {}
               },
               {
                 "action": "inspect",
+                "step": "NothingChanged",
+                "arguments": {}
+              },
+              {
+                "action": "store",
+                "step": "ReplacedValue",
+                "arguments": {}
+              },
+              {
+                "action": "fetch",
+                "step": "ReadMissed",
                 "arguments": {}
               }
             ]
@@ -199,14 +222,22 @@
             "actions": [
               {
                 "action": "fetch",
+                "step": "ReadMissed",
                 "arguments": {}
               },
               {
                 "action": "inspect",
+                "step": "NothingChanged",
+                "arguments": {}
+              },
+              {
+                "action": "fetch",
+                "step": "ReadHitMovedToMostRecent",
                 "arguments": {}
               },
               {
                 "action": "store",
+                "step": "ReplacedValue",
                 "arguments": {}
               }
             ]
@@ -217,6 +248,7 @@
             "actions": [
               {
                 "action": "fetch",
+                "step": "ReadMissed",
                 "arguments": {}
               }
             ]

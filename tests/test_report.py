@@ -240,8 +240,8 @@ def test_the_evidence_fingerprint_is_a_compatibility_contract() -> None:
     every adopter on the next release, so a change here needs a migration note, not just new goldens."""
     assert {name: evidence_fingerprint(evidence(name)) for name in ("passed", "bug-found")} == {
         # Regenerated receipts carry the model's state machine, which the README block shows, so it is hashed.
-        "passed": "9ef4e47ef4251c3e",
-        "bug-found": "73dc0c5432abb21a",
+        "passed": "0e41f94228c03d2c",
+        "bug-found": "54f993ec482c1172",
     }
     assert evidence_fingerprint(dogfood()) == "c86dc4be41ef2cfe"
     moved = Evidence([replace(row, root="/elsewhere") for row in evidence("passed").rows], 1, [])
@@ -864,23 +864,32 @@ def mermaid(text: str) -> str:
 def test_the_model_is_drawn_as_the_state_machine_it_names_with_a_full_size_link() -> None:
     comment = render_comment(evidence("passed"), repository=REPO)
     block = claims_block(comment)
-    # The model names its states (variable `fill`); the diagram leads the claims, titled and explained.
-    assert block.index("**How `lru-cache` behaves**: each box is a state as the model names it (variable `fill`)") < (
-        block.index("**Actions**")
+    # The key is in the model's own words: the doc comments on the variables that name states and steps.
+    key = (
+        "**How `lru-cache` behaves**. **Boxes:** how full the cache is after each step (variable `fill`). "
+        "**Arrows:** what each step did to the cache (variable `change`), in bold, then the action that did it. "
+        "Merged from the 15 histories Quint generated; a state or step none of them reached is not drawn."
     )
-    assert "Merged from the 15 histories Quint generated; a state or action none of them reached is not drawn." in block
+    assert key in block and block.index(key) < block.index("**Actions**")
     diagram = mermaid(block)
+    # The diagram carries its own title, and the arrows say what each step did: a full cache evicts.
     assert diagram.splitlines() == [
+        "---",
+        'title: "lru-cache: how full the cache is after each step"',
+        "---",
         "stateDiagram-v2",
         '  state "<b>Empty</b>" as s0',
         '  state "<b>Partly filled</b>" as s1',
         '  state "<b>Full</b>" as s2',
         "  [*] --> s0",
-        "  s0 --> s1 : store",
-        "  s1 --> s2 : store",
-        "  s2 --> s2 : store<br>fetch<br>inspect",
-        "  s1 --> s1 : store<br>fetch<br>inspect",
-        "  s0 --> s0 : fetch",
+        "  s0 --> s1 : <b>Added entry</b> #183; store",
+        "  s1 --> s2 : <b>Added entry</b> #183; store",
+        "  s2 --> s2 : <b>Evicted least recently used</b> #183; store<br><b>Replaced value</b> #183; store"
+        "<br><b>Read hit moved to most recent</b> #183; fetch<br><b>Read missed</b> #183; fetch"
+        "<br><b>Nothing changed</b> #183; inspect",
+        "  s1 --> s1 : <b>Replaced value</b> #183; store<br><b>Read missed</b> #183; fetch"
+        "<br><b>Read hit moved to most recent</b> #183; fetch<br><b>Nothing changed</b> #183; inspect",
+        "  s0 --> s0 : <b>Read missed</b> #183; fetch",
     ]
     # The link carries this very diagram to mermaid.live in its fragment, which never reaches a server.
     link = re.search(r"\[Open full size ↗\]\((https://mermaid\.live/view#base64:([A-Za-z0-9_=-]+))\)", block)
@@ -906,6 +915,7 @@ def test_an_arrow_names_the_arguments_every_call_on_it_shared(tmp_path: Path) ->
 def test_a_model_that_names_no_states_is_drawn_by_its_values_and_says_how_to_name_them(tmp_path: Path) -> None:
     def unnamed(contract: dict) -> None:
         contract["machine"]["named_by"] = None
+        contract["machine"]["described"] = {}
         contract["machine"]["states"] = [
             {"fields": [["entries", "empty"], ["lastRead", "NoRead"]]},
             {"fields": [["entries", "1 item"], ["lastRead", "NoRead"]]},
@@ -914,6 +924,7 @@ def test_a_model_that_names_no_states_is_drawn_by_its_values_and_says_how_to_nam
 
     block = claims_block(render_comment(edited_passed_receipt(tmp_path, unnamed), repository=REPO))
     assert '  state "entries: empty<br>lastRead: NoRead" as s0' in mermaid(block)
+    assert 'title: "lru-cache: its states, by the values it expects"' in mermaid(block)
     assert "The model does not name its states: give it a variable that does and set the manifest's `state_names`" in (
         block
     )
@@ -939,7 +950,7 @@ def test_receipt_text_cannot_escape_the_diagram(tmp_path: Path) -> None:
     comment = render_comment(edited_passed_receipt(tmp_path, inject), repository=REPO)
     # One fence opens the diagram and one closes it: an injected fence cannot end it early.
     assert comment.count("```mermaid") == 1
-    for line in mermaid(comment).splitlines()[1:]:
+    for line in mermaid(comment).splitlines()[4:]:
         label = line.split('"')[1] if '"' in line else line.partition(" : ")[2]
         # What remains once our own markup and Mermaid's entity codes are taken out is plain text.
         bare = re.sub(r"</?b>|<br>|#\d+;", "", label)
@@ -963,3 +974,12 @@ def test_a_witness_name_reads_as_a_scenario(tmp_path: Path, witness: str, senten
 
     block = claims_block(render_comment(edited_passed_receipt(tmp_path, rename), repository=REPO))
     assert f"<summary>Scenario: {sentence}, step by step</summary>" in block
+
+
+def test_a_diagram_title_keeps_only_plain_text(tmp_path: Path) -> None:
+    def document(contract: dict) -> None:
+        contract["machine"]["described"] = {"states": 'How "full" <b>`it`</b> is\n---\ntitle: x'}
+
+    lines = mermaid(render_comment(edited_passed_receipt(tmp_path, document), repository=REPO)).splitlines()
+    # Mermaid does not decode entity codes in a title, so anything but plain text is dropped, never escaped.
+    assert lines[:3] == ["---", 'title: "lru-cache: how full b it /b is --- title: x"', "---"]

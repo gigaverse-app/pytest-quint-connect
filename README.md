@@ -214,7 +214,7 @@ generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
-<!-- pytest-quint-connect:evidence 1b833a57ffc9138d renderer 1.4.0 -->
+<!-- pytest-quint-connect:evidence e0246d36c8e1ade4 renderer 1.4.0 -->
 <a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
 
 <a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 mutants caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_mutants_caught-brightgreen"></a>
@@ -255,19 +255,22 @@ generated, and CI fails when it no longer matches the evidence:
 <details open>
 <summary>What <code>lru-cache</code> says</summary>
 
-**How `lru-cache` behaves**: each box is a state as the model names it (variable `fill`); each arrow is an action that moves the model from one state to another, with the arguments every call on it shared. Merged from the 15 histories Quint generated; a state or action none of them reached is not drawn. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoic3RhdGVEaWFncmFtLXYyXG4gIHN0YXRlIFwiPGI-RW1wdHk8L2I-XCIgYXMgczBcbiAgc3RhdGUgXCI8Yj5QYXJ0bHkgZmlsbGVkPC9iPlwiIGFzIHMxXG4gIHN0YXRlIFwiPGI-RnVsbDwvYj5cIiBhcyBzMlxuICBbKl0gLS0-IHMwXG4gIHMwIC0tPiBzMSA6IHN0b3JlXG4gIHMxIC0tPiBzMiA6IHN0b3JlXG4gIHMyIC0tPiBzMiA6IHN0b3JlPGJyPmZldGNoPGJyPmluc3BlY3RcbiAgczEgLS0-IHMxIDogc3RvcmU8YnI-ZmV0Y2g8YnI-aW5zcGVjdFxuICBzMCAtLT4gczAgOiBmZXRjaCIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
+**How `lru-cache` behaves**. **Boxes:** how full the cache is after each step (variable `fill`). **Arrows:** what each step did to the cache (variable `change`), in bold, then the action that did it. Merged from the 15 histories Quint generated; a state or step none of them reached is not drawn. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiLS0tXG50aXRsZTogXCJscnUtY2FjaGU6IGhvdyBmdWxsIHRoZSBjYWNoZSBpcyBhZnRlciBlYWNoIHN0ZXBcIlxuLS0tXG5zdGF0ZURpYWdyYW0tdjJcbiAgc3RhdGUgXCI8Yj5FbXB0eTwvYj5cIiBhcyBzMFxuICBzdGF0ZSBcIjxiPlBhcnRseSBmaWxsZWQ8L2I-XCIgYXMgczFcbiAgc3RhdGUgXCI8Yj5GdWxsPC9iPlwiIGFzIHMyXG4gIFsqXSAtLT4gczBcbiAgczAgLS0-IHMxIDogPGI-QWRkZWQgZW50cnk8L2I-ICMxODM7IHN0b3JlXG4gIHMxIC0tPiBzMiA6IDxiPkFkZGVkIGVudHJ5PC9iPiAjMTgzOyBzdG9yZVxuICBzMiAtLT4gczIgOiA8Yj5FdmljdGVkIGxlYXN0IHJlY2VudGx5IHVzZWQ8L2I-ICMxODM7IHN0b3JlPGJyPjxiPlJlcGxhY2VkIHZhbHVlPC9iPiAjMTgzOyBzdG9yZTxicj48Yj5SZWFkIGhpdCBtb3ZlZCB0byBtb3N0IHJlY2VudDwvYj4gIzE4MzsgZmV0Y2g8YnI-PGI-UmVhZCBtaXNzZWQ8L2I-ICMxODM7IGZldGNoPGJyPjxiPk5vdGhpbmcgY2hhbmdlZDwvYj4gIzE4MzsgaW5zcGVjdFxuICBzMSAtLT4gczEgOiA8Yj5SZXBsYWNlZCB2YWx1ZTwvYj4gIzE4Mzsgc3RvcmU8YnI-PGI-UmVhZCBtaXNzZWQ8L2I-ICMxODM7IGZldGNoPGJyPjxiPlJlYWQgaGl0IG1vdmVkIHRvIG1vc3QgcmVjZW50PC9iPiAjMTgzOyBmZXRjaDxicj48Yj5Ob3RoaW5nIGNoYW5nZWQ8L2I-ICMxODM7IGluc3BlY3RcbiAgczAgLS0-IHMwIDogPGI-UmVhZCBtaXNzZWQ8L2I-ICMxODM7IGZldGNoIiwibWVybWFpZCI6IntcInRoZW1lXCI6IFwiZGVmYXVsdFwifSJ9)
 
 ```mermaid
+---
+title: "lru-cache: how full the cache is after each step"
+---
 stateDiagram-v2
   state "<b>Empty</b>" as s0
   state "<b>Partly filled</b>" as s1
   state "<b>Full</b>" as s2
   [*] --> s0
-  s0 --> s1 : store
-  s1 --> s2 : store
-  s2 --> s2 : store<br>fetch<br>inspect
-  s1 --> s1 : store<br>fetch<br>inspect
-  s0 --> s0 : fetch
+  s0 --> s1 : <b>Added entry</b> #183; store
+  s1 --> s2 : <b>Added entry</b> #183; store
+  s2 --> s2 : <b>Evicted least recently used</b> #183; store<br><b>Replaced value</b> #183; store<br><b>Read hit moved to most recent</b> #183; fetch<br><b>Read missed</b> #183; fetch<br><b>Nothing changed</b> #183; inspect
+  s1 --> s1 : <b>Replaced value</b> #183; store<br><b>Read missed</b> #183; fetch<br><b>Read hit moved to most recent</b> #183; fetch<br><b>Nothing changed</b> #183; inspect
+  s0 --> s0 : <b>Read missed</b> #183; fetch
 ```
 
 **Actions**, and the code each one drives:
@@ -304,28 +307,31 @@ stateDiagram-v2
 <details open>
 <summary>What <code>session-receipts</code> says</summary>
 
-**How `session-receipts` behaves**: each box is a state as the model names it (variable `stage`); each arrow is an action that moves the model from one state to another, with the arguments every call on it shared. Merged from the 8 histories Quint generated; a state or action none of them reached is not drawn. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoic3RhdGVEaWFncmFtLXYyXG4gIHN0YXRlIFwiPGI-Tm8gc2Vzc2lvbjwvYj5cIiBhcyBzMFxuICBzdGF0ZSBcIjxiPlBhc3NlZDwvYj5cIiBhcyBzMVxuICBzdGF0ZSBcIjxiPkZhaWxlZDwvYj5cIiBhcyBzMlxuICBzdGF0ZSBcIjxiPkZpbHRlcmVkPC9iPlwiIGFzIHMzXG4gIHN0YXRlIFwiPGI-UmVwbGF5IG9ubHk8L2I-XCIgYXMgczRcbiAgWypdIC0tPiBzMFxuICBzMCAtLT4gczEgOiBzZXNzaW9uKGtpbmQ9J2Z1bGwnKVxuICBzMSAtLT4gczIgOiBzZXNzaW9uXG4gIHMyIC0tPiBzMiA6IHNlc3Npb24oa2luZD0nZmF1bHR5Jyk8YnI-aW5zcGVjdFxuICBzMCAtLT4gczMgOiBzZXNzaW9uKGtpbmQ9J2ZpbHRlcmVkJylcbiAgczMgLS0-IHMzIDogc2Vzc2lvbihraW5kPSdmaWx0ZXJlZCcsIHN0cmljdD1UcnVlKTxicj5pbnNwZWN0XG4gIHMxIC0tPiBzNCA6IHNlc3Npb24oa2luZD0ncmVwbGF5Jywgc3RyaWN0PVRydWUpXG4gIHM0IC0tPiBzNCA6IGluc3BlY3RcbiAgczAgLS0-IHMyIDogc2Vzc2lvbihraW5kPSdmYXVsdHknKVxuICBzMiAtLT4gczQgOiBzZXNzaW9uKGtpbmQ9J3JlcGxheScsIHN0cmljdD1GYWxzZSlcbiAgczMgLS0-IHMyIDogc2Vzc2lvbihraW5kPSdmYXVsdHknLCBzdHJpY3Q9RmFsc2UpXG4gIHM0IC0tPiBzMiA6IHNlc3Npb24oa2luZD0nbm9RdWludCcsIHN0cmljdD1UcnVlKVxuICBzMiAtLT4gczEgOiBzZXNzaW9uKGtpbmQ9J2Z1bGwnLCBzdHJpY3Q9RmFsc2UpIiwibWVybWFpZCI6IntcInRoZW1lXCI6IFwiZGVmYXVsdFwifSJ9)
+**How `session-receipts` behaves**. **Boxes:** what CI sees after the latest pytest session: the receipt's verdict and pytest's exit code (variable `stage`). **Arrows:** which pytest session ran (variable `ran`), in bold, then the action that did it. Merged from the 8 histories Quint generated; a state or step none of them reached is not drawn. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiLS0tXG50aXRsZTogXCJzZXNzaW9uLXJlY2VpcHRzOiB3aGF0IENJIHNlZXMgYWZ0ZXIgdGhlIGxhdGVzdCBweXRlc3Qgc2Vzc2lvbjogdGhlIHJlY2VpcHQncyB2ZXJkaWN0IGFuZCBweXRlc3QncyBleGl0IGNvZGVcIlxuLS0tXG5zdGF0ZURpYWdyYW0tdjJcbiAgc3RhdGUgXCI8Yj5ObyByZWNlaXB0IHlldDwvYj5cIiBhcyBzMFxuICBzdGF0ZSBcIjxiPlBhc3NlZDwvYj5cIiBhcyBzMVxuICBzdGF0ZSBcIjxiPkZhaWxlZDwvYj5cIiBhcyBzMlxuICBzdGF0ZSBcIjxiPkluY29tcGxldGUgYnV0IGdyZWVuPC9iPlwiIGFzIHMzXG4gIHN0YXRlIFwiPGI-SW5jb21wbGV0ZSBhbmQgcmVqZWN0ZWQ8L2I-XCIgYXMgczRcbiAgWypdIC0tPiBzMFxuICBzMCAtLT4gczEgOiA8Yj5GdWxsIHJ1bjwvYj4gIzE4Mzsgc2Vzc2lvbihraW5kPSdmdWxsJylcbiAgczEgLS0-IHMyIDogPGI-UnVuIHdpdGhvdXQgcXVpbnQ8L2I-ICMxODM7IHNlc3Npb24oa2luZD0nbm9RdWludCcsIHN0cmljdD1GYWxzZSk8YnI-PGI-UnVuIHdpdGggYXBsYW50ZWQgYnVnPC9iPiAjMTgzOyBzZXNzaW9uKGtpbmQ9J2ZhdWx0eScsIHN0cmljdD1UcnVlKVxuICBzMiAtLT4gczIgOiA8Yj5SdW4gd2l0aCBhcGxhbnRlZCBidWc8L2I-ICMxODM7IHNlc3Npb24oa2luZD0nZmF1bHR5Jyk8YnI-PGI-UmVhZCB0aGUgcmVjZWlwdCBhZ2FpbjwvYj4gIzE4MzsgaW5zcGVjdFxuICBzMCAtLT4gczMgOiA8Yj5GaWx0ZXJlZCBydW48L2I-ICMxODM7IHNlc3Npb24oa2luZD0nZmlsdGVyZWQnLCBzdHJpY3Q9RmFsc2UpXG4gIHMzIC0tPiBzNCA6IDxiPkZpbHRlcmVkIHJ1bjwvYj4gIzE4Mzsgc2Vzc2lvbihraW5kPSdmaWx0ZXJlZCcsIHN0cmljdD1UcnVlKVxuICBzNCAtLT4gczQgOiA8Yj5SZWFkIHRoZSByZWNlaXB0IGFnYWluPC9iPiAjMTgzOyBpbnNwZWN0XG4gIHMxIC0tPiBzNCA6IDxiPlJlcGxheSBvZiBvbmUgc2F2ZWQgdHJhY2U8L2I-ICMxODM7IHNlc3Npb24oa2luZD0ncmVwbGF5Jywgc3RyaWN0PVRydWUpXG4gIHMwIC0tPiBzMiA6IDxiPlJ1biB3aXRoIGFwbGFudGVkIGJ1ZzwvYj4gIzE4Mzsgc2Vzc2lvbihraW5kPSdmYXVsdHknKVxuICBzMiAtLT4gczMgOiA8Yj5SZXBsYXkgb2Ygb25lIHNhdmVkIHRyYWNlPC9iPiAjMTgzOyBzZXNzaW9uKGtpbmQ9J3JlcGxheScsIHN0cmljdD1GYWxzZSlcbiAgczAgLS0-IHM0IDogPGI-RmlsdGVyZWQgcnVuPC9iPiAjMTgzOyBzZXNzaW9uKGtpbmQ9J2ZpbHRlcmVkJywgc3RyaWN0PVRydWUpXG4gIHM0IC0tPiBzMiA6IDxiPlJ1biB3aXRoIGFwbGFudGVkIGJ1ZzwvYj4gIzE4Mzsgc2Vzc2lvbihraW5kPSdmYXVsdHknLCBzdHJpY3Q9RmFsc2UpPGJyPjxiPlJ1biB3aXRob3V0IHF1aW50PC9iPiAjMTgzOyBzZXNzaW9uKGtpbmQ9J25vUXVpbnQnLCBzdHJpY3Q9VHJ1ZSlcbiAgczIgLS0-IHMxIDogPGI-RnVsbCBydW48L2I-ICMxODM7IHNlc3Npb24oa2luZD0nZnVsbCcsIHN0cmljdD1GYWxzZSkiLCJtZXJtYWlkIjoie1widGhlbWVcIjogXCJkZWZhdWx0XCJ9In0=)
 
 ```mermaid
+---
+title: "session-receipts: what CI sees after the latest pytest session: the receipt's verdict and pytest's exit code"
+---
 stateDiagram-v2
-  state "<b>No session</b>" as s0
+  state "<b>No receipt yet</b>" as s0
   state "<b>Passed</b>" as s1
   state "<b>Failed</b>" as s2
-  state "<b>Filtered</b>" as s3
-  state "<b>Replay only</b>" as s4
+  state "<b>Incomplete but green</b>" as s3
+  state "<b>Incomplete and rejected</b>" as s4
   [*] --> s0
-  s0 --> s1 : session(kind='full')
-  s1 --> s2 : session
-  s2 --> s2 : session(kind='faulty')<br>inspect
-  s0 --> s3 : session(kind='filtered')
-  s3 --> s3 : session(kind='filtered', strict=True)<br>inspect
-  s1 --> s4 : session(kind='replay', strict=True)
-  s4 --> s4 : inspect
-  s0 --> s2 : session(kind='faulty')
-  s2 --> s4 : session(kind='replay', strict=False)
-  s3 --> s2 : session(kind='faulty', strict=False)
-  s4 --> s2 : session(kind='noQuint', strict=True)
-  s2 --> s1 : session(kind='full', strict=False)
+  s0 --> s1 : <b>Full run</b> #183; session(kind='full')
+  s1 --> s2 : <b>Run without quint</b> #183; session(kind='noQuint', strict=False)<br><b>Run with aplanted bug</b> #183; session(kind='faulty', strict=True)
+  s2 --> s2 : <b>Run with aplanted bug</b> #183; session(kind='faulty')<br><b>Read the receipt again</b> #183; inspect
+  s0 --> s3 : <b>Filtered run</b> #183; session(kind='filtered', strict=False)
+  s3 --> s4 : <b>Filtered run</b> #183; session(kind='filtered', strict=True)
+  s4 --> s4 : <b>Read the receipt again</b> #183; inspect
+  s1 --> s4 : <b>Replay of one saved trace</b> #183; session(kind='replay', strict=True)
+  s0 --> s2 : <b>Run with aplanted bug</b> #183; session(kind='faulty')
+  s2 --> s3 : <b>Replay of one saved trace</b> #183; session(kind='replay', strict=False)
+  s0 --> s4 : <b>Filtered run</b> #183; session(kind='filtered', strict=True)
+  s4 --> s2 : <b>Run with aplanted bug</b> #183; session(kind='faulty', strict=False)<br><b>Run without quint</b> #183; session(kind='noQuint', strict=True)
+  s2 --> s1 : <b>Full run</b> #183; session(kind='full', strict=False)
 ```
 
 **Actions**, and the code each one drives:

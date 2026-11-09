@@ -148,6 +148,16 @@ def test_receipt_records_what_the_contract_claims(pytester: pytest.Pytester, exa
     assert edges[(0, 1)] == {"store"} and edges[(1, 2)] == {"store"}
     # A full cache stays full: storing evicts, reading and inspecting change nothing a reader names.
     assert edges[(2, 2)] == {"store", "fetch", "inspect"} and (2, 1) not in edges
+    # What each step did comes from the model's `change` variable: storing into a full cache evicts.
+    did = {
+        (edge["from"], edge["to"]): {entry.get("step") for entry in edge["actions"]} for edge in machine["transitions"]
+    }
+    assert did[(0, 1)] == {"AddedEntry"} and "EvictedLeastRecentlyUsed" in did[(2, 2)]
+    # The model's doc comments on those variables, read from `quint typecheck --out`, describe the diagram.
+    assert machine["described"] == {
+        "states": "How full the cache is after each step",
+        "steps": "What each step did to the cache",
+    }
 
 
 def test_collection_lists_selectable_cases(pytester: pytest.Pytester, example: Path) -> None:

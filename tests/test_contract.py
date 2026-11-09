@@ -128,3 +128,11 @@ def test_a_model_names_its_states_with_a_variable_the_driver_is_not_compared_on(
         load_contract(write(tmp_path, state_names="observed"))
     with pytest.raises(ContractError, match="'state_names' must be a non-empty string"):
         load_contract(write(tmp_path, state_names=""))
+
+
+def test_a_model_names_its_steps_with_another_variable_the_driver_is_not_compared_on(tmp_path: Path) -> None:
+    assert load_contract(MANIFEST).step_names == "change"
+    with pytest.raises(ContractError, match="step_names 'observed' is also observed"):
+        load_contract(write(tmp_path, step_names="observed"))
+    with pytest.raises(ContractError, match="must be different variables"):
+        load_contract(write(tmp_path, step_names="fill"))

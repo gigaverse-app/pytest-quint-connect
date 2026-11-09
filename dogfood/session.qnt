@@ -9,10 +9,18 @@
 module session_receipts {
   type Event = { op: str, kind: str, strict: bool }
   type Receipt = { status: str, mode: str, exitCode: int }
-  // The states a reader would name: what the latest session left behind. Reports draw the
-  // model's state machine in these names (the manifest's `state_names`); the driver is never
-  // compared on them, `observed` carries what the code must show.
-  type Stage = NoSession | Passed | Failed | Filtered | ReplayOnly
+  // `stage` and `ran` are for readers: reports draw the model as a state machine whose boxes
+  // are what CI sees and whose arrows say which session ran (the manifest's `state_names` and
+  // `step_names`). The driver is never compared on them; `observed` is what the code must show.
+  type Stage = NoReceiptYet | Passed | Failed | IncompleteButGreen | IncompleteAndRejected
+  type Ran =
+    | NoSessionYet
+    | FullRun
+    | FilteredRun
+    | ReplayOfOneSavedTrace
+    | RunWithAPlantedBug
+    | RunWithoutQuint
+    | ReadTheReceiptAgain
 
   // full:     every case of both contract tests, correct cache
   // filtered: -k "test_lru_cache and witness"
@@ -26,7 +34,10 @@ module session_receipts {
   var observed: Receipt
   // A witness trace from an earlier session in this project is available to replay.
   var traceSaved: bool
+  /// What CI sees after the latest pytest session: the receipt's verdict and pytest's exit code
   var stage: Stage
+  /// Which pytest session ran
+  var ran: Ran
 
   pure def outcome(kind: str, strict: bool): Receipt =
     if (kind == "full") { status: "passed", mode: GENERATED, exitCode: 0 }
@@ -34,17 +45,24 @@ module session_receipts {
     else if (kind == "replay") { status: "partial", mode: "replay-only", exitCode: if (strict) 1 else 0 }
     else { status: "failed", mode: GENERATED, exitCode: 1 }
 
-  pure def stageOf(kind: str): Stage =
+  pure def stageOf(kind: str, strict: bool): Stage =
     if (kind == "full") Passed
-    else if (kind == "filtered") Filtered
-    else if (kind == "replay") ReplayOnly
+    else if (kind == "filtered" or kind == "replay") { if (strict) IncompleteAndRejected else IncompleteButGreen }
     else Failed
+
+  pure def ranOf(kind: str): Ran =
+    if (kind == "full") FullRun
+    else if (kind == "filtered") FilteredRun
+    else if (kind == "replay") ReplayOfOneSavedTrace
+    else if (kind == "faulty") RunWithAPlantedBug
+    else RunWithoutQuint
 
   action init = all {
     event' = { op: "init", kind: "", strict: false },
     observed' = { status: "none", mode: "none", exitCode: -1 },
     traceSaved' = false,
-    stage' = NoSession,
+    stage' = NoReceiptYet,
+    ran' = NoSessionYet,
   }
 
   action session(kind: str, strict: bool): bool = all {
@@ -52,7 +70,8 @@ module session_receipts {
     event' = { op: "session", kind: kind, strict: strict },
     observed' = outcome(kind, strict),
     traceSaved' = or { traceSaved, kind == "full", kind == "filtered", kind == "faulty" },
-    stage' = stageOf(kind),
+    stage' = stageOf(kind, strict),
+    ran' = ranOf(kind),
   }
 
   action inspect = all {
@@ -60,6 +79,7 @@ module session_receipts {
     observed' = observed,
     traceSaved' = traceSaved,
     stage' = stage,
+    ran' = ReadTheReceiptAgain,
   }
 
   action step = {

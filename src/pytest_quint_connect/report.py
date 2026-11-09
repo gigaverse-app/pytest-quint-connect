@@ -866,21 +866,37 @@ def _state_box(state: dict[str, Any]) -> str:
 
 
 def _transition(actions: list[dict[str, Any]], order: list[str]) -> str:
-    """The actions on one arrow, in the manifest's order, each with the arguments every call on it shared."""
+    """The steps on one arrow, one per line in the manifest's order of actions: what the model says each did, in
+    bold, then the action and the arguments every call on it shared."""
     shown = []
     for entry in sorted(
         actions, key=lambda item: order.index(item["action"]) if item.get("action") in order else len(order)
     ):
         arguments = dict(entry.get("arguments") or {})
         name = entry.get("action")
-        call = call_text(name, arguments, bool(entry.get("event_fields"))) if arguments else str(name)
-        shown.append(_mermaid(call))
+        call = _mermaid(call_text(name, arguments, bool(entry.get("event_fields"))) if arguments else str(name))
+        did = entry.get("step")
+        shown.append(f"<b>{_mermaid(_words(did))}</b> #183; {call}" if did is not None else call)
     return "<br>".join(shown)
 
 
-def _state_machine(machine: dict[str, Any], order: list[str]) -> str:
-    """The model's states and the actions between them, as a Mermaid state diagram."""
-    lines = ["stateDiagram-v2"]
+# A diagram title is YAML that Mermaid does not decode entity codes in: keep only plain characters.
+_TITLE_PLAIN = re.compile(r"[^A-Za-z0-9 _.,:;'()/+-]")
+
+
+def _diagram_title(contract: str, machine: dict[str, Any]) -> str:
+    """The diagram's own title: the contract and what its boxes are, in the model's words when it documents them."""
+    described = machine.get("described") or {}
+    what = described.get("states") or (
+        "its named states" if machine.get("named_by") else "its states, by the values it expects"
+    )
+    text = " ".join(_TITLE_PLAIN.sub(" ", f"{contract}: {_sentence_case(what)}").split())
+    return text if len(text) <= 120 else text[:119] + "."
+
+
+def _state_machine(machine: dict[str, Any], order: list[str], title: str) -> str:
+    """The model's states and the steps between them, as a titled Mermaid state diagram."""
+    lines = ["---", f'title: "{title}"', "---", "stateDiagram-v2"]
     for index, state in enumerate(machine.get("states", [])):
         lines.append(f'  state "{_state_box(state)}" as s{index}')
     for index in machine.get("initial", []):
@@ -891,33 +907,40 @@ def _state_machine(machine: dict[str, Any], order: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _sentence_case(text: str) -> str:
+    return text[:1].lower() + text[1:] if text[:2] != text[:2].upper() else text
+
+
 def _behaviour(contract: str, machine: dict[str, Any], order: list[str]) -> list[str]:
-    """The model's state machine, titled and explained, with a link to open it full size."""
+    """The model's state machine, with a key in the model's own words and a link to open it full size."""
     states = len(machine.get("states", []))
     histories = _plural(int(machine.get("histories", 0)), "history", "histories")
-    named_by = machine.get("named_by")
-    title = f"**How {_code(contract)} behaves**"
+    named_by, steps_named_by = machine.get("named_by"), machine.get("steps_named_by")
+    described = machine.get("described") or {}
+    heading = f"**How {_code(contract)} behaves**"
     if states > MAX_STATES:
         return [
-            f"{title}: its histories reached {states} distinct states, too many to draw. Name the states the model "
+            f"{heading}: its histories reached {states} distinct states, too many to draw. Name the states the model "
             f"should be read by, and set the manifest's `state_names` ([how]({NAMING})).",
             "",
         ]
-    diagram = _state_machine(machine, order)
+    diagram = _state_machine(machine, order, _diagram_title(contract, machine))
     if named_by:
-        how = (
-            f"each box is a state as the model names it (variable {_code(named_by)}); each arrow is an action that "
-            "moves the model from one state to another, with the arguments every call on it shared"
-        )
+        boxes = _text(_sentence_case(described["states"])) if "states" in described else "the states the model names"
+        boxes += f" (variable {_code(named_by)})"
     else:
-        how = (
-            "each box is a state, drawn by the values the model expects the code to show (lists by size, tagged "
-            "values by tag); each arrow is an action, with the arguments every call on it shared. The model does "
+        boxes = (
+            "the values the model expects the code to show (lists by size, tagged values by tag). The model does "
             f"not name its states: give it a variable that does and set the manifest's `state_names` ([how]({NAMING}))"
         )
+    if steps_named_by:
+        steps = _text(_sentence_case(described["steps"])) if "steps" in described else "what each step did"
+        arrows = f"{steps} (variable {_code(steps_named_by)}), in bold, then the action that did it"
+    else:
+        arrows = "the action that moves the model, with the arguments every call on it shared"
     return [
-        f"{title}: {how}. Merged from the {histories} Quint generated; a state or action none of them reached is "
-        f"not drawn. [Open full size ↗]({_full_size(diagram)})",
+        f"{heading}. **Boxes:** {boxes}. **Arrows:** {arrows}. Merged from the {histories} Quint generated; a "
+        f"state or step none of them reached is not drawn. [Open full size ↗]({_full_size(diagram)})",
         "",
         "```mermaid",
         diagram,

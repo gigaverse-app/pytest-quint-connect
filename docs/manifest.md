@@ -47,42 +47,61 @@ instead of silently weakening a check.
 | `attest` | no | `{"package": "name", "source": "dir"}`: after every step, every imported module of `package` must come from `source`, so a stale installed copy cannot stand in for the checkout under test. `source` is the directory that *contains* the package directory, relative to `root`: `"src"` for `src/name/`, `"."` for `name/` at the root. Use it when a runner installs the package non-editably (tox does by default), and put `source` first on the contract config's `pythonpath` so the checkout is what gets imported. |
 | `description`, `limits` | no | Documentation. `limits` is copied into the receipt. |
 | `state_names` | no | A model variable that names its states, such as a sum type `Empty \| PartlyFilled \| Full`. Reports draw the model's state machine in those names; see [naming the model's states](#naming-the-models-states). It must not be an observed variable. |
+| `step_names` | no | A model variable that names what each step did, such as `AddedEntry \| EvictedLeastRecentlyUsed`. Reports label the state diagram's arrows with it. It must not be observed, nor the `state_names` variable. |
 | `codegen_header` | no | A file, relative to the manifest, whose lines `codegen` writes at the top of the generated driver base, before its tool directives: a license or copyright notice your repository requires on every file. Only comment (`#`) and blank lines are allowed. It is not part of the base's fingerprint, so adding or editing it never makes a replay stale; `codegen --check` compares it like the rest of the file. |
 
 ## Naming the model's states
 
-Reports draw each contract as a state machine: the states its generated histories reach and the
-actions that move between them, merged from every history Quint generated. A reviewer reads it to
-judge whether the model itself is right, so its boxes should carry the names a person would use.
+Reports draw each contract as a state machine, merged from every history Quint generated: boxes
+for the states its histories reach, arrows for the steps between them. A reviewer reads it to judge
+whether the model itself is right, so it should be in the words a person would use. Quint does not
+name states or steps, so the model names them, in two variables the driver is never compared on:
 
-Quint does not name states, so name them in the model. Declare a sum type of the states a reader
-would recognise, keep it in a variable every action assigns, and point `state_names` at it:
+- `state_names`: what the boxes are. A sum type of the states a reader would recognise.
+- `step_names`: what the arrows say. A sum type of what each step did. Name the events that matter
+  to the contract, such as an eviction, so the diagram shows them.
+
+Every action assigns both, so Quint keeps them current. A `///` doc comment on each variable says
+what it means; it becomes the diagram's title and its key.
 
 ```quint
 type Fill = Empty | PartlyFilled | Full
+type Change = Started | AddedEntry | ReplacedValue | EvictedLeastRecentlyUsed | ReadHitMovedToMostRecent | ReadMissed | NothingChanged
+
+/// How full the cache is after each step
 var fill: Fill
+/// What each step did to the cache
+var change: Change
 
-pure def fillOf(entries: List[Entry]): Fill =
-  if (entries.length() == 0) Empty else if (entries.length() < CAPACITY) PartlyFilled else Full
-
-action store(key: str, value: int): bool = all {
+action store(key: str, value: int): bool = {
+  val kept = without(observed.entries, key)
+  val evicts = kept.length() >= CAPACITY
   // ...
-  fill' = fillOf(stored),
+  all {
+    // ...
+    fill' = fillOf(stored),
+    change' = if (kept.length() < observed.entries.length()) ReplacedValue
+      else if (evicts) EvictedLeastRecentlyUsed
+      else AddedEntry,
+  }
 }
 ```
 
 ```json
-"state_names": "fill"
+"state_names": "fill",
+"step_names": "change"
 ```
 
-The diagram then has one box per name (`PartlyFilled` reads "Partly filled") and arrows labelled
-with each action and the arguments every call on that arrow shared. The variable is never compared
-with the code, so naming states cannot change a verdict; Quint checks that every action keeps it
-current. Name states by what matters to the contract, not by every field: a cache's fill level, not
-its exact entries. A model without `state_names` is drawn by the shape of its observation (lists by
-size, sum types by tag), which is harder to read, and the report says so.
+The diagram is titled "lru-cache: how full the cache is after each step". It has one box per state
+name (`PartlyFilled` reads "Partly filled"), and arrows such as **Evicted least recently used** ·
+store: what the step did, then the action and the arguments every call on that arrow shared. Neither
+variable is compared with the code, so naming states and steps cannot change a verdict; the manifest
+rejects either one being observed. Name states by what matters to the contract, not by every field:
+a cache's fill level, not its exact entries. Without `step_names`, arrows show only the action.
+Without `state_names`, boxes show the shape of the observation (lists by size, sum types by tag),
+which is harder to read, and the report says so.
 
-The machine holds only what the generated histories reached. A state or action the bounds never
+The machine holds only what the generated histories reached. A state or step the bounds never
 sample is not drawn: it is evidence of what the model does, not a proof of every reachable state.
 
 ## Mutants

@@ -367,6 +367,7 @@ class _Session:
                 "mutant_specs": [mutant.as_json() for mutant in contract.mutant_specs],
                 "bugs_found": [bug.as_json() for bug in contract.bugs_found],
                 "state_names": contract.state_names,
+                "step_names": contract.step_names,
                 "limits": list(contract.limits),
             }
             try:
@@ -379,7 +380,9 @@ class _Session:
                 entry["commands"] = generation.commands
                 entry["traces"] = {case: path.as_posix() for case, path in generation.traces.items()}
                 try:
-                    entry["machine"] = machine(contract, generation.traces.values(), self.parameters.get(name))
+                    entry["machine"] = machine(
+                        contract, generation.traces.values(), self.parameters.get(name), generation.docs
+                    )
                 except (OSError, ItfError, TraceError) as error:
                     entry["machine_error"] = f"{type(error).__name__}: {error}"
                 if contract.witnesses:
