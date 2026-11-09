@@ -1,0 +1,10 @@
+dependencies:
+  - inputs:
+      - "quint-connect.json"
+      - "lru.qnt"
+    kind: content
+    reason: "quint_contract() reads the contract file, which names the Quint model it runs."
+  - inputs:
+      - "//src/pytest_quint_connect/toolchain/*.json"
+    kind: content
+    reason: "Without QUINT set (as in CI), the contract runs Quint from the plugin's locked npm install."

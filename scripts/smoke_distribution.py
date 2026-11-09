@@ -8,6 +8,11 @@ distribution, not through the source tree:
 
 Quint comes from ``QUINT`` or the plugin's locked npm install, as for any user.
 """
+# The build and consumer-install jobs run this script; it copies the example project by path:
+# gv:test-dependency: examples/lru_cache/*.py
+# gv:test-dependency: examples/lru_cache/*.qnt
+# gv:test-dependency: examples/lru_cache/*.json
+# gv:test-dependency: examples/lru_cache/pytest.ini
 
 import argparse
 import json

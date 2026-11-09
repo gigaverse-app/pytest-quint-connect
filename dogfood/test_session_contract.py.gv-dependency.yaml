@@ -1,0 +1,21 @@
+dependencies:
+  - inputs:
+      - "quint-connect.json"
+      - "session.qnt"
+    kind: content
+    reason: "quint_contract() reads the contract file, which names the Quint model it runs."
+  - inputs:
+      - "plugin_mutants.py"
+    kind: import
+    reason: "Each inner pytest session of a mutant run loads it by name (-p plugin_mutants)."
+  - inputs:
+      - "//examples/lru_cache/*.py"
+      - "//examples/lru_cache/*.qnt"
+      - "//examples/lru_cache/*.json"
+      - "//examples/lru_cache/pytest.ini"
+    kind: content
+    reason: "conftest.py copies the LRU example into a fresh project and runs real pytest sessions in it."
+  - inputs:
+      - "//src/pytest_quint_connect/toolchain/*.json"
+    kind: content
+    reason: "Without QUINT set (as in CI), the contract runs Quint from the plugin's locked npm install."

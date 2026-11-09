@@ -1,0 +1,6 @@
+dependencies:
+  - inputs:
+      - "//.github/workflows/release.yml"
+      - "//.github/workflows/ci.yml"
+    kind: content
+    reason: "Compares the permissions Publish grants with those its called CI workflow requests."
