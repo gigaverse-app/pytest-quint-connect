@@ -97,6 +97,23 @@ the README every contract should have. For modelling advice beyond this skill, r
 
 Write `<name>.qnt`, modeling the API boundary, not the implementation:
 
+**Stop at external library and SDK boundaries.** Model the behavior and decisions of
+the application we maintain. Represent an external dependency through its public
+operations, results, events and documented failure behavior; state the assumptions
+on which the application contract depends. Do not model internal state machines,
+callbacks, retries or protocol machinery of a dependency we do not maintain merely
+because the application uses it. Application-owned wrappers and
+their handling of dependency outcomes remain in scope. A result established under
+these assumptions is a conditional application guarantee, not proof of the SDK.
+
+The only exception is an explicit human request to investigate a suspected defect
+in that library or SDK. In that case, keep the dependency-internals diagnostic model
+separate from the application contract and name the suspected defect and expanded
+boundary. Do not infer this exception from a failed replay or an unfamiliar callback.
+For example, a query-freshness contract can model subscription confirmation,
+rejection and interruption at the SDK boundary without modelling SDK-owned socket
+callbacks or ACK handling.
+
 - an `event` record (`op` plus the arguments) and an `observed` record holding only what the
   public API exposes. Use one event record type for every action; give unused fields a fixed value;
 - state the rules need but the API cannot show (recency order, an internal counter) in a separate
