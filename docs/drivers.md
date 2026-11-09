@@ -63,9 +63,20 @@ What this catches, and where:
 | The model or the manifest's actions/observe edited without regenerating | every history fails: the base records a fingerprint of both, and names the command to rerun |
 | A committed generated module is out of date | `pytest-quint-connect codegen … --check` exits 1 with a diff |
 
-The generated module is deterministic and fingerprinted. It starts with `# ruff: noqa`
-and `# fmt: off` lines, so ruff (at any line length and rule selection) and Black leave
-it alone; you need no exclusion for it. Generate it under its default name, commit it,
+The generated module is deterministic and fingerprinted. It starts with these lines:
+
+```python
+# ruff: noqa: PGH004, RUF102, RUF105
+# ruff: noqa
+# fmt: off
+```
+
+so ruff (at any line length and rule selection, stable or `preview = true`) and Black leave
+it alone; you need no exclusion or per-file ignore for it. The first line exempts the blanket
+`noqa` from the rules that flag it: PGH004, preview's RUF105, and RUF102 for a ruff too old
+to know RUF105 (such a ruff prints a warning about the unknown code and still passes). If your
+repository requires a license or copyright notice on every file, name a file holding it in the
+manifest's [`codegen_header`](manifest.md); `codegen` writes it above these lines. Generate it under its default name, commit it,
 and run `codegen --check MANIFEST` in CI. It contains no behavior. Which real API each action calls, and how
 state is read back, stay in your subclass. That code is the trusted part of the
 contract, and mutants are what check it.

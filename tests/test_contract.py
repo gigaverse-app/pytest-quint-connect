@@ -46,6 +46,8 @@ def test_example_manifest_loads() -> None:
         ({"witnesses": [], "bounds": {"seed": 1, "max_samples": 1, "max_steps": 1, "n_traces": 0}}, "at least one"),
         ({"historical": "lru.qnt"}, "together"),
         ({"sources": ["nope.py"]}, "source missing"),
+        ({"codegen_header": "LICENSE_HEADER"}, "codegen_header not found"),
+        ({"codegen_header": ""}, "codegen_header"),
         ({"observe": []}, "observe"),
         ({"attest": {"package": "x"}}, "attest"),
         ({"mutants": "stale-read"}, "list of names or mutant objects"),

@@ -38,6 +38,7 @@ _OPTIONAL = {
     "attest",
     "description",
     "limits",
+    "codegen_header",
 }
 
 
@@ -125,6 +126,8 @@ class Contract:
     sources: tuple[Path, ...]
     attest: Attestation | None
     limits: tuple[str, ...]
+    # Comment lines ``codegen`` writes first, such as a license notice; never part of the fingerprint.
+    codegen_header: Path | None = None
 
     @property
     def mutants(self) -> tuple[str, ...]:
@@ -371,6 +374,7 @@ def load_contract(manifest: Path) -> Contract:
         sources=tuple((root / item).resolve() for item in sources) if sources else (),
         attest=attestation,
         limits=tuple(str(item) for item in limits),
+        codegen_header=path(_string(data, "codegen_header"), "codegen_header") if "codegen_header" in data else None,
     )
     check_sources(contract)
     return contract

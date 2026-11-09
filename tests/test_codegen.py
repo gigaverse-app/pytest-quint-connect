@@ -18,7 +18,7 @@ from pytest_quint_connect.codegen import CodegenError, compile_ir, generate_modu
 from pytest_quint_connect.contract import load_contract
 from pytest_quint_connect.itf import Record, State
 from pytest_quint_connect.quint import QuintError, resolve_quint, run
-from pytest_quint_connect.typed import ActionDriver
+from pytest_quint_connect.typed import ActionDriver, codegen_fingerprint
 
 DATA = Path(__file__).parent / "data"
 DOGFOOD = Path(__file__).resolve().parents[1] / "dogfood"
@@ -119,6 +119,49 @@ def test_generated_module_is_stable_under_any_consumer_ruff_config(tmp_path: Pat
     contract = load_contract(manifest)
     output.write_text(generate_module(contract, compile_ir(contract, quint), output=output), encoding="utf-8")
     assert_left_alone_by_ruff(output, tmp_path)
+
+
+MPL_HEADER = """# Copyright 2009-2026 Example Author. All rights reserved.
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
+
+
+def with_header(directory: Path, header: str) -> Path:
+    """The LRU example whose manifest asks codegen for ``header`` (the fourth trial's repository wanted MPL notices)."""
+    manifest = copy_example(directory)
+    (directory / "LICENSE_HEADER").write_bytes(header.encode("utf-8"))
+    document = json.loads(manifest.read_text())
+    manifest.write_text(json.dumps(document | {"codegen_header": "LICENSE_HEADER"}), encoding="utf-8")
+    return manifest
+
+
+def test_a_license_header_comes_first_and_leaves_the_fingerprint_alone(tmp_path: Path, quint) -> None:
+    plain_contract = load_contract(copy_example(tmp_path))
+    plain = generate_module(plain_contract, compile_ir(plain_contract, quint), output=tmp_path / "lru_cache_driver.py")
+    # A header file with Windows line endings still yields LF output.
+    manifest = with_header(tmp_path, MPL_HEADER.replace("\n", "\r\n"))
+    output = tmp_path / "lru_cache_driver.py"
+    flags = ["--quint", str(quint.executable)]
+    assert main(["codegen", str(manifest), *flags]) == 0
+    source = output.read_text(encoding="utf-8")
+    assert source.startswith(MPL_HEADER + "# ruff: noqa: PGH004")
+    # Only the header differs: the fingerprint (model and mapping) and everything after it are unchanged.
+    assert source.removeprefix(MPL_HEADER) == plain
+    assert main(["codegen", str(manifest), *flags, "--check"]) == 0
+    assert_left_alone_by_ruff(output, tmp_path)
+    module = load_module(output)
+    assert module.LruCacheDriver.__quint_fingerprint__ == codegen_fingerprint(load_contract(MANIFEST))
+
+
+def test_a_header_with_code_is_refused(tmp_path: Path, quint, capsys: pytest.CaptureFixture[str]) -> None:
+    manifest = with_header(tmp_path, "# License: MIT\nimport os\n")
+    assert main(["codegen", str(manifest), "--quint", str(quint.executable)]) == 2
+    error = capsys.readouterr().err
+    assert "LICENSE_HEADER:2: codegen_header may hold only comment lines" in error and "'import os'" in error
+    assert not (tmp_path / "lru_cache_driver.py").exists()
 
 
 def assert_left_alone_by_ruff(module: Path, configs: Path) -> None:
