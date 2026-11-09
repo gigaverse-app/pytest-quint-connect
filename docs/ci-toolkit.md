@@ -63,7 +63,7 @@ Validation gate ◄── every job; a lane job may be skipped only when the pla
 | --- | --- | --- |
 | Python environments | `setup-cached-uv` in every uv job | installs the locked environment with uv's package cache; the expanded `.venv` is not cached, because this environment installs faster than it restores |
 | Test timings | `learn-test-timings` after each `test` matrix cell | keeps the JUnit durations of every run as a `test-timings-PY-OS` artifact |
-| Lane reuse | `resolve-lane-evidence` in `select-tests`; a receipt step closes each `test` cell and `minimum-pytest` | the tests lane is not run again when every one of its seven jobs already passed, on a first attempt, for the same inputs ([.github/validation-inputs.json](../.github/validation-inputs.json)) and the same selected test files: after a squash merge, on a version-only release PR, or on a PR push that changes nothing the tests read. A reused lane emits no new receipt, so proof never outlives the run that earned it. Reuse after a merge needs the `PR evidence #N head SHA` step in `select-tests`: it ties each PR run to its pull request when GitHub leaves that link out |
+| Lane reuse | `resolve-lane-evidence` in `select-tests` (`planned-lanes`, `lane-keys`, `admitted-lanes`); a receipt step closes each `test` cell and `minimum-pytest`; `ci-esta check-workflow` in `quality` proves `lane-keys` name every job the lane gates, each matrix cell included | the tests lane is not run again when every one of its seven jobs already passed, on a first attempt, for the same inputs ([.github/validation-inputs.json](../.github/validation-inputs.json)) and the same selected test files: after a squash merge, on a version-only release PR, or on a PR push that changes nothing the tests read. A reused lane emits no new receipt, so proof never outlives the run that earned it. Reuse after a merge needs the `PR evidence #N head SHA` step in `select-tests`: it ties each PR run to its pull request when GitHub leaves that link out |
 | Required gate | `Validation gate` job (`validation-gate` with `lanes`/`lane-jobs`) | the one check branch protection requires; `select-tests` reports a fully proven tests lane as not needed, so the gate accepts its skipped jobs |
 | Gate contract | `ci-esta check-workflow` in `quality` | fails if a job's lane condition, the gate's `lane-jobs` or the lane file drift apart |
 | Workflow lint | `lint-ci-code` | actionlint, action-validator and ShellCheck over every workflow |
@@ -84,6 +84,6 @@ To check the wiring statically:
 
 ```bash
 uvx --from ci-esta ci-esta adoption --root .
-uv run --no-project --python 3.14 --with "ci-esta[selection]>=1.1.0,<2.0.0" \
+uv run --no-project --python 3.14 --with "ci-esta[selection]>=1.13.0,<2.0.0" \
   ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
 ```

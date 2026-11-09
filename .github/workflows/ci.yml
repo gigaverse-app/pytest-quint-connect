@@ -30,8 +30,10 @@ jobs:
         "py314-windows":"Test (Python 3.14, windows-latest)","py314-macos":"Test (Python 3.14, macos-latest)",
         "minimum":"Test with pytest 8.0 (Python 3.11)"}
     outputs:
-      # Planned lanes after reuse: the tests lane is false only when every one of its jobs is proven by a receipt.
-      lanes: ${{ steps.admit.outputs.lanes }}
+      # Planned lanes after reuse: CI-esta reports the tests lane false only when every job named in lane-keys is proven,
+      # and ci-esta check-workflow (quality job) proves those keys name every job the lane gates, each matrix cell included.
+      # Without evidence (manual runs, Publish, test:full) the plan stands.
+      lanes: ${{ steps.evidence.outputs.admitted-lanes || steps.plan.outputs.lanes }}
       mode: ${{ steps.files.outputs.mode }}
       files: ${{ steps.files.outputs.test_roots_json }}
       receipt: ${{ steps.evidence.outputs.receipt }}
@@ -78,15 +80,8 @@ jobs:
           input-paths: ${{ steps.inputs.outputs.paths }}
           reuse-after-merge: 'true'
           reuse-version-only-release: 'true'
-      - id: admit
-        name: Admit the tests lane unless every job is proven
-        env:
-          LANES: ${{ steps.plan.outputs.lanes }}
-          REUSED: ${{ steps.evidence.outputs.reused || '{}' }}
-        run: |
-          lanes=$(jq -c --argjson jobs "$TEST_LANE_JOBS" --argjson reused "$REUSED"             'if [$jobs | keys[] | $reused[.] == true] | all then .tests = false else . end' <<<"$LANES")
-          echo "reused=$REUSED"
-          echo "lanes=$lanes" | tee -a "$GITHUB_OUTPUT"
+          planned-lanes: ${{ steps.plan.outputs.lanes }}
+          lane-keys: '{"tests":["py311-ubuntu","py311-windows","py311-macos","py314-ubuntu","py314-windows","py314-macos","minimum"]}'
 
   quality:
     name: Lint, docs and gate contract
@@ -104,7 +99,7 @@ jobs:
       - name: Check the aggregate gate against the execution lanes
         run: >-
           uv run --no-project --python 3.14
-          --with "ci-esta[selection]>=1.1.0,<2.0.0"
+          --with "ci-esta[selection]>=1.13.0,<2.0.0"
           ci-esta check-workflow --workflow .github/workflows/ci.yml --lanes .github/test-lanes.json
 
   routing:
