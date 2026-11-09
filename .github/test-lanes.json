@@ -28,7 +28,7 @@
     "scoped_hooks": {
       "examples/lru_cache/conftest.py": "364e54f8375cf39a6d22e43d8020080a082f4caf"
     },
-    "floor_budget": 8
+    "floor_budget": 9
   },
   "lanes": {
     "tests": {
