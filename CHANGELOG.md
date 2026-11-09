@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.3.0...v1.4.0) (2026-11-09)
+
+
+### Features
+
+* agent setup round 4, from a fourth adoption trial ([#51](https://github.com/gigaverse-app/pytest-quint-connect/issues/51)) ([0c0a9a2](https://github.com/gigaverse-app/pytest-quint-connect/commit/0c0a9a224d8580bce9a7e6cd04ebfdc83ba3e523))
+
 ## [1.3.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.2.1...v1.3.0) (2026-11-09)
 
 
