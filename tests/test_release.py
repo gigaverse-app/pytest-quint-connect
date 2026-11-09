@@ -31,7 +31,11 @@ def test_release_prs_touch_only_version_files() -> None:
     main's test receipts for it and every lane runs again for a version bump.
     """
     literal = re.compile(r"__version__ ?= ?[\"'][0-9]+\.[0-9]+\.[0-9]+(?:-\w+)?[\"']")
-    rewritten = [str(path.relative_to(ROOT)) for path in (ROOT / "src").rglob("*.py") if literal.search(path.read_text())]
+    rewritten = [
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "src").rglob("*.py")
+        if literal.search(path.read_text(encoding="utf-8"))
+    ]
     assert rewritten == []
 
 
