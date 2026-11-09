@@ -23,6 +23,7 @@ exact command and its full error output.
 Reference, when a step needs more: [manifest](https://pytest-quint-connect.readthedocs.io/en/latest/docs/manifest/),
 [drivers](https://pytest-quint-connect.readthedocs.io/en/latest/docs/drivers/),
 [CI](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/),
+[placement](https://pytest-quint-connect.readthedocs.io/en/latest/docs/placement/),
 [limits](https://pytest-quint-connect.readthedocs.io/en/latest/docs/limits/), and the complete
 [LRU cache example](https://github.com/gigaverse-app/pytest-quint-connect/tree/main/examples/lru_cache)
 to copy the shape from. These links show the development version. Once you know the version you
@@ -88,7 +89,11 @@ Put everything in `contracts/<name>/`, outside the repository's main test paths 
 name the directory after the package under test or any module it imports (`contracts/bidict/` for
 bidict): wherever `contracts/` is on an import path (a `pythonpath` entry, a type checker's search
 path), that directory can shadow the real package or be mistaken for it. Name the behavior instead
-(`mutable_bidict`, `lru_cache`).
+(`mutable_bidict`, `lru_cache`). In a larger codebase, mirror the modelled module's import path
+instead (`contracts/<package>/<module>/<behavior>/`), never with `contracts/` itself on an import
+path; [where contracts live](https://pytest-quint-connect.readthedocs.io/en/latest/docs/placement/) has both layouts, the docstring back-link and
+the README every contract should have. For modelling advice beyond this skill, read
+[quint-llm-kit's skills](https://github.com/quint-co/quint-llm-kit/tree/main/quint-llm-kit-plugin/skills).
 
 Write `<name>.qnt`, modeling the API boundary, not the implementation:
 
