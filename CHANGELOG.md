@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.4.0...v1.4.1) (2026-11-09)
+
+
+### Bug fixes
+
+* **release:** keep release PRs version-only so they reuse main's test receipts ([#56](https://github.com/gigaverse-app/pytest-quint-connect/issues/56)) ([1b5145f](https://github.com/gigaverse-app/pytest-quint-connect/commit/1b5145f319535ee29399df296c469c83e8f6fecc))
+
 ## [1.4.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.3.0...v1.4.0) (2026-11-09)
 
 
