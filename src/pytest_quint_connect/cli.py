@@ -104,17 +104,11 @@ def report(arguments: argparse.Namespace) -> int:
         readme = Path(arguments.readme)
         document = readme.read_text(encoding="utf-8") if readme.is_file() else ""
         refresh = f"pytest-quint-connect report {shlex.join(arguments.receipts)} --readme {shlex.quote(str(readme))}"
-        # The repository's counter sign: requested by the action (its id and name are in the environment),
-        # otherwise kept as the block already shows it, so a local refresh changes nothing.
-        repository_id, repository = os.environ.get("GITHUB_REPOSITORY_ID"), os.environ.get("GITHUB_REPOSITORY")
-        if arguments.counter_sign and repository_id and repository:
-            sign = Sign.of(repository_id, repository)
-        else:
-            sign = Sign.found(document)
         if not has_markers(document):
             _warn_no_block(readme)
         elif arguments.check:
-            result = check_readme(document, evidence, name=str(readme), sign=sign)
+            # The check never asks for the counter sign: it is not evidence, and a block filled locally has none.
+            result = check_readme(document, evidence, name=str(readme))
             if result.state == "stale":
                 sys.stdout.write(result.diff)
                 print(f"\n{readme}: the contract block is stale; run `{refresh}` and commit it", file=sys.stderr)
@@ -125,7 +119,19 @@ def report(arguments: argparse.Namespace) -> int:
                 note = f"<sub>`{readme}` contract block not checked: {result.reason}.</sub>"
             else:
                 print(f"{readme}: the contract block is current")
+            if arguments.counter_sign and Sign.found(document) is None:
+                print(
+                    f"{readme}: the block shows no counter sign (optional). To add it, refresh the block with "
+                    f"GITHUB_REPOSITORY_ID=<numeric repository id> GITHUB_REPOSITORY=<owner/name> {refresh} --counter-sign"
+                )
         else:
+            # The repository's counter sign: requested by the action (its id and name are in the environment),
+            # otherwise kept as the block already shows it, so a local refresh changes nothing.
+            repository_id, repository = os.environ.get("GITHUB_REPOSITORY_ID"), os.environ.get("GITHUB_REPOSITORY")
+            if arguments.counter_sign and repository_id and repository:
+                sign: Sign | None = Sign.of(repository_id, repository)
+            else:
+                sign = Sign.found(document)
             updated = embed(document, render_readme(evidence, sign))
             if updated != document:
                 readme.write_bytes(updated.encode("utf-8"))

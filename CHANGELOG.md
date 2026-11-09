@@ -11,6 +11,8 @@
 
 ## [1.2.0](https://github.com/gigaverse-app/pytest-quint-connect/compare/v1.1.0...v1.2.0) (2026-11-08)
 
+Tagged but never published to PyPI: its Publish run failed at startup. 1.2.1 contains these changes; install it or later.
+
 
 ### Features
 

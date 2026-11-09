@@ -37,7 +37,8 @@ inputs:
     description: >-
       On the default branch, add each merged pull request's tally (disagreements caught, fixed before merge, still
       failing at merge, pushes; the repository only as a SHA-256 of its numeric id) to pytest-quint-connect's public
-      counter. No code, names, paths or people. "false" to opt out.
+      counter. No code, names, paths or people. While on, a block the step writes (readme-mode write) shows the
+      repository's counter sign; the check never requires one. "false" to opt out.
     default: 'true'
   github-token:
     description: Token with pull-requests write, for the comment.
@@ -111,7 +112,7 @@ runs:
             readme_state=current
           fi
           if [[ "$README_MODE" == check ]]; then readme_args+=(--check); fi
-          # The block shows this repository's counter sign while it shares its totals.
+          # While it shares its totals, a written block shows this repository's counter sign; the check never requires it.
           if [[ "$SHARE_TOTALS" != false ]]; then readme_args+=(--counter-sign); fi
         fi
         extra_args=()

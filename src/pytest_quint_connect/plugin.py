@@ -28,29 +28,46 @@ from .compare import plain
 from .contract import Contract, ContractError, display_path, load_contract
 from .itf import ItfError, load_trace
 from .quint import Generation, QuintError, QuintTool, generate, resolve_quint
-from .replay import DriverFactory, ReplayMismatch, TraceError, replay_trace, steps
+from .replay import (
+    DriverFactory,
+    ImportEscape,
+    ReplayMismatch,
+    ReplayResult,
+    TraceError,
+    call_text,
+    replay_trace,
+    shown_arguments,
+    steps,
+)
 
 __all__ = ["quint_contract"]
 
 _MARK = "__quint_contract__"
 RECEIPT = "results.json"
 
-WITNESSES_ONLY = (
-    "every mutant was caught only by a named witness; no sampled history caught one. Raise bounds.n_traces "
-    "or max_steps until samples catch them too, or accept knowingly that sampling adds no detection here"
+WITNESS_ONLY = (
+    "caught only by witnesses; no sampled history caught it. Raise bounds.n_traces or max_steps until samples "
+    "catch it too, or accept knowingly that sampling adds no detection for it"
 )
 
 
-def witnesses_only(mutations: dict[str, Any], samples: int) -> bool:
-    """True when sampling ran and caught none of the detected mutants: only the named witnesses did.
+def witness_only(mutations: dict[str, Any], samples: int) -> list[str]:
+    """The detected mutants that sampling, when it ran, never caught: only the named witnesses did.
 
     This module writes ``caught_by_sample`` into each receipt, and owns its reading too: the terminal
     summary and ``report`` both ask here. Receipts written before the field existed lack it, and say
     nothing either way.
     """
-    return (
-        samples > 0 and bool(mutations) and all(entry.get("caught_by_sample") is False for entry in mutations.values())
-    )
+    if samples <= 0:
+        return []
+    return [name for name, entry in mutations.items() if entry.get("caught_by_sample") is False]
+
+
+def sample_catches(mutation: dict[str, Any]) -> str | None:
+    """``5/16``: how many sampled histories diverge through this mutant, when the receipt counted them."""
+    if "samples_diverged" not in mutation or "samples" not in mutation:
+        return None
+    return f"{mutation['samples_diverged']}/{mutation['samples']}"
 
 
 @dataclass(frozen=True)
@@ -106,6 +123,9 @@ class _TestRun:
     collected: list[str] = field(default_factory=list)
     # Why a case failed, for reports: an observed mismatch, or a mutant that survived every history.
     findings: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # A --quint-replay session: where the saved history diverged ("state N, after action(...)"), or how many
+    # states matched; None until the replay finishes either way.
+    replayed: str | None = None
 
     def missing(self) -> list[str]:
         return [case for case in self.contract.case_ids() if self.outcomes.get(case) != "passed"]
@@ -133,6 +153,8 @@ class _Session:
         self.tool_error: Exception | None = None
         self.incomplete: list[str] = []
         self.quint_note: str | None = None
+        # Per contract, each action's own arguments, as the first generated driver to replay it declares them.
+        self.parameters: dict[str, dict[str, tuple[str, ...]]] = {}
 
     def note(self, line: str) -> None:
         """Which Quint this session uses, for the summary; a first install, which can take a minute, also now."""
@@ -204,14 +226,20 @@ class _Session:
         if case.kind == "replay":
             trace = Path(self.replay_path or "").resolve()
             item.user_properties.append(("quint_trace", str(trace)))
-            result = replay_trace(
-                trace,
-                case.contract,
-                factory,
-                mutant=self.replay_mutant,
-                work_base=work,
-                reproduce=self.reproduce(case, trace, self.replay_mutant),
-            )
+            try:
+                result = replay_trace(
+                    trace,
+                    case.contract,
+                    factory,
+                    mutant=self.replay_mutant,
+                    work_base=work,
+                    reproduce=self.reproduce(case, trace, self.replay_mutant),
+                )
+            except ReplayMismatch as mismatch:
+                called = call_text(mismatch.action, mismatch.arguments, mismatch.event_fields)
+                run.replayed = f"diverged from the model at state {mismatch.state}, after action {called}"
+                raise
+            run.replayed = f"matched the model at all {len(result.actions)} states"
             run.steps[case.id] = len(result.actions)
             return
         generation = self.generation(case.contract)
@@ -229,6 +257,7 @@ class _Session:
                     "state": mismatch.state,
                     "action": mismatch.action,
                     "arguments": mismatch.as_json()["arguments"],
+                    "event_fields": mismatch.event_fields,
                     # "entries[0].key: values differ; expected: 'b'; actual: 'a'"
                     "differences": [
                         "; ".join(" ".join(line.split()) for line in difference.render().splitlines())
@@ -240,6 +269,7 @@ class _Session:
                 raise
             run.steps[case.id] = len(result.actions)
             run.imported.update(result.imported)
+            self.learn_parameters(case.contract, result)
             return
         if case.kind == "mutant":
             self.run_mutant(case, generation, factory, item)
@@ -259,21 +289,26 @@ class _Session:
         raise AssertionError(f"unknown case kind {case.kind}")
 
     def run_mutant(self, case: Case, generation: Generation, factory: DriverFactory, item: pytest.Item) -> None:
-        """Replay histories through the mutant until one is caught, or through all if it reintroduces a found bug.
+        """Replay histories through the mutant: witnesses until one catches it, then every sample.
 
         Only an observed-state mismatch counts as detection. Any other exception (a setup error, a
-        crash in the mutant) propagates and fails the case. Witnesses replay first; when one catches the
-        mutant, the samples still replay until one catches it too, so the receipt can say whether sampling
-        adds detection power (``caught_by_sample``) or only the named scenarios do.
+        crash in the mutant) propagates and fails the case. Witnesses replay first, and once one catches
+        the mutant the remaining witnesses are skipped. Every sample replays, so the receipt can say how
+        many sampled histories diverge (``samples_diverged`` of ``samples``): whether sampling adds detection
+        power (``caught_by_sample``) or only the named scenarios do. A mutant that reintroduces a found bug
+        replays every history and lists the ones that diverge.
         """
         run = self.runs[case.test]
         every_history = case.contract.bug_reintroduced_by(case.name) is not None
         diverged: list[str] = []
+        samples = 0
         for trace_id, trace in generation.traces.items():
-            if diverged and not every_history and not trace_id.startswith("sample-"):
+            sample = trace_id.startswith("sample-")
+            if diverged and not every_history and not sample:
                 continue
+            samples += sample
             try:
-                replay_trace(
+                result = replay_trace(
                     trace,
                     case.contract,
                     factory,
@@ -287,11 +322,12 @@ class _Session:
                     run.mutations[case.name] = {"detected_by": trace_id, **mismatch.as_json()}
                     item.user_properties.append(("quint_detected_by", trace_id))
                 diverged.append(trace_id)
-                if not every_history and trace_id.startswith("sample-"):
-                    break
+            else:
+                self.learn_parameters(case.contract, result)
         if diverged:
+            caught = sum(trace_id.startswith("sample-") for trace_id in diverged)
             mutation = run.mutations[case.name]
-            mutation["caught_by_sample"] = any(trace_id.startswith("sample-") for trace_id in diverged)
+            mutation.update(caught_by_sample=caught > 0, samples_diverged=caught, samples=samples)
             if every_history:
                 mutation.update(histories=len(generation.traces), diverged=diverged)
             return
@@ -301,6 +337,11 @@ class _Session:
             f"{case.contract.name!r}: no observation differed from the model",
             pytrace=False,
         )
+
+    def learn_parameters(self, contract: Contract, result: ReplayResult) -> None:
+        """Keep the action parameters the first generated driver declares, so the receipt's witness names them."""
+        if result.parameters is not None:
+            self.parameters.setdefault(contract.name, result.parameters)
 
     def save_mismatch(self, case: Case, mismatch: ReplayMismatch) -> Path:
         directory = self.artifacts / case.contract.name
@@ -338,7 +379,9 @@ class _Session:
                 if contract.witnesses:
                     witness = contract.witnesses[0]
                     try:
-                        entry["illustrated"] = _illustration(contract, witness, generation.traces[f"witness-{witness}"])
+                        entry["illustrated"] = _illustration(
+                            contract, witness, generation.traces[f"witness-{witness}"], self.parameters.get(name)
+                        )
                     except (OSError, ItfError, TraceError) as error:
                         entry["illustrated_error"] = f"{type(error).__name__}: {error}"
             if name in self.failures:
@@ -391,19 +434,24 @@ class _Session:
                 self.incomplete.append(f"{run.test}: {len(missing)} case(s) did not run or did not pass: {missing}")
 
 
-def _illustration(contract: Contract, witness: str, trace: Path) -> dict[str, Any]:
+def _illustration(
+    contract: Contract, witness: str, trace: Path, parameters: dict[str, tuple[str, ...]] | None
+) -> dict[str, Any]:
     """One witness, step by step: each action the model took and the observation it expects afterwards.
 
     Reports show it so a reviewer can judge the model itself; it is read from the generated trace, like
-    every expectation, and witnesses are scripted runs, so it is the same in every session.
+    every expectation, and witnesses are scripted runs, so it is the same in every session. Each step names
+    the action's own arguments when a generated driver declared them; otherwise the whole event record,
+    marked ``event_fields``.
     """
-    return {
-        "witness": witness,
-        "steps": [
-            {"state": step.index, "action": step.action, "arguments": plain(step.args), "observed": plain(expected)}
-            for step, expected in steps(load_trace(trace), contract)
-        ],
-    }
+    shown = []
+    for step, expected in steps(load_trace(trace), contract):
+        arguments, event_fields = shown_arguments(step, parameters, contract.convention)
+        entry = {"state": step.index, "action": step.action, "arguments": plain(arguments), "observed": plain(expected)}
+        if event_fields:
+            entry["event_fields"] = True
+        shown.append(entry)
+    return {"witness": witness, "steps": shown}
 
 
 def _action_of(raw_state: dict[str, Any], contract: Contract) -> str:
@@ -519,7 +567,9 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]) ->
         if report.when == "call" or report.outcome != "passed":
             if run.outcomes.get(case.id) in (None, "passed"):
                 run.outcomes[case.id] = report.outcome
-        if report.when == "call" and call.excinfo is not None and isinstance(call.excinfo.value, ReplayMismatch):
+        # These explain themselves: where the history failed, why, and the command or fix. A traceback adds noise.
+        explained = (ReplayMismatch, ImportEscape)
+        if report.when == "call" and call.excinfo is not None and isinstance(call.excinfo.value, explained):
             report.longrepr = str(call.excinfo.value)
     return report
 
@@ -552,16 +602,27 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: pyte
         if not run.collected:
             terminalreporter.write_line(f"{run.test}: not selected")
             continue
+        if state.replay_path:
+            # One saved history, through the code or one mutant: say what it showed, never a session-wide tally.
+            source = Path(state.replay_path).name
+            through = f" through mutant {state.replay_mutant!r}" if state.replay_mutant else ""
+            terminalreporter.write_line(
+                f"{run.test}: replay of {source}{through}: {run.replayed or 'did not finish; see the error above'}"
+            )
+            continue
         passed = sum(1 for outcome in run.outcomes.values() if outcome == "passed")
         generation = state.generations.get(run.contract.name)
-        total = 1 if state.replay_path else len(run.contract.case_ids())
         terminalreporter.write_line(
-            f"{run.test}: {passed}/{total} cases passed; "
+            f"{run.test}: {passed}/{len(run.contract.case_ids())} cases passed; "
             f"{len(generation.traces) if generation else 0} fresh histories; "
             f"{len(run.mutations)}/{len(run.contract.mutants)} mutants detected"
         )
-        if witnesses_only(run.mutations, run.contract.bounds.n_traces):
-            terminalreporter.write_line(f"{run.test}: {WITNESSES_ONLY}", yellow=True)
+        counted = {name: sample_catches(mutation) for name, mutation in run.mutations.items()}
+        if any(counted.values()):
+            shown = ", ".join(f"{name} {count}" for name, count in counted.items() if count)
+            terminalreporter.write_line(f"{run.test}: sampled histories that catch each mutant: {shown}")
+        for name in witness_only(run.mutations, run.contract.bounds.n_traces):
+            terminalreporter.write_line(f"{run.test}: mutant {name!r} {WITNESS_ONLY}", yellow=True)
     if state.replay_path:
         terminalreporter.write_line("replay-only: one saved trace was checked; this is not complete coverage")
     for line in state.incomplete:

@@ -162,7 +162,9 @@ pytest --quint-require-complete
 
 ```text
 test_lru_contract.py::test_lru_cache: 17/17 cases passed; 15 fresh histories; 1/1 mutants detected
+test_lru_contract.py::test_lru_cache: sampled histories that catch each mutant: stale-read 3/12
 test_lru_contract.py::test_ordered_refactor: 17/17 cases passed; 15 fresh histories; 1/1 mutants detected
+test_lru_contract.py::test_ordered_refactor: sampled histories that catch each mutant: stale-read 3/12
 34 passed in 2.27s
 ```
 
@@ -185,7 +187,7 @@ pytest --lru-implementation stale-read -k test_lru_cache
 ```text
 Quint contract 'lru-cache': implementation state differs from the model
   trace:  .artifacts/quint-connect/lru-cache/witness-evictsLeastRecentlyUsedTest-0.itf.json
-  state:  3 after action fetch(key='a', value=0)
+  state:  3 after action fetch(key='a')
   4 difference(s):
   entries[0].key: values differ
       expected: 'b'

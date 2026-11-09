@@ -109,3 +109,14 @@ tag. It rechecks the tag/version match and full CI before uploading. Never move
 an existing full release tag or reuse a published version for changed contents.
 Prereleases remain a deliberate manual version/tag/release path; this automation
 proposes normal SemVer releases.
+
+## Versions missing from PyPI
+
+A tag and GitHub release exist for every version Release Please cut, but only a
+successful Publish run reaches PyPI. Versions that never did:
+
+| Version | Why | Instead |
+| --- | --- | --- |
+| 1.2.0 | Publish failed at startup (its workflow asked for permissions the CI workflow it calls did not grant, fixed in #40) | 1.2.1, which contains it |
+
+Record any later one here and under its CHANGELOG heading, so nobody looks for it on PyPI.

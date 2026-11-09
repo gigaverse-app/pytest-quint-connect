@@ -53,6 +53,28 @@ def test_behavioral_fault_is_a_mismatch_with_a_located_diff() -> None:
     assert json.loads(json.dumps(mismatch.as_json()))["expected"]["entries"][0] == {"key": "b", "value": 2}
 
 
+def test_a_generated_driver_names_only_the_actions_own_arguments() -> None:
+    # The event record also carries value=0 for fetch, which takes only a key; the generated base knows that.
+    with pytest.raises(ReplayMismatch) as caught:
+        replay_trace(WITNESS, CONTRACT, factory("stale-read"))
+    mismatch = caught.value
+    assert dict(mismatch.arguments) == {"key": "a"} and mismatch.event_fields is False
+    assert "state:  3 after action fetch(key='a')" in str(mismatch)
+    assert mismatch.as_json()["arguments"] == {"key": "a"} and mismatch.as_json()["event_fields"] is False
+    parameters = replay_trace(WITNESS, CONTRACT, factory()).parameters
+    assert parameters == {"init": (), "store": ("key", "value"), "fetch": ("key",), "inspect": ()}
+
+
+def test_a_hand_written_driver_labels_the_whole_event_record() -> None:
+    # Without declared parameters the engine cannot tell an argument from a filler field, so it says which it shows.
+    with pytest.raises(ReplayMismatch) as caught:
+        replay_trace(WITNESS, CONTRACT, lambda context: Recording(implementation="stale-read"))
+    mismatch = caught.value
+    assert mismatch.event_fields is True and dict(mismatch.arguments) == {"key": "a", "value": 0}
+    assert "state:  3 after action fetch(event: key='a', value=0)" in str(mismatch)
+    assert replay_trace(WITNESS, CONTRACT, lambda context: Recording()).parameters is None
+
+
 def test_changed_expectation_in_a_real_trace_is_rejected(tmp_path: Path) -> None:
     def corrupt(document: dict) -> None:
         document["states"][2]["observed"]["lastRead"] = {"tag": "Miss", "value": {"#tup": []}}
@@ -105,8 +127,10 @@ def test_mbt_steps_carry_unwrapped_picks() -> None:
 
 
 class Recording:
-    def __init__(self, fail_at: int | None = None) -> None:
-        self.inner = CacheDriver(IMPLEMENTATIONS["list"])
+    """A driver that implements only the protocol: no generated base, so no declared action parameters."""
+
+    def __init__(self, fail_at: int | None = None, implementation: str = "list") -> None:
+        self.inner = CacheDriver(IMPLEMENTATIONS[implementation])
         self.fail_at = fail_at
         self.closed = False
 
@@ -153,7 +177,7 @@ def test_a_driver_error_names_the_history_and_step_it_happened_in() -> None:
     note = "\n".join(caught.value.__notes__)
     assert "Quint contract 'lru-cache': the driver raised during this history" in note
     assert f"trace:  {WITNESS}" in note
-    assert "state:  3, applying action fetch(key='a', value=0)" in note
+    assert "state:  3, applying action fetch(event: key='a', value=0)" in note
     assert "mutant: stale-read" in note and "seed:   7" in note
     assert "reproduce: pytest x --quint-replay y" in note
 
@@ -165,6 +189,23 @@ def test_factory_must_return_a_driver() -> None:
 
 def test_import_attestation_rejects_an_escaped_module(tmp_path: Path) -> None:
     attested = CONTRACT.__class__(**{**CONTRACT.__dict__, "attest": Attestation("lru_cache", tmp_path)})
-    with pytest.raises(ImportEscape, match="outside the attested source"):
-        replay_trace(SAMPLE, attested, factory())
+    with pytest.raises(ImportEscape, match="outside the attested source") as caught:
+        replay_trace(SAMPLE, attested, factory(), reproduce="pytest x --quint-replay y")
     assert "lru_cache" in sys.modules
+    text = str(caught.value)
+    # Where it happened, which module came from where, where it should have come from, and how to fix it.
+    assert "Quint contract 'lru-cache': the code under test did not come from the attested source" in text
+    assert f"trace:  {SAMPLE}" in text and "state:  0, after action init()" in text
+    assert f"lru_cache was imported from {sys.modules['lru_cache'].__file__}" in text
+    assert f"outside the attested source directory {tmp_path}" in text
+    assert "set `pythonpath` to that directory" in text and "pip install -e ." in text
+    assert "reproduce: pytest x --quint-replay y" in text
+
+
+def test_import_attestation_of_a_package_the_driver_never_imports_says_what_to_check() -> None:
+    attested = CONTRACT.__class__(**{**CONTRACT.__dict__, "attest": Attestation("no_such_package_here", CONTRACT.root)})
+    with pytest.raises(
+        ImportEscape, match="imported no module of the attested package 'no_such_package_here'"
+    ) as caught:
+        replay_trace(SAMPLE, attested, factory())
+    assert "the top-level import name" in str(caught.value)

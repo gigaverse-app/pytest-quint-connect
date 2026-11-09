@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 from .contract import Contract, ContractError
 from .itf import QList, QMap, QTuple, Record, Unserializable, Variant
 
-__all__ = ["ActionDriver", "codegen_fingerprint", "to_python"]
+__all__ = ["ActionDriver", "carried", "codegen_fingerprint", "to_python"]
 
 
 def codegen_fingerprint(contract: Contract) -> str:
@@ -54,6 +54,18 @@ def to_python(value: Any) -> Any:
     return value
 
 
+def carried(step: Any, source: str) -> Any:
+    """The model value a step carries as ``source``: its event field, else its nondeterministic pick of that name.
+
+    Raises ``KeyError`` when the step carries neither.
+    """
+    if source in step.args:
+        return step.args[source]
+    if step.picks is not None and step.picks.get(source) is not None:
+        return step.picks[source]
+    raise KeyError(source)
+
+
 class ActionDriver(ABC):
     """Base of generated drivers. ``step`` calls the method named for the model action.
 
@@ -87,16 +99,19 @@ class ActionDriver(ABC):
             raise ContractError(f"{type(self).__name__} has no method for action {step.action!r}") from None
         arguments = {}
         for name, source in parameters:
-            if source in step.args:
-                arguments[name] = to_python(step.args[source])
-            elif step.picks is not None and step.picks.get(source) is not None:
-                arguments[name] = to_python(step.picks[source])
-            else:
+            try:
+                arguments[name] = to_python(carried(step, source))
+            except KeyError:
                 raise ContractError(
                     f"state {step.index}: action {step.action!r} needs argument {name!r}, but the step carries "
                     f"neither an event field nor a nondeterministic pick named {source!r}"
-                )
+                ) from None
         getattr(self, method)(**arguments)
+
+    @classmethod
+    def parameters(cls) -> dict[str, tuple[str, ...]]:
+        """Each action's own arguments, as the event fields or picks that carry them: what reports name."""
+        return {action: tuple(source for _, source in params) for action, (_, params) in cls.__quint_actions__.items()}
 
     @abstractmethod
     def observe(self) -> Any: ...

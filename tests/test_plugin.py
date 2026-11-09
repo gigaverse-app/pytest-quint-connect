@@ -63,7 +63,13 @@ def test_complete_run_passes_and_records_evidence(pytester: pytest.Pytester, exa
     assert mutation["differences"] and mutation["detected_by"]
     # The default bounds' samples catch it too, so the run carries no witnesses-only warning.
     assert mutation["caught_by_sample"] is True
-    assert "caught only by a named witness" not in result.stdout.str()
+    assert "caught only by witnesses" not in result.stdout.str()
+    # Every sample replays through the mutant, so the receipt and the summary say how many diverge.
+    assert mutation["samples"] == 12 and 0 < mutation["samples_diverged"] <= 12
+    assert_output(
+        result,
+        f"test_lru_cache: sampled histories that catch each mutant: stale-read {mutation['samples_diverged']}/12",
+    )
     # An ordinary mutant stops at the first history that catches it.
     assert "diverged" not in mutation and "histories" not in mutation
     assert contract["mutants"] == ["stale-read"]
@@ -77,12 +83,35 @@ def test_complete_run_passes_and_records_evidence(pytester: pytest.Pytester, exa
 
 def test_mutants_caught_only_by_witnesses_are_called_out(pytester: pytest.Pytester, example: Path) -> None:
     # One-step samples cannot reach the stale-read fault (store, store, fetch, store); only a witness can.
-    edit_manifest(example, bounds={"seed": 7, "max_samples": 200, "max_steps": 1, "n_traces": 2})
+    # They do reach drops-writes, which any store exposes, so only stale-read is called out.
+    manifest = json.loads((EXAMPLE / "quint-connect.json").read_text())
+    drops = {"name": "drops-writes", "description": "put() stores nothing"}
+    edit_manifest(
+        example,
+        bounds={"seed": 7, "max_samples": 200, "max_steps": 1, "n_traces": 6},
+        mutants=[*manifest["mutants"], drops],
+    )
+    pytester.makeconftest(
+        (EXAMPLE / "conftest.py").read_text()
+        + "\n\nclass DropsWrites(IMPLEMENTATIONS['list']):\n"
+        + "    def put(self, key, value):\n"
+        + "        pass\n"
+        + "\n\nIMPLEMENTATIONS['drops-writes'] = DropsWrites\n"
+    )
     result = pytester.runpytest("-k", "test_lru_cache")
-    result.assert_outcomes(passed=7, deselected=7)
-    assert_output(result, "test_lru_cache: every mutant was caught only by a named witness; no sampled history")
-    mutation = receipt(example)["contracts"][0]["tests"][0]["mutations"]["stale-read"]
-    assert mutation["detected_by"].startswith("witness-") and mutation["caught_by_sample"] is False
+    result.assert_outcomes(passed=12, deselected=12)
+    assert_output(result, "test_lru_cache: mutant 'stale-read' caught only by witnesses; no sampled history caught it")
+    assert "mutant 'drops-writes' caught only" not in result.stdout.str()
+    mutations = receipt(example)["contracts"][0]["tests"][0]["mutations"]
+    stale, dropped = mutations["stale-read"], mutations["drops-writes"]
+    assert stale["detected_by"].startswith("witness-") and stale["caught_by_sample"] is False
+    assert (stale["samples_diverged"], stale["samples"]) == (0, 6)
+    assert dropped["caught_by_sample"] is True and 0 < dropped["samples_diverged"] <= 6 and dropped["samples"] == 6
+    assert_output(
+        result,
+        "test_lru_cache: sampled histories that catch each mutant: "
+        f"stale-read 0/6, drops-writes {dropped['samples_diverged']}/6",
+    )
 
 
 def test_receipt_records_what_the_contract_claims(pytester: pytest.Pytester, example: Path) -> None:
@@ -93,14 +122,16 @@ def test_receipt_records_what_the_contract_claims(pytester: pytest.Pytester, exa
     # The first witness, read from the trace Quint generated: each step's action and what the model expects after it.
     illustrated = contract["illustrated"]
     assert illustrated["witness"] == "evictsLeastRecentlyUsedTest"
+    # Each action's own arguments, as the generated driver declares them, not the event record's filler fields.
     assert [(step["state"], step["action"], step["arguments"]) for step in illustrated["steps"]] == [
-        (0, "init", {"key": "", "value": 0}),
+        (0, "init", {}),
         (1, "store", {"key": "a", "value": 1}),
         (2, "store", {"key": "b", "value": 2}),
-        (3, "fetch", {"key": "a", "value": 0}),
+        (3, "fetch", {"key": "a"}),
         (4, "store", {"key": "c", "value": 0}),
-        (5, "inspect", {"key": "", "value": 0}),
+        (5, "inspect", {}),
     ]
+    assert not any("event_fields" in step for step in illustrated["steps"])
     assert illustrated["steps"][3]["observed"] == {
         "entries": [{"key": "b", "value": 2}, {"key": "a", "value": 1}],
         "lastRead": {"tag": "Hit", "value": 1},
@@ -127,7 +158,7 @@ def test_behavioral_fault_fails_with_diff_reproduction_and_artifact(pytester: py
     assert_output(
         result,
         "implementation state differs from the model",
-        "state:  3 after action fetch(key='a', value=0)",
+        "state:  3 after action fetch(key='a')",
         "entries[0].key: values differ",
         "reproduce: pytest test_lru_contract.py::test_lru_cache --quint-replay",
     )
@@ -140,7 +171,7 @@ def test_behavioral_fault_fails_with_diff_reproduction_and_artifact(pytester: py
     assert evidence["root"] == example.as_posix()
     finding = evidence["contracts"][0]["tests"][0]["findings"]["witness-evictsLeastRecentlyUsedTest"]
     assert finding["state"] == 3 and finding["action"] == "fetch"
-    assert finding["arguments"] == {"key": "a", "value": 0}
+    assert finding["arguments"] == {"key": "a"} and finding["event_fields"] is False
     assert finding["differences"][0] == "entries[0].key: values differ; expected: 'b'; actual: 'a'"
     assert finding["difference_count"] == 4
     assert finding["mismatch"] == (
@@ -177,7 +208,7 @@ def test_reproduce_command_runs_as_printed_with_an_explicit_config_file(pytester
     # Exactly as printed, from the same directory: it selects the test and reaches the same mismatch.
     replayed = pytester.runpytest(*words[1:], "--lru-implementation", "stale-read")
     replayed.assert_outcomes(failed=1)
-    assert_output(replayed, "state:  3 after action fetch(key='a', value=0)")
+    assert_output(replayed, "state:  3 after action fetch(key='a')")
 
 
 def test_saved_trace_replays_exactly_and_is_never_complete(pytester: pytest.Pytester, example: Path) -> None:
@@ -188,6 +219,7 @@ def test_saved_trace_replays_exactly_and_is_never_complete(pytester: pytest.Pyte
     node = "test_lru_contract.py::test_lru_cache"
     replayed = pytester.runpytest(node, "--quint-replay", str(kept))
     replayed.assert_outcomes(passed=1)
+    assert_output(replayed, f"{node}: replay of kept.itf.json: matched the model at all 6 states")
     evidence = receipt(example)
     assert evidence["mode"] == "replay-only" and evidence["source_trace"].endswith("kept.itf.json")
     # A replay generates no witness, so its receipt illustrates none; the manifest's claims are still recorded.
@@ -197,7 +229,15 @@ def test_saved_trace_replays_exactly_and_is_never_complete(pytester: pytest.Pyte
         "replay-only session: replaying one saved trace is never complete coverage"
     ]
     assert pytester.runpytest(node, "--quint-replay", str(kept), "--quint-require-complete").ret == 1
-    pytester.runpytest(node, "--quint-replay", str(kept), "--quint-mutant", "stale-read").assert_outcomes(failed=1)
+    through = pytester.runpytest(node, "--quint-replay", str(kept), "--quint-mutant", "stale-read")
+    through.assert_outcomes(failed=1)
+    # What this one replay showed, not a session-wide mutant tally that would read "0/1 mutants detected".
+    assert_output(
+        through,
+        f"{node}: replay of kept.itf.json through mutant 'stale-read': diverged from the model at state 3, "
+        "after action fetch(key='a')",
+    )
+    assert "mutants detected" not in through.stdout.str()
     pytester.runpytest(node, "--quint-replay", str(kept), "--lru-implementation", "stale-read").assert_outcomes(
         failed=1
     )
@@ -348,11 +388,32 @@ def test_a_driver_error_reports_where_it_happened_and_how_to_replay_it(
         "RuntimeError: implementation crashed",
         "Quint contract 'lru-cache': the driver raised during this history",
         "witness-evictsLeastRecentlyUsedTest-0.itf.json",
-        "state:  3, applying action fetch(key='a', value=0)",
+        "state:  3, applying action fetch(key='a')",
         "seed:   7",
         "reproduce: pytest",
         "--quint-replay",
     )
+
+
+def test_an_installed_copy_shadowing_the_source_fails_with_a_fix_not_a_traceback(
+    pytester: pytest.Pytester, example: Path
+) -> None:
+    # The manifest attests the cache must come from src/, but this process already imported another copy
+    # (the repository's example, through lru_support): exactly what an installed copy does under tox.
+    (example / "src").mkdir()
+    edit_manifest(example, attest={"package": "lru_cache", "source": "src"})
+    result = pytester.runpytest("-k", "test_lru_cache and witness-evictsLeastRecentlyUsedTest")
+    result.assert_outcomes(failed=1)
+    assert_output(
+        result,
+        "Quint contract 'lru-cache': the code under test did not come from the attested source",
+        "state:  0, after action init()",
+        "lru_cache was imported from ",
+        f"lru_cache.py, outside the attested source directory {(example / 'src').resolve()}",
+        "set `pythonpath` to that directory",
+        "reproduce: pytest",
+    )
+    assert "Traceback" not in result.stdout.str() and "replay.py:" not in result.stdout.str()
 
 
 def test_driver_fixture_teardown_runs_when_a_history_fails(
