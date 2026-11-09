@@ -33,8 +33,8 @@ check out or build source with that permission.
    changelog and the root package entry in `uv.lock`.
 2. Require green CI: hooks, Linux/Windows/macOS tests with real Quint, minimum
    pytest, metadata, and the installed-wheel smoke run. Review the uploaded evidence.
-3. Merge the release PR when ready to publish. Release Please then creates tag
-   `v<version>` and publishes its GitHub release.
+3. Merge the release PR when ready to publish. After successful main CI,
+   Release Please creates tag `v<version>` and publishes its GitHub release.
 4. `release.yml` verifies that the tag exactly matches the package version,
    reruns the reusable CI workflow on that revision, and publishes its tested
    wheel and sdist with attestations through the `pypi` environment. Then it moves
@@ -52,11 +52,16 @@ immutable; fix release defects with a new version and document any yanked releas
 ## Conventional Commits to PyPI
 
 [Release Please](https://github.com/googleapis/release-please-action) owns version
-calculation and the release PR. `.github/workflows/release-please.yml` runs on every
-push to `main`, so each merge updates the pending release PR within a minute. Merging
-that PR is the publishing decision, and Publish reruns the full CI on the release tag
-before uploading, so an untested commit never reaches PyPI. Review the release PR's
-own CI before merging it.
+calculation and the release PR. `.github/workflows/release-please.yml` runs after
+successful push CI on the current `main` head. Ordinary feature/fix merges update
+the pending release PR; merging that PR is the publishing decision.
+
+It waits for that CI on purpose, although the release PR then updates 3–5 minutes
+after a merge rather than within a minute. A version-only release PR reuses the
+tests lane from `main`'s receipts for the same code (CI-esta's
+`reuse-version-only-release`), and those receipts exist only once `main`'s CI has
+finished. Updated on the push instead, the release PR's CI would start while
+`main`'s CI was still running on the same code and rerun every test job.
 
 | Commit header | Version change |
 | --- | --- |
@@ -76,8 +81,8 @@ Squash with the checked PR title and retain breaking-change details in the body.
 No automatic publishing happens just because an ordinary feature PR merges.
 
 ```text
-Conventional Commit merged to main -> Release Please updates the release PR
-Maintainer merges release PR (its CI green) -> tag + GitHub release
+Conventional Commit -> successful main CI -> Release Please release PR
+Maintainer merges release PR -> successful main CI -> tag + GitHub release
 GitHub release -> Publish -> exact-tag full CI -> tested artifacts -> PyPI OIDC
 PyPI published -> move v1 (and v0) forward to the release commit
 ```
@@ -102,8 +107,8 @@ no PyPI API token is stored. The publisher identity remains this repository's
 `release.yml` workflow and `pypi` environment. Only its isolated upload job
 receives `id-token: write`.
 
-If release preparation fails, fix the cause and rerun the Release Please run, or
-dispatch it on `main`. If publication fails after a tag was created,
+If release preparation fails, fix the cause and rerun the successful main CI run
+to trigger Release Please again. If publication fails after a tag was created,
 rerun the failed Publish run, or dispatch Publish on that exact `v<version>`
 tag. It rechecks the tag/version match and full CI before uploading. Never move
 an existing full release tag or reuse a published version for changed contents.
