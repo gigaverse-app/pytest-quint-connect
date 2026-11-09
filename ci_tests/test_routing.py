@@ -289,9 +289,9 @@ class RoutingTests(unittest.TestCase):
 
     def test_dogfood_only_changes_keep_the_dogfood_lane(self) -> None:
         self.assertEqual(self.lanes("dogfood/plugin_mutants.py"), {"dogfood"})
-        # A deleted test takes its read declarations with it.
+        # A deleted test takes its read declarations with it, and these routing tests read every declaration.
         contract = "dogfood/test_session_contract.py"
-        self.assertEqual(self.lanes(contract, f"{contract}.gv-dependency.yaml", delete=True), {"dogfood"})
+        self.assertEqual(self.lanes(contract, f"{contract}.gv-dependency.yaml", delete=True), {"dogfood", "routing"})
         # The dogfood model is also a unit-test fixture.
         self.assertEqual(self.lanes("dogfood/session.qnt"), {"tests", "dogfood"})
 
