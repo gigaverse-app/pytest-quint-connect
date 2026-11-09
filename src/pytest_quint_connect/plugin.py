@@ -63,6 +63,23 @@ def witness_only(mutations: dict[str, Any], samples: int) -> list[str]:
     return [name for name, entry in mutations.items() if entry.get("caught_by_sample") is False]
 
 
+SAMPLE_ONLY = (
+    "caught by no witness; only sampled histories caught it, and samples change with the seed, the bounds and every "
+    "model edit. Write or fix a witness for the rule it breaks; replay a witness through it with --quint-replay and "
+    "--quint-mutant to see whether that witness catches it"
+)
+
+
+def sample_only(mutations: dict[str, Any], witnesses: int) -> list[str]:
+    """The detected mutants no witness caught, when the contract has witnesses: a sample caught each first.
+
+    Witnesses replay before samples, so ``detected_by`` names a sample only when every witness matched the model.
+    """
+    if witnesses <= 0:
+        return []
+    return [name for name, entry in mutations.items() if str(entry.get("detected_by", "")).startswith("sample-")]
+
+
 def sample_catches(mutation: dict[str, Any]) -> str | None:
     """``5/16``: how many sampled histories diverge through this mutant, when the receipt counted them."""
     if "samples_diverged" not in mutation or "samples" not in mutation:
@@ -623,6 +640,8 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: pyte
             terminalreporter.write_line(f"{run.test}: sampled histories that catch each mutant: {shown}")
         for name in witness_only(run.mutations, run.contract.bounds.n_traces):
             terminalreporter.write_line(f"{run.test}: mutant {name!r} {WITNESS_ONLY}", yellow=True)
+        for name in sample_only(run.mutations, len(run.contract.witnesses)):
+            terminalreporter.write_line(f"{run.test}: mutant {name!r} {SAMPLE_ONLY}", yellow=True)
     if state.replay_path:
         terminalreporter.write_line("replay-only: one saved trace was checked; this is not complete coverage")
     for line in state.incomplete:

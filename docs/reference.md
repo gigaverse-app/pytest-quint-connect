@@ -258,9 +258,13 @@ a surviving mutant how many histories it survived. A detected mutant's entry in
 `mutations` says where it was first caught: `detected_by` (the case id of the trace),
 `state`, `action`, `arguments` and the differences, then `samples_diverged` of `samples`: how many
 sampled histories diverge through it, and `caught_by_sample`, whether any did. Witnesses replay
-first, until one catches the mutant; every sample then replays, so the count is exact. The session
+first, in the manifest's order, until one catches the mutant; every sample then replays, so the count is exact.
+`detected_by` is therefore the first witness that catches it, which need not be the one written for it, or
+a sample when no witness does; replay one witness through the mutant (`--quint-replay` with
+`--quint-mutant`) to see whether that witness catches it. The session
 summary lists each mutant's count (`sampled histories that catch each mutant: stale-read 3/12`), and
-it and the PR comment name every mutant that only witnesses catch. `arguments` are the action's own
+it and the PR comment name every mutant that only witnesses catch. The session summary also names every
+mutant no witness catches (`mutant 'stale-read' caught by no witness`). `arguments` are the action's own
 parameters when a generated driver declares them; with a hand-written driver in the event
 convention they are the whole event record, and `event_fields: true` says so (reports show
 `fetch(event: key='a', value=0)`). The entry of a mutant named by a found bug adds

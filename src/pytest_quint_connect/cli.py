@@ -96,6 +96,23 @@ def _warn_no_block(readme: Path) -> None:
         print(f"::warning file={readme},title=pytest-quint-connect README block::{message}")
 
 
+def _unsigned(readme: Path, refresh: str) -> str:
+    """Say that a block shows no counter sign, with the command that adds it: in the log, and as a run annotation.
+
+    The report action only checks the block, so a block filled without the sign never gains one by itself.
+    """
+    repository = os.environ.get("GITHUB_REPOSITORY") or "OWNER/REPO"
+    command = (
+        f'GITHUB_REPOSITORY={repository} GITHUB_REPOSITORY_ID="$(gh api repos/{repository} --jq .id)" '
+        f"{refresh} --counter-sign"
+    )
+    message = f"{readme}: the block shows no counter sign (optional). To add it, refresh the block with {command}"
+    print(message)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::notice file={readme},title=pytest-quint-connect counter sign::{message}")
+    return f"<sub>`{readme}` shows no counter sign (optional); add it with `{command}`.</sub>"
+
+
 def report(arguments: argparse.Namespace) -> int:
     """Render receipts as a PR comment, and write or check the README block. Exit 1 only on a stale block."""
     paths = receipt_paths(arguments.receipts)
@@ -131,10 +148,8 @@ def report(arguments: argparse.Namespace) -> int:
             else:
                 print(f"{readme}: the contract block is current")
             if arguments.counter_sign and Sign.found(document) is None:
-                print(
-                    f"{readme}: the block shows no counter sign (optional). To add it, refresh the block with "
-                    f"GITHUB_REPOSITORY_ID=<numeric repository id> GITHUB_REPOSITORY=<owner/name> {refresh} --counter-sign"
-                )
+                unsigned = _unsigned(readme, refresh)
+                note = "\n\n".join(part for part in (note, unsigned) if part)
         else:
             # The repository's counter sign: requested by the action (its id and name are in the environment),
             # otherwise kept as the block already shows it, so a local refresh changes nothing.
@@ -143,6 +158,14 @@ def report(arguments: argparse.Namespace) -> int:
                 sign: Sign | None = Sign.of(repository_id, repository)
             else:
                 sign = Sign.found(document)
+                if arguments.counter_sign and sign is None:
+                    # Asked for a sign with no repository to key it from: say so rather than write a block without it.
+                    print(
+                        f"{readme}: --counter-sign needs GITHUB_REPOSITORY_ID and GITHUB_REPOSITORY; "
+                        "writing the block without a counter sign",
+                        file=sys.stderr,
+                    )
+                    _unsigned(readme, refresh)
             updated = embed(document, render_readme(evidence, sign))
             if updated != document:
                 readme.write_bytes(updated.encode("utf-8"))

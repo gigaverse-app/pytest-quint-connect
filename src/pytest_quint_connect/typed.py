@@ -88,8 +88,9 @@ class ActionDriver(ABC):
         current = codegen_fingerprint(contract)
         if self.__quint_fingerprint__ != current:
             raise ContractError(
-                f"{type(self).__name__} is stale: {contract.model.name} or the manifest's actions/observe changed "
-                f"since it was generated. Regenerate it: {self.__quint_codegen_command__}"
+                f"{type(self).__name__} is stale: {contract.model.name} (any edit, a witness or a comment included) or "
+                f"the manifest's actions/observe changed since it was generated. Regenerate it after every such edit, "
+                f"and commit the result: {self.__quint_codegen_command__}"
             )
 
     def step(self, step: Any) -> None:
