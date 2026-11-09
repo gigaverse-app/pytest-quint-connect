@@ -1,6 +1,7 @@
 """One version everywhere: pyproject, the installed package, Release Please and uv.lock."""
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -21,6 +22,21 @@ def test_release_please_updates_the_lock() -> None:
     config = json.loads((ROOT / "release-please-config.json").read_text())["packages"]["."]
     assert config["package-name"] == "pytest-quint-connect"
     assert any(extra["path"] == "uv.lock" for extra in config["extra-files"])
+
+
+def test_release_prs_touch_only_version_files() -> None:
+    """Release Please's python strategy rewrites X.Y.Z __version__ literals in source files.
+
+    A release PR that edits source is no longer version-only, so CI-esta cannot reuse
+    main's test receipts for it and every lane runs again for a version bump.
+    """
+    literal = re.compile(r"__version__ ?= ?[\"'][0-9]+\.[0-9]+\.[0-9]+(?:-\w+)?[\"']")
+    rewritten = [
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "src").rglob("*.py")
+        if literal.search(path.read_text(encoding="utf-8"))
+    ]
+    assert rewritten == []
 
 
 def test_wheel_ships_the_quint_lock() -> None:
