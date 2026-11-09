@@ -46,7 +46,7 @@ class LruCacheDriver(ActionDriver):
     """Subclass this, implement each action against the real code, and read state back in observe()."""
 
     __quint_contract__ = "lru-cache"
-    __quint_fingerprint__ = "9aa3037d03e22256eed5fcd8501c0297b123ea10d2b4aa50bcde2387e69e483f"
+    __quint_fingerprint__ = "7b2e5c32b2b6e7eecd2b0e7d30df491f370513e0f1f8452b418fdfa26f160c79"
     __quint_codegen_command__ = "pytest-quint-connect codegen quint-connect.json"
     __quint_actions__ = {
         "init": ("init", ()),

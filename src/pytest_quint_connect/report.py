@@ -39,6 +39,8 @@ HOME = "https://github.com/gigaverse-app/pytest-quint-connect"
 # Documentation at the tag of the version that renders the report: the one the report action is pinned to.
 DOCS = f"{HOME}/blob/v{__version__}/docs"
 LIMITS = f"{DOCS}/limits.md"
+# How a model names its states so reports can draw it readably.
+NAMING = f"{DOCS}/manifest.md#naming-the-models-states"
 # "Mutant" is the industry term but jargon: every mention links to this explanation, shown on hover.
 MUTANTS = f"{DOCS}/why.md#proof-that-the-tests-can-fail"
 MUTANTS_TIP = (
@@ -99,7 +101,8 @@ class Claims:
     """What a contract's manifest says, as its receipt records it: the model a reviewer judges.
 
     ``illustrated`` is one witness step by step, read from its generated trace: each action and the
-    observation the model expects after it.
+    observation the model expects after it. ``machine`` is every generated history merged into the
+    model's states and the actions between them.
     """
 
     actions: dict[str, str]
@@ -107,6 +110,7 @@ class Claims:
     witnesses: list[str]
     bounds: dict[str, Any]
     illustrated: dict[str, Any] | None
+    machine: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +208,7 @@ def _rows(receipt: dict[str, Any]) -> list[Row]:
                 witnesses=list(contract.get("witnesses", [])),
                 bounds=dict(bounds),
                 illustrated=contract.get("illustrated"),
+                machine=contract.get("machine"),
             )
             if "actions" in contract
             else None
@@ -284,41 +289,31 @@ def _call(action: object, arguments: object, event_fields: object = False) -> st
     return _code(call_text(action, dict(arguments or {}), bool(event_fields)))
 
 
-def _value(value: object, *, terse: bool = False) -> str:
-    """A value as the receipt records it (``compare.plain``), written in Quint's syntax: ``Hit(1)``, ``NoRead``.
-
-    ``terse`` is for pictures, where every character costs width: a word-like string loses its quotes and a
-    record is written ``{key=a, value=1}``.
-    """
-
-    def inner(item: object) -> str:
-        return _value(item, terse=terse)
-
+def _value(value: object) -> str:
+    """A value as the receipt records it (``compare.plain``), written in Quint's syntax: ``Hit(1)``, ``NoRead``."""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, str):
-        return value if terse and re.fullmatch(r"[\w.-]+", value) else json.dumps(value, ensure_ascii=False)
+        return json.dumps(value, ensure_ascii=False)
     if isinstance(value, list):
-        return "[" + ", ".join(map(inner, value)) + "]"
+        return "[" + ", ".join(map(_value, value)) + "]"
     if not isinstance(value, dict):
         return str(value)
     # ITF, and so plain(), writes a variant as exactly {tag, value}; a unit variant's value is the empty tuple.
     if set(value) == {"tag", "value"}:
         unit = value["value"] == {"#tup": []}
-        return str(value["tag"]) if unit else f"{value['tag']}({inner(value['value'])})"
+        return str(value["tag"]) if unit else f"{value['tag']}({_value(value['value'])})"
     if set(value) == {"#tup"}:
-        return "(" + ", ".join(map(inner, value["#tup"])) + ")"
+        return "(" + ", ".join(map(_value, value["#tup"])) + ")"
     if set(value) == {"#set"}:
-        return "Set(" + ", ".join(map(inner, value["#set"])) + ")"
+        return "Set(" + ", ".join(map(_value, value["#set"])) + ")"
     if set(value) == {"#map"}:
-        return "Map(" + ", ".join(f"{inner(key)} -> {inner(item)}" for key, item in value["#map"]) + ")"
+        return "Map(" + ", ".join(f"{_value(key)} -> {_value(item)}" for key, item in value["#map"]) + ")"
     if set(value) == {"#unserializable"}:
         return str(value["#unserializable"])
     if not value:
         return "{}"
-    if terse:
-        return "{" + ", ".join(f"{key}={inner(item)}" for key, item in value.items()) + "}"
-    return "{ " + ", ".join(f"{key}: {inner(item)}" for key, item in value.items()) + " }"
+    return "{ " + ", ".join(f"{key}: {_value(item)}" for key, item in value.items()) + " }"
 
 
 def _plural(count: int, word: str, plural: str = "") -> str:
@@ -865,60 +860,16 @@ def _mermaid(text: str, limit: int = MAX_LABEL) -> str:
     return "".join(char if _MERMAID_PLAIN.fullmatch(char) else f"#{ord(char)};" for char in text)
 
 
-def _fields(observed: object) -> list[tuple[str, object]]:
-    """An observation's top-level fields, or the whole value when it is not a record."""
-    return list(observed.items()) if _record(observed) and isinstance(observed, dict) else [("observation", observed)]
-
-
-def _box(fields: list[tuple[str, object]], *, heading: list[str] = ()) -> str:  # type: ignore[assignment]
-    """A node label: an optional heading, then at most ``MAX_CHANGES`` fields as ``name = value``, or no change."""
-    lines = list(heading)
-    lines += [
-        _mermaid(f"{path} = {'absent' if value is _ABSENT else _value(value, terse=True)}")
-        for path, value in fields[:MAX_CHANGES]
-    ]
-    if len(fields) > MAX_CHANGES:
-        lines.append(_mermaid(f"and {_plural(len(fields) - MAX_CHANGES, 'more field')}"))
-    return "<br>".join(lines or ["<i>no change</i>"])
-
-
-def _action(step: dict[str, Any], actions: dict[str, str]) -> list[str]:
-    """An action in words: the call in bold, then what the manifest says it drives in the code, in italics."""
-    call = call_text(step.get("action"), dict(step.get("arguments") or {}), bool(step.get("event_fields")))
-    drives = actions.get(str(step.get("action")))
-    # A description is prose: Mermaid wraps it, so it may run longer than a value.
-    return [f"<b>{_mermaid(call)}</b>", *([f"<i>{_mermaid(drives, 2 * MAX_LABEL + 20)}</i>"] if drives else [])]
-
-
-def _flowchart(illustrated: dict[str, Any], actions: dict[str, str]) -> str:
-    """One witness as a Mermaid flowchart, in the contract's own words.
-
-    Each arrow is an action: its call, and what the manifest says it drives in the code. Each box is what the
-    model then expects the code to show, only the fields that action changed. The first box is the action that
-    set things up and the state it leaves.
-    """
-    steps = list(illustrated.get("steps", []))[:MAX_STEPS]
-    # Mermaid wraps a label at 200 pixels by default, which splits a value mid-field.
-    lines = ['%%{init: {"flowchart": {"wrappingWidth": 420}}}%%', "flowchart TD"]
-    previous: object = None
-    for index, step in enumerate(steps):
-        observed = step.get("observed")
-        if index == 0:
-            lines.append(f'  s0["{_box(_fields(observed), heading=_action(step, actions))}"]')
-        else:
-            changed = [(path, new) for path, _, new in _changes(previous, observed)]
-            lines.append(f'  s{index}["{_box(changed)}"]')
-            lines.append(f'  s{index - 1} -->|"{"<br>".join(_action(step, actions))}"| s{index}')
-        previous = observed
-    return "\n".join(lines)
+def _words(name: object) -> str:
+    """A Quint name as words: ``PartlyFilled`` reads ``Partly filled``, ``noQuintTTL`` reads ``No quint TTL``."""
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|[_-]+", " ", str(name)).split()
+    sentence = " ".join(word if word.isupper() and len(word) > 1 else word.lower() for word in words)
+    return sentence[:1].upper() + sentence[1:]
 
 
 def _sentence(name: object) -> str:
     """A witness name as words: ``evictsLeastRecentlyUsedTest`` reads ``Evicts least recently used``."""
-    text = re.sub(r"Test$", "", str(name))
-    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|[_-]+", " ", text).split()
-    sentence = " ".join(word if word.isupper() and len(word) > 1 else word.lower() for word in words)
-    return sentence[:1].upper() + sentence[1:]
+    return _words(re.sub(r"Test$", "", str(name)))
 
 
 def _full_size(diagram: str) -> str:
@@ -929,16 +880,70 @@ def _full_size(diagram: str) -> str:
     return "https://mermaid.live/view#base64:" + base64.urlsafe_b64encode(state.encode("utf-8")).decode("ascii")
 
 
-def _diagram(illustrated: dict[str, Any], actions: dict[str, str]) -> list[str]:
-    """One witness drawn in the contract's words: each action and what the model then expects to see."""
-    diagram = _flowchart(illustrated, actions)
-    steps = len(illustrated.get("steps", []))
-    more = f" The first {MAX_STEPS} of its {steps} states are drawn." if steps > MAX_STEPS else ""
-    witness = illustrated.get("witness")
+MAX_STATES = 30
+
+
+def _state_box(state: dict[str, Any]) -> str:
+    """A state as the model names it, or, for a model that names none, the values it expects the code to show."""
+    if "name" in state:
+        return f"<b>{_mermaid(_words(state['name']))}</b>"
+    fields = [_mermaid(f"{field}: {text}") for field, text in state.get("fields", [])[:MAX_CHANGES]]
+    return "<br>".join(fields) or "#8203;"
+
+
+def _transition(actions: list[dict[str, Any]], order: list[str]) -> str:
+    """The actions on one arrow, in the manifest's order, each with the arguments every call on it shared."""
+    shown = []
+    for entry in sorted(
+        actions, key=lambda item: order.index(item["action"]) if item.get("action") in order else len(order)
+    ):
+        arguments = dict(entry.get("arguments") or {})
+        name = entry.get("action")
+        call = call_text(name, arguments, bool(entry.get("event_fields"))) if arguments else str(name)
+        shown.append(_mermaid(call))
+    return "<br>".join(shown)
+
+
+def _state_machine(machine: dict[str, Any], order: list[str]) -> str:
+    """The model's states and the actions between them, as a Mermaid state diagram."""
+    lines = ["stateDiagram-v2"]
+    for index, state in enumerate(machine.get("states", [])):
+        lines.append(f'  state "{_state_box(state)}" as s{index}')
+    for index in machine.get("initial", []):
+        lines.append(f"  [*] --> s{index}")
+    for transition in machine.get("transitions", []):
+        label = _transition(list(transition.get("actions", [])), order)
+        lines.append(f"  s{transition.get('from')} --> s{transition.get('to')} : {label}")
+    return "\n".join(lines)
+
+
+def _behaviour(contract: str, machine: dict[str, Any], order: list[str]) -> list[str]:
+    """The model's state machine, titled and explained, with a link to open it full size."""
+    states = len(machine.get("states", []))
+    histories = _plural(int(machine.get("histories", 0)), "history", "histories")
+    named_by = machine.get("named_by")
+    title = f"**How {_code(contract)} behaves**"
+    if states > MAX_STATES:
+        return [
+            f"{title}: its histories reached {states} distinct states, too many to draw. Name the states the model "
+            f"should be read by, and set the manifest's `state_names` ([how]({NAMING})).",
+            "",
+        ]
+    diagram = _state_machine(machine, order)
+    if named_by:
+        how = (
+            f"each box is a state as the model names it (variable {_code(named_by)}); each arrow is an action that "
+            "moves the model from one state to another, with the arguments every call on it shared"
+        )
+    else:
+        how = (
+            "each box is a state, drawn by the values the model expects the code to show (lists by size, tagged "
+            "values by tag); each arrow is an action, with the arguments every call on it shared. The model does "
+            f"not name its states: give it a variable that does and set the manifest's `state_names` ([how]({NAMING}))"
+        )
     return [
-        f"**Scenario: {_text(_sentence(witness), 120)}** (witness {_code(witness)}). Each arrow is an action and "
-        "the code it drives; each box is what the model then expects the code to show, only what changed. "
-        f"[Open full size ↗]({_full_size(diagram)}){more}",
+        f"{title}: {how}. Merged from the {histories} Quint generated; a state or action none of them reached is "
+        f"not drawn. [Open full size ↗]({_full_size(diagram)})",
         "",
         "```mermaid",
         diagram,
@@ -990,6 +995,7 @@ def _says(rows: list[Row], *, expanded: bool = True) -> list[str]:
         lines += _collapsible(
             f"What <code>{_text(contract, 120)}</code> says",
             [
+                *(_behaviour(contract, claims.machine, list(claims.actions)) if claims.machine else []),
                 "**Actions**, and the code each one drives:",
                 "",
                 *(f"- {_code(action)}: {_text(boundary)}" for action, boundary in claims.actions.items()),
@@ -1000,9 +1006,11 @@ def _says(rows: list[Row], *, expanded: bool = True) -> list[str]:
                 "",
                 f"**Bounds**: {bounds}.",
                 "",
-                *(_diagram(claims.illustrated, claims.actions) if claims.illustrated else []),
                 *(
-                    _collapsible("The same witness as a table", _steps(claims.illustrated))
+                    _collapsible(
+                        f"Scenario: {_text(_sentence(claims.illustrated.get('witness')), 120)}, step by step",
+                        _steps(claims.illustrated),
+                    )
                     if claims.illustrated
                     else []
                 ),
@@ -1367,9 +1375,11 @@ def evidence_fingerprint(evidence: Evidence) -> str:
                 "bugs_found": row.bugs_found,
                 # Hashed as receipts before per-mutant warnings had it: whether only witnesses caught every mutant.
                 "witnesses_only": bool(row.witness_only) and len(row.witness_only) == row.mutants_detected,
+                # The machine joined later: receipts without one hash exactly as before it existed.
                 "claims": None
                 if claims is None
-                else [claims.actions, claims.invariant, claims.witnesses, claims.bounds, claims.illustrated],
+                else [claims.actions, claims.invariant, claims.witnesses, claims.bounds, claims.illustrated]
+                + ([claims.machine] if claims.machine is not None else []),
             }
         )
     # Incomplete evidence is never checked against a block, so only a complete run needs a stable fingerprint.

@@ -38,6 +38,7 @@ _OPTIONAL = {
     "attest",
     "description",
     "limits",
+    "state_names",
     "codegen_header",
 }
 
@@ -128,6 +129,9 @@ class Contract:
     limits: tuple[str, ...]
     # Comment lines ``codegen`` writes first, such as a license notice; never part of the fingerprint.
     codegen_header: Path | None = None
+    # The model variable whose value names each state, such as a sum type ``Empty | PartlyFilled | Full``.
+    # Reports draw the model's state machine in those names; the driver is never compared on it.
+    state_names: str | None = None
 
     @property
     def mutants(self) -> tuple[str, ...]:
@@ -327,6 +331,13 @@ def load_contract(manifest: Path) -> Contract:
     else:
         raise ContractError("observe must be a state variable name or a non-empty list of names")
 
+    state_names = _string(data, "state_names") if "state_names" in data else None
+    if state_names in observed:
+        raise ContractError(
+            f"state_names {state_names!r} is also observed; name the states with a variable the driver is not "
+            "compared on, so naming them never changes what the code must do"
+        )
+
     historical = data.get("historical")
     historical_sha256 = data.get("historical_sha256")
     if (historical is None) != (historical_sha256 is None):
@@ -375,6 +386,7 @@ def load_contract(manifest: Path) -> Contract:
         attest=attestation,
         limits=tuple(str(item) for item in limits),
         codegen_header=path(_string(data, "codegen_header"), "codegen_header") if "codegen_header" in data else None,
+        state_names=state_names,
     )
     check_sources(contract)
     return contract

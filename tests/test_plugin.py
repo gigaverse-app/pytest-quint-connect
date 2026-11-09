@@ -136,6 +136,18 @@ def test_receipt_records_what_the_contract_claims(pytester: pytest.Pytester, exa
         "entries": [{"key": "b", "value": 2}, {"key": "a", "value": 1}],
         "lastRead": {"tag": "Hit", "value": 1},
     }
+    # Every generated history merged into the states the model names (its `fill` variable) and the actions
+    # between them: one filtered case still generates all 15, so the machine covers them all.
+    machine = contract["machine"]
+    assert (machine["histories"], machine["named_by"]) == (15, "fill")
+    assert machine["states"] == [{"name": "Empty"}, {"name": "PartlyFilled"}, {"name": "Full"}]
+    assert machine["initial"] == [0]
+    edges = {
+        (edge["from"], edge["to"]): {entry["action"] for entry in edge["actions"]} for edge in machine["transitions"]
+    }
+    assert edges[(0, 1)] == {"store"} and edges[(1, 2)] == {"store"}
+    # A full cache stays full: storing evicts, reading and inspecting change nothing a reader names.
+    assert edges[(2, 2)] == {"store", "fetch", "inspect"} and (2, 1) not in edges
 
 
 def test_collection_lists_selectable_cases(pytester: pytest.Pytester, example: Path) -> None:
@@ -294,7 +306,8 @@ def test_failing_witness_reports_quints_assertion_and_line(pytester: pytest.Pyte
     result = pytester.runpytest("-k", "test_lru_cache and witness-evicts")
     result.assert_outcomes(errors=1)
     # Quint's own explanation, not only "evictsLeastRecentlyUsedTest failed after 1 test(s)".
-    assert_output(result, "Error [QNT508]: Assertion failed", "lru.qnt:53:", wrong)
+    line = next(n for n, text in enumerate(model.read_text().splitlines(), 1) if wrong in text)
+    assert_output(result, "Error [QNT508]: Assertion failed", f"lru.qnt:{line}:", wrong)
     failure = receipt(example)["contracts"][0]["generation_failure"]
     assert "Assertion failed" in failure[:400], "the report shows the first 400 characters"
 

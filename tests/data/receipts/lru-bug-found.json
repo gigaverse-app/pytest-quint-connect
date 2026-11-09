@@ -6,6 +6,7 @@
   "replay_mutant": null,
   "head": "0123456789abcdef0123456789abcdef01234567",
   "root": "/repo/examples/lru_cache",
+  "config_file": null,
   "required": [
     "lru-cache"
   ],
@@ -51,13 +52,14 @@
           "mutant": "stale-read"
         }
       ],
+      "state_names": "fill",
       "limits": [
         "Three keys, values 0-2, capacity 2, at most 8 steps per sampled history.",
         "Single-threaded; the driver's projection of cache.items() is trusted."
       ],
       "sha256": {
-        "quint-connect.json": "dbd530c4bee65eb3998076704da648b34a81efaa53c4306b295d32e479955f2a",
-        "lru.qnt": "2bddef08f1c1da6892b6d1e0cf1e5d81f7ed3626bc213433f8e42f123ca18a10",
+        "quint-connect.json": "096d2b6c08f9b5a947e9fb4fdd1ae5fd322038ddd79e4e1f0443ae4917c603d8",
+        "lru.qnt": "baf9b29eab2828e61a686e3c9ebf35af966664c5abb241f121a89553ae5ae071",
         "lru_cache.py": "75bbbfdcb4d29bf6a01cce1fd5bc6262e702198b254edb6a7843b5909c794924"
       },
       "quint": "0.33.1",
@@ -80,7 +82,7 @@
           "--seed",
           "7",
           "--verbosity",
-          "1",
+          "2",
           "--match",
           "^(evictsLeastRecentlyUsedTest|overwriteRefreshesTest|missKeepsContentsTest)$",
           "--max-samples",
@@ -100,7 +102,7 @@
           "--seed",
           "7",
           "--verbosity",
-          "1",
+          "2",
           "--init",
           "init",
           "--step",
@@ -135,16 +137,99 @@
         "sample-10": "/repo/examples/lru_cache/.artifacts/quint-connect/lru-cache/sample-10.itf.json",
         "sample-11": "/repo/examples/lru_cache/.artifacts/quint-connect/lru-cache/sample-11.itf.json"
       },
+      "machine": {
+        "histories": 15,
+        "named_by": "fill",
+        "states": [
+          {
+            "name": "Empty"
+          },
+          {
+            "name": "PartlyFilled"
+          },
+          {
+            "name": "Full"
+          }
+        ],
+        "initial": [
+          0
+        ],
+        "transitions": [
+          {
+            "from": 0,
+            "to": 1,
+            "actions": [
+              {
+                "action": "store",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "actions": [
+              {
+                "action": "store",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "from": 2,
+            "to": 2,
+            "actions": [
+              {
+                "action": "fetch",
+                "arguments": {}
+              },
+              {
+                "action": "store",
+                "arguments": {}
+              },
+              {
+                "action": "inspect",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "from": 1,
+            "to": 1,
+            "actions": [
+              {
+                "action": "fetch",
+                "arguments": {}
+              },
+              {
+                "action": "inspect",
+                "arguments": {}
+              },
+              {
+                "action": "store",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "from": 0,
+            "to": 0,
+            "actions": [
+              {
+                "action": "fetch",
+                "arguments": {}
+              }
+            ]
+          }
+        ]
+      },
       "illustrated": {
         "witness": "evictsLeastRecentlyUsedTest",
         "steps": [
           {
             "state": 0,
             "action": "init",
-            "arguments": {
-              "key": "",
-              "value": 0
-            },
+            "arguments": {},
             "observed": {
               "entries": [],
               "lastRead": {
@@ -207,8 +292,7 @@
             "state": 3,
             "action": "fetch",
             "arguments": {
-              "key": "a",
-              "value": 0
+              "key": "a"
             },
             "observed": {
               "entries": [
@@ -256,10 +340,7 @@
           {
             "state": 5,
             "action": "inspect",
-            "arguments": {
-              "key": "",
-              "value": 0
-            },
+            "arguments": {},
             "observed": {
               "entries": [
                 {
@@ -330,9 +411,9 @@
               "state": 3,
               "action": "fetch",
               "arguments": {
-                "key": "a",
-                "value": 0
+                "key": "a"
               },
+              "event_fields": false,
               "mutant": "stale-read",
               "seed": 7,
               "expected": {
@@ -393,7 +474,10 @@
                   "actual": 2
                 }
               ],
-              "reproduce": "pytest test_lru_contract.py::test_lru_cache --quint-replay '/repo\\examples\\lru_cache\\.artifacts\\quint-connect\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json' --quint-mutant stale-read",
+              "reproduce": "pytest examples/lru_cache/test_lru_contract.py::test_lru_cache --quint-replay examples/lru_cache/.artifacts/quint-connect/lru-cache/witness-evictsLeastRecentlyUsedTest-0.itf.json --quint-mutant stale-read",
+              "caught_by_sample": true,
+              "samples_diverged": 3,
+              "samples": 12,
               "histories": 15,
               "diverged": [
                 "witness-evictsLeastRecentlyUsedTest",
@@ -454,9 +538,9 @@
               "state": 3,
               "action": "fetch",
               "arguments": {
-                "key": "a",
-                "value": 0
+                "key": "a"
               },
+              "event_fields": false,
               "mutant": "stale-read",
               "seed": 7,
               "expected": {
@@ -517,7 +601,10 @@
                   "actual": 2
                 }
               ],
-              "reproduce": "pytest test_lru_contract.py::test_ordered_refactor --quint-replay '/repo\\examples\\lru_cache\\.artifacts\\quint-connect\\lru-cache\\witness-evictsLeastRecentlyUsedTest-0.itf.json' --quint-mutant stale-read",
+              "reproduce": "pytest examples/lru_cache/test_lru_contract.py::test_ordered_refactor --quint-replay examples/lru_cache/.artifacts/quint-connect/lru-cache/witness-evictsLeastRecentlyUsedTest-0.itf.json --quint-mutant stale-read",
+              "caught_by_sample": true,
+              "samples_diverged": 3,
+              "samples": 12,
               "histories": 15,
               "diverged": [
                 "witness-evictsLeastRecentlyUsedTest",

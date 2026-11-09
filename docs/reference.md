@@ -59,18 +59,17 @@ skipped: they belong to sessions a driver ran inside one history.
   width. "Mutants" links to an explanation that shows on hover. Under "What `NAME` says",
   each contract's claims let a reviewer judge the model
   itself: each declared action and the code it drives, the invariant, the witnesses, the
-  bounds, and, when it declares witnesses, the first one read from its generated trace. That
-  witness is drawn as a Mermaid flowchart in the contract's own words, titled with the witness
-  name as a sentence ("Scenario: Evicts least recently used"). Each arrow is an action: its
-  call, and the code the manifest's `actions` says it drives. Each box is what the model then
-  expects the code to show: the first box the setup action and the whole observation it
-  leaves, each later box only the fields that action changed (at most six, or "no change"),
-  for at most 20 states. An "Open full
-  size" link opens the same diagram on mermaid.live; the diagram travels in the link's
-  fragment, which the browser does not send to the server. Every character of receipt text in
-  the diagram is written as a Mermaid entity code unless it is plain, so receipt text cannot end
-  a label or the diagram. The same steps follow as a folded table
-  (`path: before → after`). Receipts from
+  bounds. It opens with "How `NAME` behaves": a Mermaid state diagram of the model, merged
+  from every history Quint generated, with one box per state as the model names it (its
+  [`state_names`](manifest.md#naming-the-models-states) variable) and an arrow per action,
+  labelled with the arguments every call on it shared. A model that names no states is drawn
+  by the shape of its observation, and the report says how to name them; a machine of more
+  than 30 states is described rather than drawn. An "Open full size" link opens the same
+  diagram on mermaid.live; the diagram travels in the link's fragment, which the browser does
+  not send to the server. Every character of receipt text in the diagram is written as a
+  Mermaid entity code unless it is plain, so receipt text cannot end a label or the diagram.
+  The first witness follows as a folded table, "Scenario: … step by step", read from its
+  generated trace (`path: before → after`, at most 20 states). Receipts from
   earlier plugin versions lack these fields and show no such block. When the comment would exceed
   GitHub's limit, these blocks are left out first. Then each failure with its state,
   action and differences, and a

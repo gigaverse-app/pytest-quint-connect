@@ -46,7 +46,44 @@ instead of silently weakening a check.
 | `sources` | no | Implementation files whose hashes go into the receipt. A missing file fails collection. |
 | `attest` | no | `{"package": "name", "source": "dir"}`: after every step, every imported module of `package` must come from `source`, so a stale installed copy cannot stand in for the checkout under test. `source` is the directory that *contains* the package directory, relative to `root`: `"src"` for `src/name/`, `"."` for `name/` at the root. Use it when a runner installs the package non-editably (tox does by default), and put `source` first on the contract config's `pythonpath` so the checkout is what gets imported. |
 | `description`, `limits` | no | Documentation. `limits` is copied into the receipt. |
+| `state_names` | no | A model variable that names its states, such as a sum type `Empty \| PartlyFilled \| Full`. Reports draw the model's state machine in those names; see [naming the model's states](#naming-the-models-states). It must not be an observed variable. |
 | `codegen_header` | no | A file, relative to the manifest, whose lines `codegen` writes at the top of the generated driver base, before its tool directives: a license or copyright notice your repository requires on every file. Only comment (`#`) and blank lines are allowed. It is not part of the base's fingerprint, so adding or editing it never makes a replay stale; `codegen --check` compares it like the rest of the file. |
+
+## Naming the model's states
+
+Reports draw each contract as a state machine: the states its generated histories reach and the
+actions that move between them, merged from every history Quint generated. A reviewer reads it to
+judge whether the model itself is right, so its boxes should carry the names a person would use.
+
+Quint does not name states, so name them in the model. Declare a sum type of the states a reader
+would recognise, keep it in a variable every action assigns, and point `state_names` at it:
+
+```quint
+type Fill = Empty | PartlyFilled | Full
+var fill: Fill
+
+pure def fillOf(entries: List[Entry]): Fill =
+  if (entries.length() == 0) Empty else if (entries.length() < CAPACITY) PartlyFilled else Full
+
+action store(key: str, value: int): bool = all {
+  // ...
+  fill' = fillOf(stored),
+}
+```
+
+```json
+"state_names": "fill"
+```
+
+The diagram then has one box per name (`PartlyFilled` reads "Partly filled") and arrows labelled
+with each action and the arguments every call on that arrow shared. The variable is never compared
+with the code, so naming states cannot change a verdict; Quint checks that every action keeps it
+current. Name states by what matters to the contract, not by every field: a cache's fill level, not
+its exact entries. A model without `state_names` is drawn by the shape of its observation (lists by
+size, sum types by tag), which is harder to read, and the report says so.
+
+The machine holds only what the generated histories reached. A state or action the bounds never
+sample is not drawn: it is evidence of what the model does, not a proof of every reachable state.
 
 ## Mutants
 

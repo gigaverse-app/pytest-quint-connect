@@ -5,6 +5,7 @@
   "module": "session_receipts",
   "model": "session.qnt",
   "invariant": "honest",
+  "state_names": "stage",
   "root": "..",
   "actions": {
     "init": "copy examples/lru_cache into a fresh project directory; no receipt yet",

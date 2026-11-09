@@ -214,7 +214,7 @@ generated, and CI fails when it no longer matches the evidence:
 
 <!-- pytest-quint-connect:start -->
 <!-- pytest-quint-connect:contracts lru-cache,session-receipts -->
-<!-- pytest-quint-connect:evidence caa8c38b04f283bb renderer 1.4.0 -->
+<!-- pytest-quint-connect:evidence 1b833a57ffc9138d renderer 1.4.0 -->
 <a href="https://github.com/gigaverse-app/pytest-quint-connect#impact"><picture><source media="(prefers-color-scheme: dark)" srcset="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect&amp;theme=dark"><img alt="What pytest-quint-connect&#x27;s contracts caught in gigaverse-app/pytest-quint-connect&#x27;s pull requests" src="https://pytest-quint-connect-counter.gigaverse-oss.workers.dev/v1/sign.svg?key=bc47fb5de1a72359c95c190667ac9a84218d2ce822909a59d7e114ff2779542f&amp;name=gigaverse-app%2Fpytest-quint-connect" width="100%"></picture></a>
 
 <a href="https://github.com/gigaverse-app/pytest-quint-connect" title="Mutants are planted fake bugs: deliberately broken copies of the code, used only during this test run. Each must make some history diverge, proving the tests are meaningful: they would notice that kind of bug"><img alt="Quint contracts: 2 contracts passed · 23 histories · 6/6 mutants caught" src="https://img.shields.io/badge/Quint_contracts-2_contracts_passed_%C2%B7_23_histories_%C2%B7_6%2F6_mutants_caught-brightgreen"></a>
@@ -255,6 +255,21 @@ generated, and CI fails when it no longer matches the evidence:
 <details open>
 <summary>What <code>lru-cache</code> says</summary>
 
+**How `lru-cache` behaves**: each box is a state as the model names it (variable `fill`); each arrow is an action that moves the model from one state to another, with the arguments every call on it shared. Merged from the 15 histories Quint generated; a state or action none of them reached is not drawn. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoic3RhdGVEaWFncmFtLXYyXG4gIHN0YXRlIFwiPGI-RW1wdHk8L2I-XCIgYXMgczBcbiAgc3RhdGUgXCI8Yj5QYXJ0bHkgZmlsbGVkPC9iPlwiIGFzIHMxXG4gIHN0YXRlIFwiPGI-RnVsbDwvYj5cIiBhcyBzMlxuICBbKl0gLS0-IHMwXG4gIHMwIC0tPiBzMSA6IHN0b3JlXG4gIHMxIC0tPiBzMiA6IHN0b3JlXG4gIHMyIC0tPiBzMiA6IHN0b3JlPGJyPmZldGNoPGJyPmluc3BlY3RcbiAgczEgLS0-IHMxIDogc3RvcmU8YnI-ZmV0Y2g8YnI-aW5zcGVjdFxuICBzMCAtLT4gczAgOiBmZXRjaCIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
+
+```mermaid
+stateDiagram-v2
+  state "<b>Empty</b>" as s0
+  state "<b>Partly filled</b>" as s1
+  state "<b>Full</b>" as s2
+  [*] --> s0
+  s0 --> s1 : store
+  s1 --> s2 : store
+  s2 --> s2 : store<br>fetch<br>inspect
+  s1 --> s1 : store<br>fetch<br>inspect
+  s0 --> s0 : fetch
+```
+
 **Actions**, and the code each one drives:
 
 - `init`: construct a fresh cache with capacity 2
@@ -268,26 +283,8 @@ generated, and CI fails when it no longer matches the evidence:
 
 **Bounds**: seed `7` · max_samples `200` · max_steps `8` · n_traces `12`.
 
-**Scenario: Evicts least recently used** (witness `evictsLeastRecentlyUsedTest`). Each arrow is an action and the code it drives; each box is what the model then expects the code to show, only what changed. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPmluaXQoKTwvYj48YnI-PGk-Y29uc3RydWN0IGEgZnJlc2ggY2FjaGUgd2l0aCBjYXBhY2l0eSAyPC9pPjxicj5lbnRyaWVzID0gW108YnI-bGFzdFJlYWQgPSBOb1JlYWRcIl1cbiAgczFbXCJlbnRyaWVzID0gWyMxMjM7a2V5PWEsIHZhbHVlPTEjMTI1O11cIl1cbiAgczAgLS0-fFwiPGI-c3RvcmUoa2V5PSdhJywgdmFsdWU9MSk8L2I-PGJyPjxpPmNhY2hlLnB1dChrZXksIHZhbHVlKTwvaT5cInwgczFcbiAgczJbXCJlbnRyaWVzID0gWyMxMjM7a2V5PWEsIHZhbHVlPTEjMTI1OywgIzEyMztrZXk9YiwgdmFsdWU9MiMxMjU7XVwiXVxuICBzMSAtLT58XCI8Yj5zdG9yZShrZXk9J2InLCB2YWx1ZT0yKTwvYj48YnI-PGk-Y2FjaGUucHV0KGtleSwgdmFsdWUpPC9pPlwifCBzMlxuICBzM1tcImVudHJpZXMgPSBbIzEyMztrZXk9YiwgdmFsdWU9MiMxMjU7LCAjMTIzO2tleT1hLCB2YWx1ZT0xIzEyNTtdPGJyPmxhc3RSZWFkID0gSGl0KDEpXCJdXG4gIHMyIC0tPnxcIjxiPmZldGNoKGtleT0nYScpPC9iPjxicj48aT5jYWNoZS5nZXQoa2V5KSwgb2JzZXJ2ZWQgYXMgSGl0KHZhbHVlKSBvciBNaXNzPC9pPlwifCBzM1xuICBzNFtcImVudHJpZXMgPSBbIzEyMztrZXk9YSwgdmFsdWU9MSMxMjU7LCAjMTIzO2tleT1jLCB2YWx1ZT0wIzEyNTtdPGJyPmxhc3RSZWFkID0gTm9SZWFkXCJdXG4gIHMzIC0tPnxcIjxiPnN0b3JlKGtleT0nYycsIHZhbHVlPTApPC9iPjxicj48aT5jYWNoZS5wdXQoa2V5LCB2YWx1ZSk8L2k-XCJ8IHM0XG4gIHM1W1wiPGk-bm8gY2hhbmdlPC9pPlwiXVxuICBzNCAtLT58XCI8Yj5pbnNwZWN0KCk8L2I-PGJyPjxpPnJlYWQgY2FjaGUuaXRlbXMoKSB3aXRob3V0IGNoYW5naW5nIGl0PC9pPlwifCBzNSIsIm1lcm1haWQiOiJ7XCJ0aGVtZVwiOiBcImRlZmF1bHRcIn0ifQ==)
-
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 420}}}%%
-flowchart TD
-  s0["<b>init()</b><br><i>construct a fresh cache with capacity 2</i><br>entries = []<br>lastRead = NoRead"]
-  s1["entries = [#123;key=a, value=1#125;]"]
-  s0 -->|"<b>store(key='a', value=1)</b><br><i>cache.put(key, value)</i>"| s1
-  s2["entries = [#123;key=a, value=1#125;, #123;key=b, value=2#125;]"]
-  s1 -->|"<b>store(key='b', value=2)</b><br><i>cache.put(key, value)</i>"| s2
-  s3["entries = [#123;key=b, value=2#125;, #123;key=a, value=1#125;]<br>lastRead = Hit(1)"]
-  s2 -->|"<b>fetch(key='a')</b><br><i>cache.get(key), observed as Hit(value) or Miss</i>"| s3
-  s4["entries = [#123;key=a, value=1#125;, #123;key=c, value=0#125;]<br>lastRead = NoRead"]
-  s3 -->|"<b>store(key='c', value=0)</b><br><i>cache.put(key, value)</i>"| s4
-  s5["<i>no change</i>"]
-  s4 -->|"<b>inspect()</b><br><i>read cache.items() without changing it</i>"| s5
-```
-
 <details>
-<summary>The same witness as a table</summary>
+<summary>Scenario: Evicts least recently used, step by step</summary>
 
 **Witness `evictsLeastRecentlyUsedTest`, step by step**: the observation the model starts from, then what it expects each action to change.
 
@@ -307,6 +304,30 @@ flowchart TD
 <details open>
 <summary>What <code>session-receipts</code> says</summary>
 
+**How `session-receipts` behaves**: each box is a state as the model names it (variable `stage`); each arrow is an action that moves the model from one state to another, with the arguments every call on it shared. Merged from the 8 histories Quint generated; a state or action none of them reached is not drawn. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoic3RhdGVEaWFncmFtLXYyXG4gIHN0YXRlIFwiPGI-Tm8gc2Vzc2lvbjwvYj5cIiBhcyBzMFxuICBzdGF0ZSBcIjxiPlBhc3NlZDwvYj5cIiBhcyBzMVxuICBzdGF0ZSBcIjxiPkZhaWxlZDwvYj5cIiBhcyBzMlxuICBzdGF0ZSBcIjxiPkZpbHRlcmVkPC9iPlwiIGFzIHMzXG4gIHN0YXRlIFwiPGI-UmVwbGF5IG9ubHk8L2I-XCIgYXMgczRcbiAgWypdIC0tPiBzMFxuICBzMCAtLT4gczEgOiBzZXNzaW9uKGtpbmQ9J2Z1bGwnKVxuICBzMSAtLT4gczIgOiBzZXNzaW9uXG4gIHMyIC0tPiBzMiA6IHNlc3Npb24oa2luZD0nZmF1bHR5Jyk8YnI-aW5zcGVjdFxuICBzMCAtLT4gczMgOiBzZXNzaW9uKGtpbmQ9J2ZpbHRlcmVkJylcbiAgczMgLS0-IHMzIDogc2Vzc2lvbihraW5kPSdmaWx0ZXJlZCcsIHN0cmljdD1UcnVlKTxicj5pbnNwZWN0XG4gIHMxIC0tPiBzNCA6IHNlc3Npb24oa2luZD0ncmVwbGF5Jywgc3RyaWN0PVRydWUpXG4gIHM0IC0tPiBzNCA6IGluc3BlY3RcbiAgczAgLS0-IHMyIDogc2Vzc2lvbihraW5kPSdmYXVsdHknKVxuICBzMiAtLT4gczQgOiBzZXNzaW9uKGtpbmQ9J3JlcGxheScsIHN0cmljdD1GYWxzZSlcbiAgczMgLS0-IHMyIDogc2Vzc2lvbihraW5kPSdmYXVsdHknLCBzdHJpY3Q9RmFsc2UpXG4gIHM0IC0tPiBzMiA6IHNlc3Npb24oa2luZD0nbm9RdWludCcsIHN0cmljdD1UcnVlKVxuICBzMiAtLT4gczEgOiBzZXNzaW9uKGtpbmQ9J2Z1bGwnLCBzdHJpY3Q9RmFsc2UpIiwibWVybWFpZCI6IntcInRoZW1lXCI6IFwiZGVmYXVsdFwifSJ9)
+
+```mermaid
+stateDiagram-v2
+  state "<b>No session</b>" as s0
+  state "<b>Passed</b>" as s1
+  state "<b>Failed</b>" as s2
+  state "<b>Filtered</b>" as s3
+  state "<b>Replay only</b>" as s4
+  [*] --> s0
+  s0 --> s1 : session(kind='full')
+  s1 --> s2 : session
+  s2 --> s2 : session(kind='faulty')<br>inspect
+  s0 --> s3 : session(kind='filtered')
+  s3 --> s3 : session(kind='filtered', strict=True)<br>inspect
+  s1 --> s4 : session(kind='replay', strict=True)
+  s4 --> s4 : inspect
+  s0 --> s2 : session(kind='faulty')
+  s2 --> s4 : session(kind='replay', strict=False)
+  s3 --> s2 : session(kind='faulty', strict=False)
+  s4 --> s2 : session(kind='noQuint', strict=True)
+  s2 --> s1 : session(kind='full', strict=False)
+```
+
 **Actions**, and the code each one drives:
 
 - `init`: copy examples/lru_cache into a fresh project directory; no receipt yet
@@ -319,22 +340,8 @@ flowchart TD
 
 **Bounds**: seed `11` · max_samples `300` · max_steps `3` · n_traces `4`.
 
-**Scenario: Stale success is replaced** (witness `staleSuccessIsReplacedTest`). Each arrow is an action and the code it drives; each box is what the model then expects the code to show, only what changed. [Open full size ↗](https://mermaid.live/view#base64:eyJjb2RlIjoiJSV7aW5pdDoge1wiZmxvd2NoYXJ0XCI6IHtcIndyYXBwaW5nV2lkdGhcIjogNDIwfX19JSVcbmZsb3djaGFydCBURFxuICBzMFtcIjxiPmluaXQoKTwvYj48YnI-PGk-Y29weSBleGFtcGxlcyM0NztscnVfY2FjaGUgaW50byBhIGZyZXNoIHByb2plY3QgZGlyZWN0b3J5IzU5OyBubyByZWNlaXB0IHlldDwvaT48YnI-ZXhpdENvZGUgPSAtMTxicj5tb2RlID0gbm9uZTxicj5zdGF0dXMgPSBub25lXCJdXG4gIHMxW1wiZXhpdENvZGUgPSAwPGJyPm1vZGUgPSBnZW5lcmF0ZS1hbmQtcmVwbGF5PGJyPnN0YXR1cyA9IHBhc3NlZFwiXVxuICBzMCAtLT58XCI8Yj5zZXNzaW9uKGtpbmQ9J2Z1bGwnLCBzdHJpY3Q9VHJ1ZSk8L2I-PGJyPjxpPnJ1biAjOTY7cHl0aG9uIC1tIHB5dGVzdCM5NjsgaW4gdGhlIHByb2plY3Qgd2l0aCB0aGUgaW5zdGFsbGVkIHBsdWdpbiBhbmQgdGhlIG9wdGlvbnMgZm9yIHRoaXMga2luZCM1OTsgcmVhZCByZXN1bHRzLmpzb24gYW5kIHRoZSBleGl0IGNvZGU8L2k-XCJ8IHMxXG4gIHMyW1wiZXhpdENvZGUgPSAxPGJyPnN0YXR1cyA9IGZhaWxlZFwiXVxuICBzMSAtLT58XCI8Yj5zZXNzaW9uKGtpbmQ9J25vUXVpbnQnLCBzdHJpY3Q9RmFsc2UpPC9iPjxicj48aT5ydW4gIzk2O3B5dGhvbiAtbSBweXRlc3QjOTY7IGluIHRoZSBwcm9qZWN0IHdpdGggdGhlIGluc3RhbGxlZCBwbHVnaW4gYW5kIHRoZSBvcHRpb25zIGZvciB0aGlzIGtpbmQjNTk7IHJlYWQgcmVzdWx0cy5qc29uIGFuZCB0aGUgZXhpdCBjb2RlPC9pPlwifCBzMlxuICBzM1tcIjxpPm5vIGNoYW5nZTwvaT5cIl1cbiAgczIgLS0-fFwiPGI-aW5zcGVjdCgpPC9iPjxicj48aT5yZWFkIHJlc3VsdHMuanNvbiBhbmQgdGhlIGxhc3QgZXhpdCBjb2RlIHdpdGhvdXQgcnVubmluZyBhbnl0aGluZzwvaT5cInwgczMiLCJtZXJtYWlkIjoie1widGhlbWVcIjogXCJkZWZhdWx0XCJ9In0=)
-
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 420}}}%%
-flowchart TD
-  s0["<b>init()</b><br><i>copy examples#47;lru_cache into a fresh project directory#59; no receipt yet</i><br>exitCode = -1<br>mode = none<br>status = none"]
-  s1["exitCode = 0<br>mode = generate-and-replay<br>status = passed"]
-  s0 -->|"<b>session(kind='full', strict=True)</b><br><i>run #96;python -m pytest#96; in the project with the installed plugin and the options for this kind#59; read results.json and the exit code</i>"| s1
-  s2["exitCode = 1<br>status = failed"]
-  s1 -->|"<b>session(kind='noQuint', strict=False)</b><br><i>run #96;python -m pytest#96; in the project with the installed plugin and the options for this kind#59; read results.json and the exit code</i>"| s2
-  s3["<i>no change</i>"]
-  s2 -->|"<b>inspect()</b><br><i>read results.json and the last exit code without running anything</i>"| s3
-```
-
 <details>
-<summary>The same witness as a table</summary>
+<summary>Scenario: Stale success is replaced, step by step</summary>
 
 **Witness `staleSuccessIsReplacedTest`, step by step**: the observation the model starts from, then what it expects each action to change.
 

@@ -9,6 +9,10 @@
 module session_receipts {
   type Event = { op: str, kind: str, strict: bool }
   type Receipt = { status: str, mode: str, exitCode: int }
+  // The states a reader would name: what the latest session left behind. Reports draw the
+  // model's state machine in these names (the manifest's `state_names`); the driver is never
+  // compared on them, `observed` carries what the code must show.
+  type Stage = NoSession | Passed | Failed | Filtered | ReplayOnly
 
   // full:     every case of both contract tests, correct cache
   // filtered: -k "test_lru_cache and witness"
@@ -22,6 +26,7 @@ module session_receipts {
   var observed: Receipt
   // A witness trace from an earlier session in this project is available to replay.
   var traceSaved: bool
+  var stage: Stage
 
   pure def outcome(kind: str, strict: bool): Receipt =
     if (kind == "full") { status: "passed", mode: GENERATED, exitCode: 0 }
@@ -29,10 +34,17 @@ module session_receipts {
     else if (kind == "replay") { status: "partial", mode: "replay-only", exitCode: if (strict) 1 else 0 }
     else { status: "failed", mode: GENERATED, exitCode: 1 }
 
+  pure def stageOf(kind: str): Stage =
+    if (kind == "full") Passed
+    else if (kind == "filtered") Filtered
+    else if (kind == "replay") ReplayOnly
+    else Failed
+
   action init = all {
     event' = { op: "init", kind: "", strict: false },
     observed' = { status: "none", mode: "none", exitCode: -1 },
     traceSaved' = false,
+    stage' = NoSession,
   }
 
   action session(kind: str, strict: bool): bool = all {
@@ -40,12 +52,14 @@ module session_receipts {
     event' = { op: "session", kind: kind, strict: strict },
     observed' = outcome(kind, strict),
     traceSaved' = or { traceSaved, kind == "full", kind == "filtered", kind == "faulty" },
+    stage' = stageOf(kind),
   }
 
   action inspect = all {
     event' = { op: "inspect", kind: "", strict: false },
     observed' = observed,
     traceSaved' = traceSaved,
+    stage' = stage,
   }
 
   action step = {
