@@ -36,10 +36,16 @@ Validation gate ◄── every job; a lane job may be skipped only when the pla
 
     [.github/test-lanes.json](../.github/test-lanes.json) holds only what the workflow
     cannot show: module roots for the top-level test helpers and drivers, the scoped
-    conftest pin and the startup floor budget, and one rule. The rule replaces CI-esta's
-    built-in `python-environment` rule so that lockfiles, `pyproject.toml` and `pytest.ini`
-    files run every lane, while the Read the Docs `documentation/requirements.{in,txt}` run
-    none. The built-in `bun-environment` rule is off: no lane runs Bun, and `counter/` has its
+    conftest pin and the startup floor budget, and two rules:
+    - `python-environment` replaces CI-esta's built-in rule so that lockfiles,
+      `pyproject.toml` and `pytest.ini` files run every lane, while the Read the Docs
+      `documentation/requirements.{in,txt}` run none.
+    - `report-action-runs-this-checkout`: the dogfood job's `./report` action installs this
+      checkout's package from `github.action_path`, which the workflow graph cannot follow, so
+      `src/**`, `README.md` (its contract block is checked) and the sticky banners run
+      `dogfood`.
+
+    The built-in `bun-environment` rule is off: no lane runs Bun, and `counter/` has its
     own workflow. A change to the planner job, or to the lane file it reads, runs every lane.
     A documentation-only change (docs pages, other Markdown, `documentation/`, `mkdocs.yml`)
     runs no lane: no tests, no build, no smoke, no Quint, Node or Windows/macOS runner. Only

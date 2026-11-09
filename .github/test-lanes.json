@@ -27,6 +27,12 @@
       ],
       "select": ["all"],
       "reason": "the test environment; the Read the Docs documentation/requirements.{in,txt} are not part of it"
+    },
+    {
+      "name": "report-action-runs-this-checkout",
+      "when": ["src/**", "README.md", "docs/assets/sticky-banner*.svg"],
+      "select": ["job:.github/workflows/ci.yml#dogfood"],
+      "reason": "the dogfood job's ./report action installs this checkout's package (uvx --from its github.action_path/..), runs its report CLI, checks README.md's contract block and links the banners"
     }
   ],
   "disable_rules": ["bun-environment"]
