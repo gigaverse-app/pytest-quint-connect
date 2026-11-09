@@ -4,6 +4,7 @@ Both views are built from the same rows, read only from ``results.json`` receipt
 never claims more than the sessions that wrote them. The README block leaves out the run, the
 commit and every failure detail, so it changes only when the evidence changes: a committed block
 can be checked against a fresh run the way ``codegen --check`` checks a generated driver.
+This module is a probe target for lane planning.
 """
 
 import ast
