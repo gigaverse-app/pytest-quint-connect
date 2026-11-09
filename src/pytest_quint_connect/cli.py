@@ -82,6 +82,14 @@ def codegen(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _announce(message: str, readme: Path, *, level: str, title: str) -> None:
+    """Print a README message, and in GitHub Actions also as a workflow annotation, so the run summary shows it
+    rather than only the step log."""
+    print(message)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::{level} file={readme},title=pytest-quint-connect {title}::{message}")
+
+
 def _warn_no_block(readme: Path) -> None:
     """A README path without the block is almost always a mistake (README.rst, a typo): say so where it is seen."""
     found = f"has no {START} line" if readme.is_file() else "does not exist"
@@ -90,14 +98,11 @@ def _warn_no_block(readme: Path) -> None:
         "to a Markdown file (beside a README.rst, a contracts/README.md) and pass it with --readme "
         "(the report action's readme input), or set the action's readme-mode to off."
     )
-    print(message)
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        # A workflow annotation, so the run summary shows it rather than only the step log.
-        print(f"::warning file={readme},title=pytest-quint-connect README block::{message}")
+    _announce(message, readme, level="warning", title="README block")
 
 
 def _unsigned(readme: Path, refresh: str) -> str:
-    """Say that a block shows no counter sign, with the command that adds it: in the log, and as a run annotation.
+    """Say that a block shows no counter sign, with the command that adds it; return the PR comment's note.
 
     The report action only checks the block, so a block filled without the sign never gains one by itself.
     """
@@ -107,9 +112,7 @@ def _unsigned(readme: Path, refresh: str) -> str:
         f"{refresh} --counter-sign"
     )
     message = f"{readme}: the block shows no counter sign (optional). To add it, refresh the block with {command}"
-    print(message)
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::notice file={readme},title=pytest-quint-connect counter sign::{message}")
+    _announce(message, readme, level="notice", title="counter sign")
     return f"<sub>`{readme}` shows no counter sign (optional); add it with `{command}`.</sub>"
 
 
