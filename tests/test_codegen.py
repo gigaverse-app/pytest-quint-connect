@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -16,11 +17,12 @@ from pytest_quint_connect.cli import main
 from pytest_quint_connect.codegen import CodegenError, compile_ir, generate_module
 from pytest_quint_connect.contract import load_contract
 from pytest_quint_connect.itf import Record, State
-from pytest_quint_connect.quint import resolve_quint
+from pytest_quint_connect.quint import QuintError, resolve_quint, run
 from pytest_quint_connect.typed import ActionDriver
 
 DATA = Path(__file__).parent / "data"
 DOGFOOD = Path(__file__).resolve().parents[1] / "dogfood"
+SKILL = Path(__file__).resolve().parents[1] / "skills/pytest-quint-connect/SKILL.md"
 
 
 @pytest.fixture(scope="module")
@@ -116,13 +118,23 @@ def test_generated_module_is_stable_under_any_consumer_ruff_config(tmp_path: Pat
     output = tmp_path / "lru_cache_driver.py"
     contract = load_contract(manifest)
     output.write_text(generate_module(contract, compile_ir(contract, quint), output=output), encoding="utf-8")
+    assert_left_alone_by_ruff(output, tmp_path)
+
+
+def assert_left_alone_by_ruff(module: Path, configs: Path) -> None:
+    """Every rule, stable and preview (the fourth trial's `preview = true` flagged RUF105), at any line length."""
     ruff = [sys.executable, "-m", "ruff"]
     for line_length in (40, 79, 88, 200):
-        config = tmp_path / f"ruff-{line_length}.toml"
-        config.write_text(f'line-length = {line_length}\n[lint]\nselect = ["ALL"]\n', encoding="utf-8")
-        for command in (["format", "--check"], ["check"]):
-            result = subprocess.run([*ruff, *command, "--config", str(config), str(output)], capture_output=True)
-            assert result.returncode == 0, (line_length, command, result.stdout, result.stderr)
+        for preview in ("false", "true"):
+            for lint in ('select = ["ALL"]', 'extend-select = ["RUF", "PGH"]', ""):
+                config = configs / f"ruff-{line_length}-{preview}-{len(lint)}.toml"
+                config.write_text(
+                    f"line-length = {line_length}\npreview = {preview}\n[lint]\n{lint}\n", encoding="utf-8"
+                )
+                for command in (["format", "--check"], ["check"]):
+                    arguments = [*ruff, *command, "--no-cache", "--config", str(config), str(module)]
+                    result = subprocess.run(arguments, capture_output=True)
+                    assert result.returncode == 0, (config.read_text(), command, result.stdout, result.stderr)
 
 
 def test_generated_module_is_typed_and_ruff_clean(tmp_path: Path, quint) -> None:
@@ -221,6 +233,38 @@ def test_typecheck_uses_the_pinned_quint_and_reports_its_diagnostic(
     model.write_text(model.read_text().replace("action fetch(key: str)", "action fetch(next: str)"))
     assert main(["typecheck", str(manifest), *flags]) == 2
     assert "Built-in name 'next' is redefined" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["assign", "head"])
+def test_a_reused_built_in_name_says_to_rename_it(tmp_path: Path, quint, capsys: pytest.CaptureFixture[str], name: str):
+    # The fourth trial named a parameter `assign`; Quint's QNT101 says only that the name is redefined.
+    manifest = copy_example(tmp_path)
+    model = tmp_path / "lru.qnt"
+    model.write_text(model.read_text().replace("action fetch(key: str)", f"action fetch({name}: str)"))
+    assert main(["typecheck", str(manifest), "--quint", str(quint.executable)]) == 2
+    error = capsys.readouterr().err
+    hint = f"hint: rename this action, parameter or definition; '{name}' is reserved in Quint (a built-in name)."
+    assert hint in error
+    assert error.index(f"Built-in name '{name}' is redefined") < error.index(hint) < error.index("command failed")
+
+
+def test_the_skill_lists_every_name_quint_reserves(tmp_path: Path) -> None:
+    # The bundled Quint's own list, so a Quint upgrade that reserves a new name fails here until the skill says so.
+    tool = resolve_quint(load_contract(MANIFEST).quint_version, tmp_path, None)
+    names_module = tool.executable.parent.parent / "@informalsystems/quint/dist/src/names/base.js"
+    script = "console.log(JSON.stringify(require(process.argv[1]).builtinNames))"
+    output = subprocess.run(["node", "-e", script, str(names_module)], capture_output=True, text=True, check=True)
+    # `q::test` and the like are not identifiers, so no model can reuse them.
+    reserved = {name for name in json.loads(output.stdout) if name.isidentifier()}
+    paragraph = SKILL.read_text(encoding="utf-8").split("Every built-in name Quint", 1)[1].split("\n\n", 1)[0]
+    assert set(re.findall(r"`([A-Za-z_]\w*)`", paragraph)) == reserved
+    # Each one really is refused as a definition name, in one typecheck of a model that reuses them all.
+    model = tmp_path / "reserved.qnt"
+    model.write_text("module m {\n" + "".join(f"  pure val {name} = 1\n" for name in sorted(reserved)) + "}\n")
+    with pytest.raises(QuintError) as refused:
+        run([*tool.command, "typecheck", str(model)], tmp_path / "typecheck.log", cwd=tmp_path)
+    refused_names = set(re.findall(r"Built-in name '(\w+)' is redefined", (tmp_path / "typecheck.log").read_text()))
+    assert refused_names == reserved, refused.value
 
 
 def test_parameter_that_no_event_field_carries_is_rejected(tmp_path: Path, quint) -> None:

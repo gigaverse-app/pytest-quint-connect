@@ -43,7 +43,8 @@
         "examples/lru_cache/*.json",
         "dogfood/quint-connect.json",
         "dogfood/session.qnt",
-        "dogfood/session_driver.py"
+        "dogfood/session_driver.py",
+        "skills/pytest-quint-connect/SKILL.md"
       ]
     },
     "dogfood": {

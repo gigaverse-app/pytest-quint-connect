@@ -24,9 +24,11 @@ from .typed import codegen_fingerprint
 __all__ = ["CodegenError", "compile_ir", "default_output", "generate_module"]
 
 # Generated modules must not churn under whatever formatter and linter settings a consumer uses:
-# `fmt: off` holds ruff and Black formatting at any line length, and the file-level noqa keeps lint quiet
-# (its own PGH004 line keeps `--select ALL` quiet about the blanket noqa).
-_TOOL_DIRECTIVES = ["# ruff: noqa: PGH004", "# ruff: noqa", "# fmt: off"]
+# `fmt: off` holds ruff and Black formatting at any line length, and the file-level noqa keeps lint quiet.
+# The first line exempts the noqa itself: PGH004 (blanket noqa) under `--select ALL`, preview's RUF105
+# (noqa instead of `ruff: file-ignore`, which has no blanket form) and RUF102 (a code this ruff does not know).
+# Ruff older than RUF105 prints a warning about the unknown codes and still passes.
+_TOOL_DIRECTIVES = ["# ruff: noqa: PGH004, RUF102, RUF105", "# ruff: noqa", "# fmt: off"]
 
 
 class CodegenError(ValueError):

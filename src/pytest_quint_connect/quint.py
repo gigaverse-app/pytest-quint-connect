@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -16,6 +17,8 @@ __all__ = ["Generation", "QuintError", "QuintTool", "generate", "resolve_quint"]
 
 TOOLCHAIN = Path(__file__).resolve().parent / "toolchain"
 _ACCEPTED_STATUS = {"ok", "passed"}
+# QNT101 for a definition or parameter that reuses a Quint built-in name (`next`, `assign`, `head`, ...).
+_BUILTIN_REDEFINED = re.compile(r"Built-in name '([^']+)' is redefined")
 
 
 class QuintError(RuntimeError):
@@ -104,8 +107,24 @@ def run(arguments: list[str], log: Path, *, cwd: Path | None = None, timeout: fl
     if result.returncode:
         # The tool's own words first: reports truncate long errors, and the command line says least.
         tail = "\n".join(result.stdout.strip().splitlines()[-40:])
-        raise QuintError(f"{tail}\ncommand failed ({result.returncode}); log: {log}\ncommand: {' '.join(arguments)}")
+        raise QuintError(
+            f"{tail}\n{_rename_hint(result.stdout)}command failed ({result.returncode}); log: {log}\n"
+            f"command: {' '.join(arguments)}"
+        )
     return result.stdout
+
+
+def _rename_hint(output: str) -> str:
+    """Say what to do about a reused built-in name: Quint's QNT101 says only that it is redefined."""
+    names = list(dict.fromkeys(_BUILTIN_REDEFINED.findall(output)))
+    if not names:
+        return ""
+    quoted = ", ".join(f"'{name}'" for name in names)
+    verb = "is" if len(names) == 1 else "are"
+    return (
+        f"hint: rename this action, parameter or definition; {quoted} {verb} reserved in Quint (a built-in name). "
+        "Names such as key, value, entry or amount are free.\n"
+    )
 
 
 def _managed_install(version: str, logs: Path, notify: Callable[[str], None]) -> Path:

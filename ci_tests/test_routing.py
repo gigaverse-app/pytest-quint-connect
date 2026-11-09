@@ -143,6 +143,13 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(self.lanes(path), {"tests", "package"})
                 self.assertEqual(self.selected_files(path), ("scoped", ["tests/test_release.py"]))
 
+    def test_the_agent_procedure_runs_the_test_that_checks_its_reserved_names(self) -> None:
+        # The skill lists every name the bundled Quint reserves; test_codegen.py compares it with Quint's own list.
+        self.assertEqual(self.lanes("skills/pytest-quint-connect/SKILL.md"), {"tests"})
+        self.assertEqual(
+            self.selected_files("skills/pytest-quint-connect/SKILL.md"), ("scoped", ["tests/test_codegen.py"])
+        )
+
     def test_the_smoke_script_runs_only_the_package_lane(self) -> None:
         self.assertEqual(self.lanes("scripts/smoke_distribution.py"), {"package"})
 

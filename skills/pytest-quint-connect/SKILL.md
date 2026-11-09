@@ -87,9 +87,24 @@ Write `<name>.qnt`, modeling the API boundary, not the implementation:
 - two to four **witnesses** for the scenarios the user cares about, each ending in an assertion:
   `run evictsOldestTest = init.then(put("a", 1)).then(…).then(all { assert(…), inspect })`.
 
-Do not use Quint built-in names as parameters or definitions. `next`, `get`, `put`, `set`,
-`keys`, `size`, `length`, `head`, `item`, `map`, `filter`, `range` and `fail` all fail with
-`QNT101 Built-in name '…' is redefined`. Use `key`, `value`, `amount`, `entry` and the like.
+Do not reuse a Quint built-in name for a definition, an action or a parameter: `typecheck`
+fails with `QNT101 Built-in name '…' is redefined` and a hint to rename it. Models reach most
+often for `next`, `get`, `put`, `set`, `assign`, `keys`, `size`, `length`, `head`, `item`,
+`field`, `map`, `filter`, `range`, `then` and `fail`. Use `key`, `value`, `amount`, `entry` and
+the like. Quint keywords (`all`, `any`, `type`, `val`, `var`, `run`, `action`, `import`) fail
+earlier, with a parse error (QNT000 or QNT008).
+
+Every built-in name Quint 0.33.1 reserves: `not`, `and`, `or`, `iff`, `implies`, `exists`,
+`forall`, `in`, `union`, `contains`, `fold`, `intersect`, `exclude`, `subseteq`, `map`,
+`applyTo`, `filter`, `powerset`, `flatten`, `allLists`, `allListsUpTo`, `getOnlyElement`,
+`chooseSome`, `oneOf`, `isFinite`, `size`, `get`, `put`, `keys`, `mapBy`, `setToMap`,
+`setOfMaps`, `set`, `setBy`, `fields`, `with`, `tuples`, `append`, `concat`, `head`, `tail`,
+`length`, `nth`, `indices`, `replaceAt`, `slice`, `select`, `foldl`, `foldr`, `to`, `always`,
+`eventually`, `next`, `then`, `expect`, `reps`, `fail`, `assert`, `orKeep`, `mustChange`,
+`enabled`, `weakFair`, `strongFair`, `leadsTo`, `Bool`, `Int`, `Nat`, `Set`, `Map`, `List`,
+`Tup`, `Rec`, `range`, `igt`, `ilt`, `igte`, `ilte`, `iadd`, `isub`, `iuminus`, `imul`, `idiv`,
+`imod`, `ipow`, `actionAll`, `actionAny`, `field`, `fieldNames`, `item`, `assign`, `of`, `eq`,
+`neq`, `ite`, `cross`, `difference`, `matchVariant`, `variant`.
 
 Write `quint-connect.json` beside it: every action mapped to the API it drives, the witnesses,
 the mutants (step 4), seeded bounds, and the implementation files in `sources`. Paths in
