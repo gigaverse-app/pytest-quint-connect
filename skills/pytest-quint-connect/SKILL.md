@@ -42,10 +42,23 @@ installed (step 1), read the example and docs at that release, on GitHub:
   `npm --version`). The plugin and the driver base it generates need Python 3.11+. If the repository
   also supports older Pythons, that is fine: the contracts run in their own environment and CI job on
   3.11+ (step 6), never in the older entries of its test matrix.
-- **Install the newest release.** Add `pytest-quint-connect` to the test dependencies the way the
-  repository manages them. Install it so no cache serves an older version: `pip install -U
-  pytest-quint-connect`, or `uv pip install --refresh --upgrade pytest-quint-connect`. Print what
-  you got and compare it with the newest release:
+- **Install the newest release, in its own dependency set.** The plugin loads in every pytest session
+  of the environment it is installed in, so keep it out of the environments the main suite runs in:
+  add a separate, non-default dependency group or extra named `contracts` holding `pytest` and
+  `pytest-quint-connect>=<version>,<2`, in the file the repository already uses for dependencies:
+
+  - uv or PEP 735 dependency groups: `[dependency-groups] contracts = [...]` in `pyproject.toml`; leave
+    it out of uv's `default-groups`; install with `uv sync --locked --group contracts` (a plain
+    `uv sync` does not install it). `uv add --group contracts …` may reformat `pyproject.toml`
+    differently from the file's style: match the existing style and keep the diff to your lines.
+  - extras: `[project.optional-dependencies] contracts = [...]`; install with `pip install -e '.[contracts]'`.
+  - requirements files: a new `requirements-contracts.txt`.
+  - tox: a `contracts` environment that installs that group or extra (step 6), never added to `env_list`.
+
+  Install it into the environment the contracts run in, so no cache serves an older version:
+  `pip install -U pytest-quint-connect`, or `uv pip install --refresh --upgrade pytest-quint-connect`
+  (with a lock: `uv lock --upgrade-package pytest-quint-connect`). Print what you got and compare it
+  with the newest release:
 
   ```bash
   python -c "import importlib.metadata as m; print(m.version('pytest-quint-connect'))"
@@ -54,7 +67,7 @@ installed (step 1), read the example and docs at that release, on GitHub:
 
   If they differ (ignore the tag's leading `v`), reinstall with that version (`pytest-quint-connect==<version>`). A version
   tagged on GitHub but missing from PyPI was never published (1.2.0 is one): use the newest version
-  PyPI has. Later steps pin to the installed version.
+  PyPI has. That version is the floor in `>=<version>,<2`.
 - **Quint** comes with the plugin: on first use it installs its pinned Quint 0.33.1 with npm into a
   user cache and prints `installing the bundled Quint …`. `quint` does not need to be on `PATH`. To see
   which Quint runs, use `pytest-quint-connect typecheck` (step 2): it prints `using the bundled Quint
@@ -71,7 +84,11 @@ installed (step 1), read the example and docs at that release, on GitHub:
 
 ## 2. Model and manifest
 
-Put everything in `contracts/<name>/`, outside the repository's main test paths (step 6).
+Put everything in `contracts/<name>/`, outside the repository's main test paths (step 6). Do not
+name the directory after the package under test or any module it imports (`contracts/bidict/` for
+bidict): wherever `contracts/` is on an import path (a `pythonpath` entry, a type checker's search
+path), that directory can shadow the real package or be mistaken for it. Name the behavior instead
+(`mutable_bidict`, `lru_cache`).
 
 Write `<name>.qnt`, modeling the API boundary, not the implementation:
 
@@ -129,7 +146,11 @@ pytest-quint-connect codegen contracts/<name>/quint-connect.json
 ```
 
 It writes `<module>_driver.py` beside the manifest. Commit it and never edit it; it is already
-exempt from your linters and formatters.
+exempt from your linters and formatters (ruff stable and preview, every rule, and Black), so add no
+per-file ignore for it. If the repository requires a license or copyright header on every file,
+copy that header into a file (or reuse one the repository has), set the manifest's
+`"codegen_header"` to its path relative to the manifest, and rerun `codegen`: it writes those
+comment lines first. Put the same header on the Python files you write yourself.
 
 In `contracts/<name>/conftest.py`, subclass the generated base. Each method calls the real API
 with its arguments; `observe()` reads the real state back as plain data shaped like `observed`.
@@ -227,9 +248,11 @@ report.
   to that file rather than a new `pytest.ini`, or add `--ignore=contracts` to its options. Run the
   command again and confirm.
 - **Add a runner entry** if the repository uses one. For tox, copy
-  [the contracts environment](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/#run-through-tox-or-nox).
-  It holds the dependencies (with the plugin pinned), `pass_env` and the JUnit path. nox passes
-  the environment through unless a session restricts it.
+  [the contracts environment](https://pytest-quint-connect.readthedocs.io/en/latest/docs/ci/#run-through-tox-or-nox)
+  that matches how its other environments install: `deps` for classic tox, or `dependency_groups`
+  when they use `runner = uv-venv-lock-runner` (tox-uv). Either way it holds `pass_env` (tox hides
+  the cache directory otherwise) and the JUnit path, and stays out of `env_list`. nox passes the
+  environment through unless a session restricts it.
 - **Type checks.** If the repository type-checks its tests and `contracts/` falls in that scope,
   install `pytest` and `pytest-quint-connect` in the type-check environment too. The driver
   imports both, and the generated base is typed against them.
@@ -239,24 +262,38 @@ report.
     the test matrix covers older ones.
   - **No `needs:`** on the existing jobs, so an unrelated failure never hides the contract's result.
     If the repository has one aggregate gate job, add this job to the gate's `needs` instead.
-  - **Match the repository's Actions**: the same triggers, and the same major versions or SHA pins
-    it already uses for `actions/checkout`, `setup-python` and `cache`. The page shows current
-    majors; older ones work the same. For an Action it does not use yet (often `setup-node`), take
-    the page's version, pinned the way the repository pins. Node.js: `node-version: '24'` (any 22+).
+  - **Match the repository's runner and environment**: the same `runs-on`, triggers, concurrency,
+    and the same major versions or SHA pins it already uses for `actions/checkout`, `setup-python`
+    and `cache`. The page shows current majors; older ones work the same. For an Action it does not
+    use yet (often `setup-node`), take the page's version, pinned the way the repository pins. When
+    you pin a SHA, add its `# vX.Y.Z` comment even if the repository's existing pins have none.
+    Node.js: `node-version: '24'` (any 22+).
+  - **Jobs that run inside a container or a Nix shell** (`container:`, `nix develop --command …`, a
+    devcontainer): do what the other jobs do, and add Node.js 22+ to that environment instead of a
+    `setup-node` step: `nodejs_24` in the flake's shell (a separate `contracts` dev shell if the
+    default one should not grow), or Node.js in the image. Python comes from the same environment.
   - **Cache key**: hash the file that pins pytest-quint-connect, such as `tox.ini`, a requirements
     file, a lock file or `pyproject.toml`: `hashFiles('tox.ini')`.
-  - Steps: checkout, Python, Node.js, cache, install, `codegen --check`, the contract run, then the
-    report step with `if: ${{ !cancelled() }}`. Write the JUnit file into the artifacts directory,
-    `contracts/.artifacts/quint-connect/junit.xml`.
+  - Steps: checkout, Python, Node.js, cache, install (the `contracts` group or extra from step 1),
+    `codegen --check`, the contract run, then the report step with `if: ${{ !cancelled() }}`. Write
+    the JUnit file into the artifacts directory, `contracts/.artifacts/quint-connect/junit.xml`.
   - Give the job `permissions: {contents: read, pull-requests: write}`. A job-level block replaces
     the workflow-level one for that job, so add any other permission the workflow grants that the
     job needs.
-- **Pin the report action to the installed version.** It renders with its own copy of the code,
-  so a different version can render the README block differently and fail the check. Use
-  `report@v<version>`, the version from step 1, and bump it together with the package. In a
-  repository that pins commit SHAs, use
-  `gh api repos/gigaverse-app/pytest-quint-connect/commits/v<version> --jq .sha`, then
-  `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # v<version>`.
+- **Reference the report action by its major tag**: `uses: gigaverse-app/pytest-quint-connect/report@v1`,
+  even in a repository that pins other actions by SHA, so it upgrades with every 1.x release. It
+  judges a README block another 1.x release wrote by the evidence the block records, so a newer
+  action never fails the check over layout alone. Pin a commit only when the repository's tooling
+  rejects tags: a linter in CI (zizmor's `unpinned-uses`, say) or an all-SHA policy its CI enforces.
+  Then use the release you installed, `gh api repos/gigaverse-app/pytest-quint-connect/commits/v<version> --jq .sha`,
+  as `uses: gigaverse-app/pytest-quint-connect/report@<sha>  # v<version>`.
+- **Action and dependency updaters** (Dependabot, Renovate, a custom `update_actions` workflow):
+  with `@v1` there is nothing to keep in step but the package floor: an updater moves `@v1` only
+  to a new major (then raise the package's `<2` with it), and the package's `>=<version>,<2` floor
+  moves with the repository's usual dependency updates. With a SHA pin, let the updater move the
+  action, at the installed package's release or newer. If an updater would rewrite `@v1` to a SHA
+  (Renovate's `pinGitHubActionDigests`, a custom workflow), or you cannot tell what it will do, say
+  so under "Needs a human".
 - **Sharing totals is the human's decision.** The report action's `share-totals` input defaults to
   `true`: after merges to the default branch it sends each merged pull request's tallies (counts
   only, the repository identified by a SHA-256 of its numeric id) to pytest-quint-connect's public
@@ -272,8 +309,9 @@ report.
   The report step checks exactly this block; the counter sign is optional and never makes it stale.
 - **Links in a PyPI long description.** If you edit a README that is also the package's PyPI page
   (`readme = "README.rst"` in `pyproject.toml`, or `long_description` in `setup.py`), write the link
-  to `contracts/README.md` as an absolute GitHub URL
-  (`https://github.com/OWNER/REPO/blob/<default branch>/contracts/README.md`): relative links break on PyPI.
+  to `contracts/README.md` as an absolute GitHub URL at the repository's canonical URL, the one its
+  `[project.urls]`, `setup.py` or README names, never a fork you happen to work in:
+  `https://github.com/OWNER/REPO/blob/<default branch>/contracts/README.md`. Relative links break on PyPI.
 - **Forks.** GitHub disables a fork's inherited workflows, even when its Actions settings say they
   are enabled. Check `gh api repos/OWNER/REPO/actions/workflows --jq '.workflows[]|{name,state}'`. If
   any state is `disabled_fork` or `disabled_manually`, no run will start: ask the human to enable them
@@ -289,7 +327,11 @@ summary line above), the repository's normal test command, and its lint and type
 If lint fails on files you did not touch (an unpinned linter that has moved on, say), leave those
 files alone and list the failures in your report. `contracts/` itself must pass the repository's own
 formatter and linter configuration: at its line length (88 columns is common), wrap long comments too.
-The generated driver base is already exempt. Then report:
+The generated driver base is already exempt.
+
+If you open a pull request, open it as a draft while CI has not run, and mark it ready for review
+once its CI is green, including the contract job, and every mutant is detected. The human's review
+of the model happens on the ready pull request. Then report:
 
 ```text
 Contract: <name> (contracts/<name>/)
@@ -300,7 +342,8 @@ Mutants: <name>: <the bug it simulates> (detected by <case>; samples <k>/<n>)
 Not covered: <behavior outside the model or the bounds>; see the limits page
 Pre-existing failures: <lint or test failures on files you did not touch, or none>
 Needs a human: review the model; make "<check name>" a required check; share-totals is on (sends merged
-  pull requests' tallies to the public counter): keep it or set share-totals: 'false'; <workflows to enable, if any>
+  pull requests' tallies to the public counter): keep it or set share-totals: 'false'; <workflows to enable, if any>;
+  <an updater that would rewrite the report action's tag, if any>
 ```
 
 An agent can write a wrong model, and a wrong model checks the wrong rules. The human's review
