@@ -1,22 +1,24 @@
 name: Release Please
 
-# Release PRs accumulate changes; merging one is the publishing decision. Every push to main updates the
-# open release PR at once. Publishing is still gated: Publish (release.yml) reruns the full CI on the release
-# tag before anything reaches PyPI.
+# Release PRs accumulate changes; merging one is the publishing decision.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
     branches: [main]
-  workflow_dispatch:
+    types: [completed]
 
 permissions: {}
 
-# Pushes are processed in order; a later push sees every earlier merge on main.
 concurrency:
   group: release-please
   cancel-in-progress: false
 
 jobs:
   release-please:
+    if: >-
+      github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     environment: release-automation
     timeout-minutes: 10
@@ -24,7 +26,15 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Only process the tested main head
+        id: current
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const {data: branch} = await github.rest.repos.getBranch({...context.repo, branch: 'main'});
+            core.setOutput('matches', branch.commit.sha === context.payload.workflow_run.head_sha);
       - name: Require release bot authentication
+        if: steps.current.outputs.matches == 'true'
         env:
           HAS_RELEASE_TOKEN: ${{ secrets.GV_CI_CROSS_REPO_TOKEN != '' }}
         run: |
@@ -33,6 +43,7 @@ jobs:
             exit 1
           fi
       - name: Prepare release PR or publish its GitHub release
+        if: steps.current.outputs.matches == 'true'
         uses: googleapis/release-please-action@v5
         with:
           # This credential triggers CI on release PRs and Publish on releases.
