@@ -118,3 +118,21 @@ def test_historical_model_is_pinned_by_hash(tmp_path: Path) -> None:
     (tmp_path / "audit.qnt").write_bytes(b"// edited historical evidence\n")
     with pytest.raises(ContractError, match="historical model changed"):
         contract.check_historical()
+
+
+def test_a_model_names_its_states_with_a_variable_the_driver_is_not_compared_on(tmp_path: Path) -> None:
+    assert load_contract(MANIFEST).state_names == "fill"
+    assert load_contract(write(tmp_path, state_names=None)).state_names is None
+    # Naming states must never change what the code is checked against.
+    with pytest.raises(ContractError, match="state_names 'observed' is also observed"):
+        load_contract(write(tmp_path, state_names="observed"))
+    with pytest.raises(ContractError, match="'state_names' must be a non-empty string"):
+        load_contract(write(tmp_path, state_names=""))
+
+
+def test_a_model_names_its_steps_with_another_variable_the_driver_is_not_compared_on(tmp_path: Path) -> None:
+    assert load_contract(MANIFEST).step_names == "change"
+    with pytest.raises(ContractError, match="step_names 'observed' is also observed"):
+        load_contract(write(tmp_path, step_names="observed"))
+    with pytest.raises(ContractError, match="must be different variables"):
+        load_contract(write(tmp_path, step_names="fill"))

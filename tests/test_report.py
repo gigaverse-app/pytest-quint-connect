@@ -13,8 +13,10 @@ step by step (``illustrated``), which the report shows as what each contract cla
 with its four mutants and the real bug it found: the receipt this repository's sticky reports.
 """
 
+import base64
 import hashlib
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -237,8 +239,9 @@ def test_the_evidence_fingerprint_is_a_compatibility_contract() -> None:
     """Blocks in adopters' READMEs carry these. Changing what is hashed makes every committed block stale for
     every adopter on the next release, so a change here needs a migration note, not just new goldens."""
     assert {name: evidence_fingerprint(evidence(name)) for name in ("passed", "bug-found")} == {
-        "passed": "5c2c4a3aa52fe038",
-        "bug-found": "12b37a5637965770",
+        # Regenerated receipts carry the model's state machine, which the README block shows, so it is hashed.
+        "passed": "0e41f94228c03d2c",
+        "bug-found": "54f993ec482c1172",
     }
     assert evidence_fingerprint(dogfood()) == "c86dc4be41ef2cfe"
     moved = Evidence([replace(row, root="/elsewhere") for row in evidence("passed").rows], 1, [])
@@ -448,7 +451,10 @@ def headline(text: str) -> list[str]:
 
 
 TERM = f'[Mutant]({MUTANTS} "{MUTANTS_TIP}")'
-CAUGHT = "`witness-evictsLeastRecentlyUsedTest` | state 3, after `fetch(key='a', value=0)`"
+# Receipts regenerated with a generated driver name the action's own arguments and count sampled catches.
+CAUGHT = "`witness-evictsLeastRecentlyUsedTest`<br><sub>samples: 3/12 diverge</sub> | state 3, after `fetch(key='a')`"
+# Older receipts (lru-failed.json) name the whole event record and predate sampled catch counts.
+CAUGHT_EVENT = "`witness-evictsLeastRecentlyUsedTest` | state 3, after `fetch(key='a', value=0)`"
 STALE_READ = "get() returns the value but does not refresh recency, so a just-read entry can be evicted next"
 
 
@@ -622,7 +628,7 @@ def test_receipts_without_mutant_specs_still_say_where_each_mutant_was_caught() 
     # lru-failed.json was written before receipts carried descriptions or found bugs.
     assert block(render_comment(evidence("failed"), repository=REPO), "🧪") == (
         False,
-        [f"| `lru-cache` | `stale-read` | — | {CAUGHT} |"],
+        [f"| `lru-cache` | `stale-read` | — | {CAUGHT_EVENT} |"],
     )
     assert block(render_comment(evidence("partial"), repository=REPO), "🧪 Mutants") == (
         True,
@@ -656,7 +662,10 @@ def test_a_found_bug_claims_no_more_than_its_mutant_shows(tmp_path: Path) -> Non
     expanded, rows = block(comment, "🧪 Mutants")
     assert expanded and [cells.split(" | ")[-2:] for cells in rows] == [
         ["❌ **not caught**", "survived all 15 histories |"],
-        ["`witness-evictsLeastRecentlyUsedTest`", "state 3, after `fetch(key='a', value=0)` |"],
+        [
+            "`witness-evictsLeastRecentlyUsedTest`<br><sub>samples: 3/12 diverge</sub>",
+            "state 3, after `fetch(key='a')` |",
+        ],
     ]
     assert rows[0].startswith("| `lru-cache`<br><sub>`test_lru_contract.py::test_ordered_refactor`</sub> |")
 
@@ -703,6 +712,10 @@ def test_manifest_text_cannot_inject_markup_mentions_or_cells(tmp_path: Path) ->
 
 def test_comment_warns_when_only_witnesses_catch_the_mutants(tmp_path: Path) -> None:
     receipt = json.loads((RECEIPTS / "lru-passed.json").read_text(encoding="utf-8"))
+    for test in receipt["contracts"][0]["tests"]:
+        for mutation in test["mutations"].values():
+            for key in ("caught_by_sample", "samples_diverged", "samples"):
+                mutation.pop(key, None)
     plain = tmp_path / "plain.json"
     plain.write_text(json.dumps(receipt), encoding="utf-8")
     # Receipts from before caught_by_sample existed say nothing either way.
@@ -749,13 +762,13 @@ def test_each_contract_says_what_it_claims_so_a_reviewer_can_judge_the_model() -
     # The first witness, read from its trace: the observation it starts from, then what each action changes.
     assert "**Witness `evictsLeastRecentlyUsedTest`, step by step**" in block
     rows = [line for line in block.splitlines() if line.startswith("| `")]
-    assert rows[0] == "| `0` | `init(key='', value=0)` | `{ entries: [], lastRead: NoRead }` |"
+    assert rows[0] == "| `0` | `init()` | `{ entries: [], lastRead: NoRead }` |"
     assert rows[3] == (
-        "| `3` | `fetch(key='a', value=0)` | "
+        "| `3` | `fetch(key='a')` | "
         '`entries: [{ key: "a", value: 1 }, { key: "b", value: 2 }] → [{ key: "b", value: 2 }, { key: "a", value: 1 }]`'
         "<br>`lastRead: NoRead → Hit(1)` |"
     )
-    assert rows[5] == "| `5` | `inspect(key='', value=0)` | unchanged |"
+    assert rows[5] == "| `5` | `inspect()` | unchanged |"
     assert len(rows) == 6
     # Verdicts come first; the claims follow them.
     assert comment.index("<summary>🧪") < comment.index(CLAIMS)
@@ -787,7 +800,7 @@ def test_claims_from_the_manifest_cannot_inject_markup_or_break_the_table(tmp_pa
     block = claims_block(comment)
     assert "- `store`: &lt;img src=x&gt; pings &#64;octocat" in block
     assert r"**Invariant** `ok'\|</details>`" in block
-    assert r"""| `0` | `init(key='', value=0)` | `{ note: "a\|b'</details>" }` |""" in block
+    assert r"""| `0` | `init()` | `{ note: "a\|b'</details>" }` |""" in block
     assert r"""| `1` | `store(key='a', value=1)` | `note: "a\|b'</details>" → "c\|d'<img src=x>"` |""" in block
     assert all(line.count("|") - line.count(r"\|") == 4 for line in block.splitlines() if line.startswith("| "))
 
@@ -841,3 +854,134 @@ def test_a_field_one_observation_lacks_is_shown_as_absent(tmp_path: Path) -> Non
 
     block = claims_block(render_comment(edited_passed_receipt(tmp_path, drop), repository=REPO))
     assert "| `1` | `store(key='a', value=1)` | `extra: absent → 1` |" in block
+
+
+def mermaid(text: str) -> str:
+    """The first Mermaid diagram in ``text``."""
+    return text.split("```mermaid\n", 1)[1].split("\n```", 1)[0]
+
+
+def test_the_model_is_drawn_as_the_state_machine_it_names_with_a_full_size_link() -> None:
+    comment = render_comment(evidence("passed"), repository=REPO)
+    block = claims_block(comment)
+    # The key is in the model's own words: the doc comments on the variables that name states and steps.
+    key = (
+        "**How `lru-cache` behaves**. **Boxes:** how full the cache is after each step (variable `fill`). "
+        "**Arrows:** what each step did to the cache (variable `change`), in bold, then the action that did it. "
+        "Merged from the 15 histories Quint generated; a state or step none of them reached is not drawn."
+    )
+    assert key in block and block.index(key) < block.index("**Actions**")
+    diagram = mermaid(block)
+    # The diagram carries its own title, and the arrows say what each step did: a full cache evicts.
+    assert diagram.splitlines() == [
+        "---",
+        'title: "lru-cache: how full the cache is after each step"',
+        "---",
+        "stateDiagram-v2",
+        '  state "<b>Empty</b>" as s0',
+        '  state "<b>Partly filled</b>" as s1',
+        '  state "<b>Full</b>" as s2',
+        "  [*] --> s0",
+        "  s0 --> s1 : <b>Added entry</b> #183; store",
+        "  s1 --> s2 : <b>Added entry</b> #183; store",
+        "  s2 --> s2 : <b>Evicted least recently used</b> #183; store<br><b>Replaced value</b> #183; store"
+        "<br><b>Read hit moved to most recent</b> #183; fetch<br><b>Read missed</b> #183; fetch"
+        "<br><b>Nothing changed</b> #183; inspect",
+        "  s1 --> s1 : <b>Replaced value</b> #183; store<br><b>Read missed</b> #183; fetch"
+        "<br><b>Read hit moved to most recent</b> #183; fetch<br><b>Nothing changed</b> #183; inspect",
+        "  s0 --> s0 : <b>Read missed</b> #183; fetch",
+    ]
+    # The link carries this very diagram to mermaid.live in its fragment, which never reaches a server.
+    link = re.search(r"\[Open full size ↗\]\((https://mermaid\.live/view#base64:([A-Za-z0-9_=-]+))\)", block)
+    assert link is not None
+    state = json.loads(base64.urlsafe_b64decode(link.group(2)))
+    assert state["code"] == diagram and json.loads(state["mermaid"]) == {"theme": "default"}
+    assert mermaid(render_readme(evidence("passed"))) == diagram
+    # The witness stays as a table, folded under its scenario's name.
+    assert "<summary>Scenario: Evicts least recently used, step by step</summary>" in block
+
+
+def test_an_arrow_names_the_arguments_every_call_on_it_shared(tmp_path: Path) -> None:
+    def share(contract: dict) -> None:
+        contract["machine"]["transitions"][0]["actions"] = [
+            {"action": "session", "arguments": {"kind": "full"}},
+            {"action": "session", "arguments": {"kind": "replay", "strict": True}, "event_fields": True},
+        ]
+
+    lines = mermaid(render_comment(edited_passed_receipt(tmp_path, share), repository=REPO)).splitlines()
+    assert "  s0 --> s1 : session(kind='full')<br>session(event: kind='replay', strict=True)" in lines
+
+
+def test_a_model_that_names_no_states_is_drawn_by_its_values_and_says_how_to_name_them(tmp_path: Path) -> None:
+    def unnamed(contract: dict) -> None:
+        contract["machine"]["named_by"] = None
+        contract["machine"]["described"] = {}
+        contract["machine"]["states"] = [
+            {"fields": [["entries", "empty"], ["lastRead", "NoRead"]]},
+            {"fields": [["entries", "1 item"], ["lastRead", "NoRead"]]},
+            {"fields": [["entries", "2 items"], ["lastRead", "NoRead"]]},
+        ]
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, unnamed), repository=REPO))
+    assert '  state "entries: empty<br>lastRead: NoRead" as s0' in mermaid(block)
+    assert 'title: "lru-cache: its states, by the values it expects"' in mermaid(block)
+    assert "The model does not name its states: give it a variable that does and set the manifest's `state_names`" in (
+        block
+    )
+
+
+def test_a_machine_too_large_to_draw_is_described_instead(tmp_path: Path) -> None:
+    def explode(contract: dict) -> None:
+        contract["machine"]["states"] = [{"name": f"S{index}"} for index in range(31)]
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, explode), repository=REPO))
+    assert "its histories reached 31 distinct states, too many to draw" in block and "```mermaid" not in block
+
+
+def test_receipt_text_cannot_escape_the_diagram(tmp_path: Path) -> None:
+    hostile = 'x"] --> evil["`</details>```\n<img src=x>|#;:'
+
+    def inject(contract: dict) -> None:
+        machine = contract["machine"]
+        machine["states"][0] = {"name": hostile}
+        machine["states"][1] = {"fields": [[hostile, hostile]]}
+        machine["transitions"][0]["actions"] = [{"action": hostile, "arguments": {hostile: hostile}}]
+
+    comment = render_comment(edited_passed_receipt(tmp_path, inject), repository=REPO)
+    # One fence opens the diagram and one closes it: an injected fence cannot end it early.
+    assert comment.count("```mermaid") == 1
+    for line in mermaid(comment).splitlines()[4:]:
+        label = line.split('"')[1] if '"' in line else line.partition(" : ")[2]
+        # What remains once our own markup and Mermaid's entity codes are taken out is plain text.
+        bare = re.sub(r"</?b>|<br>|#\d+;", "", label)
+        assert not set(bare) & set('"`<>|\n;#'), line
+
+
+@pytest.mark.parametrize(
+    ("witness", "sentence"),
+    [
+        ("evictsLeastRecentlyUsedTest", "Evicts least recently used"),
+        ("staleSuccessIsReplacedTest", "Stale success is replaced"),
+        ("replayIsNeverCompleteTest", "Replay is never complete"),
+        ("reapedOwnerCannotWriteTest", "Reaped owner cannot write"),
+        ("noQuintTTLTest", "No quint TTL"),
+        ("plain_snake_case", "Plain snake case"),
+        ("runWithAPlantedBugTest", "Run with a planted bug"),
+        ("HTTPServerDownTest", "HTTP server down"),
+    ],
+)
+def test_a_witness_name_reads_as_a_scenario(tmp_path: Path, witness: str, sentence: str) -> None:
+    def rename(contract: dict) -> None:
+        contract["illustrated"]["witness"] = witness
+
+    block = claims_block(render_comment(edited_passed_receipt(tmp_path, rename), repository=REPO))
+    assert f"<summary>Scenario: {sentence}, step by step</summary>" in block
+
+
+def test_a_diagram_title_keeps_only_plain_text(tmp_path: Path) -> None:
+    def document(contract: dict) -> None:
+        contract["machine"]["described"] = {"states": 'How "full" <b>`it`</b> is\n---\ntitle: x'}
+
+    lines = mermaid(render_comment(edited_passed_receipt(tmp_path, document), repository=REPO)).splitlines()
+    # Mermaid does not decode entity codes in a title, so anything but plain text is dropped, never escaped.
+    assert lines[:3] == ["---", 'title: "lru-cache: how full b it /b is --- title: x"', "---"]

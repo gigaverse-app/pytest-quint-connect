@@ -247,6 +247,7 @@ class RoutingTests(unittest.TestCase):
                     "dogfood/test_session_contract.py",
                     "tests/test_codegen.py",
                     "tests/test_contract.py",
+                    "tests/test_machine.py",
                     "tests/test_plugin.py",
                     "tests/test_replay.py",
                 ],
@@ -315,7 +316,7 @@ class RoutingTests(unittest.TestCase):
     def test_a_fixture_selects_only_its_readers(self) -> None:
         self.assertEqual(
             self.selected_files("tests/data/lru/sample-5.itf.json"),
-            ("scoped", ["tests/test_codegen.py", "tests/test_itf.py", "tests/test_replay.py"]),
+            ("scoped", ["tests/test_codegen.py", "tests/test_itf.py", "tests/test_machine.py", "tests/test_replay.py"]),
         )
 
     def test_the_quint_lock_selects_every_test_that_installs_quint(self) -> None:

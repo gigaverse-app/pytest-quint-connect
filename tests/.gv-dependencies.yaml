@@ -12,7 +12,7 @@ dependencies:
       Loads the LRU example's cache, driver and generated base by path, and points at its
       model and manifest; every test that imports lru_support depends on the example's
       executable files and pytest configuration, not on its README.
-  - readers: ["test_itf.py", "test_replay.py", "test_codegen.py"]
+  - readers: ["test_itf.py", "test_replay.py", "test_codegen.py", "test_machine.py"]
     inputs: ["data/**"]
     kind: content
     reason: Real Quint 0.33.1 ITF traces and a probe model used as fixtures.

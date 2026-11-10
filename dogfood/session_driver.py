@@ -24,7 +24,7 @@ class SessionReceiptsDriver(ActionDriver):
     """Subclass this, implement each action against the real code, and read state back in observe()."""
 
     __quint_contract__ = "session-receipts"
-    __quint_fingerprint__ = "baa07390d77359250f8124aca773f9f31266e2a0d99ecf9fa21068be02294312"
+    __quint_fingerprint__ = "7b7611833667b4053f3defcdfb928b6d657d7db29873c006c28f143e52a6702f"
     __quint_codegen_command__ = "pytest-quint-connect codegen quint-connect.json -o session_driver.py"
     __quint_actions__ = {
         "init": ("init", ()),

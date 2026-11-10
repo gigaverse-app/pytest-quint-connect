@@ -5,6 +5,8 @@
   "module": "lru_cache",
   "model": "lru.qnt",
   "invariant": "withinCapacity",
+  "state_names": "fill",
+  "step_names": "change",
   "actions": {
     "init": "construct a fresh cache with capacity 2",
     "store": "cache.put(key, value)",

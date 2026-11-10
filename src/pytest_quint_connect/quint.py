@@ -63,6 +63,8 @@ class Generation:
     traces: dict[str, Path]
     commands: list[list[str]] = field(default_factory=list)
     quint: QuintTool | None = None
+    # The model's ``///`` doc comments on its state variables, by variable name, read from the typecheck.
+    docs: dict[str, str] = field(default_factory=dict)
 
 
 def _shim(path: Path) -> Path:
@@ -187,6 +189,26 @@ def resolve_quint(
     return QuintTool(executable, reported, prefix)
 
 
+def variable_docs(typed: Path, module: str) -> dict[str, str]:
+    """The ``///`` doc comment of each state variable of ``module``, from ``quint typecheck --out``.
+
+    Reports title a model's state diagram with them, so a model documents what its states and steps mean
+    in the model itself. A model without doc comments, or output Quint did not write, gives none.
+    """
+    try:
+        document = json.loads(typed.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    docs = {}
+    for candidate in document.get("modules", []):
+        if candidate.get("name") != module:
+            continue
+        for declaration in candidate.get("declarations", []):
+            if declaration.get("kind") == "var" and isinstance(declaration.get("doc"), str):
+                docs[str(declaration.get("name"))] = " ".join(declaration["doc"].split())
+    return docs
+
+
 def generate(contract: Contract, output: Path, tool: QuintTool, *, timeout: float = 300) -> Generation:
     """Typecheck the model, then write fresh witness and sample traces into ``output``.
 
@@ -209,7 +231,9 @@ def generate(contract: Contract, output: Path, tool: QuintTool, *, timeout: floa
         generation.commands.append(arguments)
         run(arguments, output / log, cwd=contract.directory, timeout=timeout)
 
-    call([*quint, "typecheck", model], "typecheck.log")
+    typed = output / "typecheck.json"
+    call([*quint, "typecheck", model, "--out", str(typed)], "typecheck.log")
+    generation.docs = variable_docs(typed, contract.module)
     if contract.witnesses:
         pattern = "^(" + "|".join(contract.witnesses) + ")$"
         call(
