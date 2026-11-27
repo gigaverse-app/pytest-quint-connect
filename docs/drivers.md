@@ -60,7 +60,7 @@ What this catches, and where:
 | --- | --- |
 | An action added or renamed in the model | the regenerated base has a new abstract method; instantiating an incomplete driver raises `TypeError` |
 | A parameter's or an observed field's type changes | mypy or pyright on the driver |
-| The model or the manifest's actions/observe edited without regenerating | every history fails: the base records a fingerprint of both, and names the command to rerun |
+| The model or the manifest's actions/observe edited without regenerating | every history fails: the base records a fingerprint of both, and names the command to rerun. The fingerprint covers the whole `.qnt` file, so editing a witness or a comment needs a rerun too |
 | A committed generated module is out of date | `pytest-quint-connect codegen … --check` exits 1 with a diff |
 
 The generated module is deterministic and fingerprinted. It starts with these lines:
@@ -142,6 +142,65 @@ action put(key: str): bool = {
 The manifest's `observe` stays `observed`, so the driver never reads the order. A
 recency bug still shows, as the wrong key missing from `keys` after an eviction, or the
 wrong `popped`.
+
+### Values that never change
+
+An immutable or persistent structure does not change: each operation returns a new
+value (`m2 = m.set(k, v)`, `snapshot = evolver.persistent()`). Its main rule is about
+the values you no longer hold the newest of: an earlier version must not change when
+a later one is built. So the model observes every value its rules talk about, each as
+its own field, and the driver keeps each one in an attribute that the action rebinds:
+
+```quint
+var observed: { latest: int -> int, snapshot: int -> int, original: int -> int }
+```
+
+```python
+def persist(self) -> None:
+    self.snapshot = self.evolver.persistent()  # keep it; later steps must not change it
+
+def observe(self) -> View:
+    return {"latest": project(self.evolver), "snapshot": project(self.snapshot), "original": project(self.original)}
+```
+
+A step that writes then shows a broken structure as a changed `snapshot` or
+`original`. A mutant that edits shared storage in place, rather than copying it,
+checks that the observation sees this.
+
+When the contents cannot be listed (an evolver or a builder without iteration or
+`items()`), probe a fixed set of keys: every key the model uses, plus a few it never
+does, so a stray entry shows. Such a projection is trusted code that hides whatever
+lies outside the probe set; name the probe set in the manifest's
+[`limits`](manifest.md):
+
+```python
+PROBED = range(8)  # the model uses 0, 1, 2 and 4
+
+
+def project(m) -> dict[int, int]:
+    return {key: m[key] for key in PROBED if key in m}
+```
+
+### Behavior that depends on hashing
+
+Hash-based containers make some behavior depend on the hash function, not on the
+contract: iteration order, and which keys collide in a bucket.
+
+- **Iteration order** is not part of a hash-ordered container's contract. Model it as
+  a `Map` or a `Set`, and observe a `dict` or a `set`, which compare by content. Model a
+  `List` only when the API documents an order (insertion order for `dict`, recency for
+  an LRU cache).
+- **Collisions and resizing** are implementation detail, so the model has no buckets
+  and computes no hashes. It states only what the API promises, and the keys it picks
+  decide which code paths run. Choose keys whose hashes the code places predictably:
+  a small non-negative `int` hashes to itself, so with two buckets the keys 0, 2 and 4 share one, and
+  a fourth key can force a resize. A key class with a fixed `__hash__` and `__eq__` in
+  the driver collides on purpose. Never rely on `str` or `bytes` hashes: Python
+  randomizes them per process (`PYTHONHASHSEED`), so a history would take different
+  paths on every run.
+- **Say what the keys exercise** in the manifest's `limits` (for example, "keys 0, 1, 2
+  and 4 in a two-bucket map"), and leave out of the contract any behavior that only
+  other hash values would reach.
 
 ## Step conventions
 

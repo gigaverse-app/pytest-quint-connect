@@ -75,6 +75,7 @@ def main():
     assert len(search["docs"]) >= len(pages), "Search index does not cover the published pages"
     assert not any("/work-in-progress/" in url or "/plans/" in url for url in locations)
     check_agent_files(root, site)
+    check_adoption_guidance(root)
     print(f"Validated {len(pages)} pages: canonical, descriptions, social metadata, sitemap, search, agent files")
 
 
@@ -83,9 +84,16 @@ def check_agent_files(root, site):
     setup = site / "agent-setup.md"
     assert setup.is_file(), "agent-setup.md missing from the site root"
     assert setup.read_bytes() == (root / "skills/pytest-quint-connect/SKILL.md").read_bytes(), "stale agent-setup.md"
-    # Served raw, so no link rewriting reaches it: every link must be absolute.
+    # Served raw, so no link rewriting reaches it: every link must be absolute, and one into the published
+    # documentation must name a page this build produced and, with a fragment, a heading on that page.
     for target in re.findall(r"\]\(([^)\s]+)\)", setup.read_text(encoding="utf-8")):
         assert urlsplit(target).scheme == "https", f"agent-setup.md: relative link {target}"
+        if target.startswith(LATEST):
+            path, _, fragment = target[len(LATEST) :].partition("#")
+            page = site / path / "index.html"
+            assert page.is_file(), f"agent-setup.md: {target} is not in the built site"
+            if fragment:
+                assert f'id="{fragment}"' in page.read_text(encoding="utf-8"), f"agent-setup.md: no heading {target}"
     llms = site / "llms.txt"
     assert llms.is_file(), "llms.txt missing from the site root"
     text = llms.read_text(encoding="utf-8")
@@ -97,6 +105,38 @@ def check_agent_files(root, site):
             relative = target[len(LATEST) :]
             built = site / relative if relative.endswith(".md") else site / relative / "index.html"
             assert built.is_file(), f"llms.txt: {target} is not in the built site"
+
+
+# The first major of each Action that runs on Node.js 24. Older majors run on Node.js 20, which GitHub deprecates
+# and warns about on every run: an adopter copying a workflow from these pages must not inherit that warning.
+NODE_24_MAJORS = {
+    "actions/cache": 5,
+    "actions/checkout": 5,
+    "actions/download-artifact": 7,
+    "actions/github-script": 8,
+    "actions/setup-node": 5,
+    "actions/setup-python": 6,
+    "actions/upload-artifact": 6,
+    "astral-sh/setup-uv": 7,
+}
+
+
+def check_adoption_guidance(root):
+    """What an adopting agent copies: workflows on Node.js 24, both tox spellings, and a README fill with the sign."""
+    skill = root / "skills/pytest-quint-connect/SKILL.md"
+    copied = [skill, root / "README.md", root / "report/action.yml", *sorted((root / "docs").glob("*.md"))]
+    for source in copied:
+        text = source.read_text(encoding="utf-8")
+        for action, major in re.findall(r"uses: ([\w.-]+/[\w.-]+)@v(\d+)\b", text):
+            floor = NODE_24_MAJORS.get(action)
+            assert floor is None or int(major) >= floor, f"{source.name}: {action}@v{major} runs on Node.js 20"
+        # tox 3 files say envlist, tox 4's documentation env_list: name both wherever the list is mentioned.
+        if "`env_list`" in text:
+            assert "`envlist`" in text, f"{source.name}: names tox's env_list without the envlist spelling"
+    # The report action only checks the README block, so the fill command the skill gives is the only place a
+    # counter sign gets in.
+    fills = [line for line in skill.read_text(encoding="utf-8").splitlines() if "--readme <file>" in line]
+    assert fills and all("--counter-sign" in line for line in fills), "SKILL.md: README fill without --counter-sign"
 
 
 if __name__ == "__main__":

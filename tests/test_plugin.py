@@ -114,6 +114,20 @@ def test_mutants_caught_only_by_witnesses_are_called_out(pytester: pytest.Pytest
     )
 
 
+def test_mutants_no_witness_catches_are_called_out(pytester: pytest.Pytester, example: Path) -> None:
+    # A miss never touches recency, so the one witness left cannot catch stale-read; the samples still do.
+    edit_manifest(example, witnesses=["missKeepsContentsTest"])
+    result = pytester.runpytest("-k", "test_lru_cache")
+    result.assert_outcomes(passed=15, deselected=15)
+    stale = receipt(example)["contracts"][0]["tests"][0]["mutations"]["stale-read"]
+    assert stale["detected_by"].startswith("sample-") and stale["caught_by_sample"] is True
+    assert_output(result, "test_lru_cache: mutant 'stale-read' caught by no witness; only sampled histories caught it")
+    # With the witness written for it, the same mutant carries no such line.
+    edit_manifest(example, witnesses=["evictsLeastRecentlyUsedTest", "missKeepsContentsTest"])
+    result = pytester.runpytest("-k", "test_lru_cache")
+    assert "caught by no witness" not in result.stdout.str()
+
+
 def test_receipt_records_what_the_contract_claims(pytester: pytest.Pytester, example: Path) -> None:
     pytester.runpytest("-k", "test_lru_cache and witness-evictsLeastRecentlyUsedTest").assert_outcomes(passed=1)
     (contract,) = receipt(example)["contracts"]
